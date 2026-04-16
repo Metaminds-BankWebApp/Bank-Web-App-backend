@@ -1,70 +1,147 @@
--- Roles
-INSERT INTO roles (name)
-SELECT 'ADMIN'
-WHERE NOT EXISTS (SELECT 1 FROM roles WHERE name = 'ADMIN');
-
-INSERT INTO roles (name)
-SELECT 'BANK_OFFICER'
-WHERE NOT EXISTS (SELECT 1 FROM roles WHERE name = 'BANK_OFFICER');
-
-INSERT INTO roles (name)
-SELECT 'BANK_CUSTOMER'
-WHERE NOT EXISTS (SELECT 1 FROM roles WHERE name = 'BANK_CUSTOMER');
-
-INSERT INTO roles (name)
-SELECT 'PUBLIC_CUSTOMER'
-WHERE NOT EXISTS (SELECT 1 FROM roles WHERE name = 'PUBLIC_CUSTOMER');
-
--- Users
-INSERT INTO users (full_name, email, password, phone_number, status, created_at, updated_at)
-SELECT 'John Admin', 'admin@bank.com', 'hashed_password_admin', '+1234567890', 'ACTIVE', NOW(), NOW()
-WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = 'admin@bank.com');
-
-INSERT INTO users (full_name, email, password, phone_number, status, created_at, updated_at)
-SELECT 'Jane Officer', 'officer@bank.com', 'hashed_password_officer', '+1234567891', 'ACTIVE', NOW(), NOW()
-WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = 'officer@bank.com');
-
-INSERT INTO users (full_name, email, password, phone_number, status, created_at, updated_at)
-SELECT 'Bob Customer', 'customer@bank.com', 'hashed_password_customer', '+1234567892', 'ACTIVE', NOW(), NOW()
-WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = 'customer@bank.com');
-
-INSERT INTO users (full_name, email, password, phone_number, status, created_at, updated_at)
-SELECT 'Alice Public', 'public@bank.com', 'hashed_password_public', '+1234567893', 'ACTIVE', NOW(), NOW()
-WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = 'public@bank.com');
-
--- User-role mappings
-INSERT INTO user_roles (user_id, role_id)
-SELECT u.id, r.id
-FROM users u
-JOIN roles r ON r.name = 'ADMIN'
-WHERE u.email = 'admin@bank.com'
-AND NOT EXISTS (
-    SELECT 1 FROM user_roles ur WHERE ur.user_id = u.id AND ur.role_id = r.id
+INSERT INTO roles (role_name, description, created_at)
+SELECT 'ADMIN', 'System administrators with full access.', NOW()
+WHERE NOT EXISTS (
+    SELECT 1 FROM roles WHERE role_name = 'ADMIN'
 );
 
-INSERT INTO user_roles (user_id, role_id)
-SELECT u.id, r.id
-FROM users u
-JOIN roles r ON r.name = 'BANK_OFFICER'
-WHERE u.email = 'officer@bank.com'
-AND NOT EXISTS (
-    SELECT 1 FROM user_roles ur WHERE ur.user_id = u.id AND ur.role_id = r.id
+INSERT INTO roles (role_name, description, created_at)
+SELECT 'BANK_OFFICER', 'Bank staff users who manage customer-facing operations.', NOW()
+WHERE NOT EXISTS (
+    SELECT 1 FROM roles WHERE role_name = 'BANK_OFFICER'
 );
 
-INSERT INTO user_roles (user_id, role_id)
-SELECT u.id, r.id
-FROM users u
-JOIN roles r ON r.name = 'BANK_CUSTOMER'
-WHERE u.email = 'customer@bank.com'
-AND NOT EXISTS (
-    SELECT 1 FROM user_roles ur WHERE ur.user_id = u.id AND ur.role_id = r.id
+INSERT INTO roles (role_name, description, created_at)
+SELECT 'BANK_CUSTOMER', 'Registered bank customers who use banking services.', NOW()
+WHERE NOT EXISTS (
+    SELECT 1 FROM roles WHERE role_name = 'BANK_CUSTOMER'
 );
 
-INSERT INTO user_roles (user_id, role_id)
-SELECT u.id, r.id
-FROM users u
-JOIN roles r ON r.name = 'PUBLIC_CUSTOMER'
-WHERE u.email = 'public@bank.com'
+INSERT INTO roles (role_name, description, created_at)
+SELECT 'PUBLIC_CUSTOMER', 'General public users with limited access.', NOW()
+WHERE NOT EXISTS (
+    SELECT 1 FROM roles WHERE role_name = 'PUBLIC_CUSTOMER'
+);
+
+INSERT INTO users (
+    role_id,
+    username,
+    email,
+    password_hash,
+    first_name,
+    last_name,
+    phone,
+    nic,
+    status,
+    created_at,
+    updated_at
+)
+SELECT
+    r.role_id,
+    'admin_demo',
+    'admin@bank.com',
+    'hashed_password_admin',
+    'John',
+    'Admin',
+    '+1234567890',
+    'NIC1001',
+    'ACTIVE',
+    NOW(),
+    NOW()
+FROM roles r
+WHERE r.role_name = 'ADMIN'
 AND NOT EXISTS (
-    SELECT 1 FROM user_roles ur WHERE ur.user_id = u.id AND ur.role_id = r.id
+    SELECT 1 FROM users WHERE email = 'admin@bank.com'
+);
+
+INSERT INTO users (
+    role_id,
+    username,
+    email,
+    password_hash,
+    first_name,
+    last_name,
+    phone,
+    nic,
+    status,
+    created_at,
+    updated_at
+)
+SELECT
+    r.role_id,
+    'officer_demo',
+    'officer@bank.com',
+    'hashed_password_officer',
+    'Jane',
+    'Officer',
+    '+1234567891',
+    'NIC1002',
+    'ACTIVE',
+    NOW(),
+    NOW()
+FROM roles r
+WHERE r.role_name = 'BANK_OFFICER'
+AND NOT EXISTS (
+    SELECT 1 FROM users WHERE email = 'officer@bank.com'
+);
+
+INSERT INTO users (
+    role_id,
+    username,
+    email,
+    password_hash,
+    first_name,
+    last_name,
+    phone,
+    nic,
+    status,
+    created_at,
+    updated_at
+)
+SELECT
+    r.role_id,
+    'customer_demo',
+    'customer@bank.com',
+    'hashed_password_customer',
+    'Bob',
+    'Customer',
+    '+1234567892',
+    'NIC1003',
+    'ACTIVE',
+    NOW(),
+    NOW()
+FROM roles r
+WHERE r.role_name = 'BANK_CUSTOMER'
+AND NOT EXISTS (
+    SELECT 1 FROM users WHERE email = 'customer@bank.com'
+);
+
+INSERT INTO users (
+    role_id,
+    username,
+    email,
+    password_hash,
+    first_name,
+    last_name,
+    phone,
+    nic,
+    status,
+    created_at,
+    updated_at
+)
+SELECT
+    r.role_id,
+    'public_demo',
+    'public@bank.com',
+    'hashed_password_public',
+    'Alice',
+    'Public',
+    '+1234567893',
+    'NIC1004',
+    'ACTIVE',
+    NOW(),
+    NOW()
+FROM roles r
+WHERE r.role_name = 'PUBLIC_CUSTOMER'
+AND NOT EXISTS (
+    SELECT 1 FROM users WHERE email = 'public@bank.com'
 );
