@@ -7,10 +7,8 @@ import com.bank_web_app.backend.user.entity.Role;
 import com.bank_web_app.backend.user.entity.User;
 import com.bank_web_app.backend.user.repository.RoleRepository;
 import com.bank_web_app.backend.user.repository.UserRepository;
-import java.time.LocalDate;
-import java.time.format.DateTimeParseException;
-import java.util.Optional;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -119,12 +117,7 @@ public class UserServiceImpl implements UserService {
 		user.setLastName(request.lastName().trim());
 		user.setPhone(request.mobile().trim());
 		user.setNic(request.nic().trim());
-		user.setDob(parseDob(request.dob().trim()));
 		user.setStatus(status);
-
-		// Current schema uses CHAR(1) for province and address. Persist safe placeholders for now.
-		user.setProvince(deriveSingleChar(request.province().trim()));
-		user.setAddress(deriveSingleChar(request.address().trim()));
 
 		User saved = userRepository.save(user);
 
@@ -183,21 +176,6 @@ public class UserServiceImpl implements UserService {
 		}
 
 		return null;
-	}
-
-	private LocalDate parseDob(String dob) {
-		try {
-			return LocalDate.parse(dob);
-		} catch (DateTimeParseException ex) {
-			throw new IllegalArgumentException("DOB must be in yyyy-MM-dd format.");
-		}
-	}
-
-	private String deriveSingleChar(String value) {
-		if (value.isBlank()) {
-			return "-";
-		}
-		return String.valueOf(Character.toUpperCase(value.charAt(0)));
 	}
 
 	private String formatCustomerId(Long userId) {
