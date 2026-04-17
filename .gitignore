@@ -37,4 +37,5 @@ build/
 .env.*
 !.env.example
 
+### Local App Config ###
 src/main/resources/application.yaml
