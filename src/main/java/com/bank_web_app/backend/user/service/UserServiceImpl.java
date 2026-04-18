@@ -74,8 +74,24 @@ public class UserServiceImpl implements UserService {
 	@Override
 	@Transactional(readOnly = true)
 	public List<BankCustomerSummaryResponse> getBankCustomersForOfficer() {
+		return getUsersByRole(ROLE_BANK_CUSTOMER);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<BankCustomerSummaryResponse> getPublicCustomers() {
+		return getUsersByRole(ROLE_PUBLIC_CUSTOMER);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<BankCustomerSummaryResponse> getBankOfficers() {
+		return getUsersByRole(ROLE_BANK_OFFICER);
+	}
+
+	private List<BankCustomerSummaryResponse> getUsersByRole(String roleName) {
 		return userRepository
-			.findAllByRole_RoleNameOrderByUpdatedAtDesc(ROLE_BANK_CUSTOMER)
+			.findAllByRole_RoleNameOrderByUpdatedAtDesc(roleName)
 			.stream()
 			.map(user ->
 				new BankCustomerSummaryResponse(

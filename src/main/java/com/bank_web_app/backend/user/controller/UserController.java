@@ -100,4 +100,32 @@ public class UserController {
 	public ResponseEntity<List<BankCustomerSummaryResponse>> getBankCustomersForOfficer() {
 		return ResponseEntity.ok(userService.getBankCustomersForOfficer());
 	}
+
+	@GetMapping("/public-customer")
+	@Operation(
+		summary = "Get all public customers",
+		description = "Returns all PUBLIC_CUSTOMER users.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Public customers retrieved successfully"),
+			@ApiResponse(responseCode = "401", description = "Unauthorized"),
+			@ApiResponse(responseCode = "403", description = "Forbidden")
+		}
+	)
+	public ResponseEntity<List<BankCustomerSummaryResponse>> getPublicCustomers() {
+		return ResponseEntity.ok(userService.getPublicCustomers());
+	}
+
+	@GetMapping("/bank-officer")
+	@Operation(
+		summary = "Get all bank officers",
+		description = "Returns all BANK_OFFICER users.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Bank officers retrieved successfully"),
+			@ApiResponse(responseCode = "401", description = "Unauthorized"),
+			@ApiResponse(responseCode = "403", description = "Forbidden")
+		}
+	)
+	public ResponseEntity<List<BankCustomerSummaryResponse>> getBankOfficers() {
+		return ResponseEntity.ok(userService.getBankOfficers());
+	}
 }

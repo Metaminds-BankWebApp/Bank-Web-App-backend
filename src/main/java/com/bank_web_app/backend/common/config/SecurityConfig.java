@@ -34,6 +34,7 @@ public class SecurityConfig {
 				.requestMatchers("/error").permitAll()
 				.requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/refresh", "/api/auth/logout").permitAll()
 				.requestMatchers(HttpMethod.GET, "/api/users/bank-officer/customers").permitAll()
+				.requestMatchers(HttpMethod.GET, "/api/users/bank-officer").permitAll()
 				.requestMatchers("/api/users/public-customer/**", "/api/users/bank-customer/**").permitAll()
 				.requestMatchers("/api/users/bank-officer/**").hasAnyRole("BANK_OFFICER", "ADMIN")
 				.anyRequest().authenticated()
