@@ -1,6 +1,7 @@
 package com.bank_web_app.backend.user.entity;
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -53,6 +54,15 @@ public class User {
 
     @Column(name = "nic", unique = true, length = 20)
     private String nic;
+
+    @Column(name = "dob")
+    private LocalDate dob;
+
+    @Column(name = "province", length = 100)
+    private String province;
+
+    @Column(name = "address", length = 255)
+    private String address;
 
     @Column(name = "status", nullable = false, length = 20)
     private String status;

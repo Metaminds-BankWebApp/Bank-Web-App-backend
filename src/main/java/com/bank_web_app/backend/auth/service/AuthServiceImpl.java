@@ -5,7 +5,7 @@ import com.bank_web_app.backend.auth.dto.request.RefreshTokenRequest;
 import com.bank_web_app.backend.auth.dto.response.LoginResponse;
 import com.bank_web_app.backend.auth.entity.RefreshToken;
 import com.bank_web_app.backend.auth.repository.RefreshTokenRepository;
-import com.bank_web_app.backend.security.JwtService;
+import com.bank_web_app.backend.security.jwt.JwtService;
 import com.bank_web_app.backend.user.entity.User;
 import com.bank_web_app.backend.user.repository.UserRepository;
 import java.nio.charset.StandardCharsets;
