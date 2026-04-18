@@ -57,61 +57,31 @@ public class UserController {
 		return ResponseEntity.ok(userService.continueBankCustomerStepOne(request));
 	}
 
-	@PostMapping("/public-customer/step-1/draft")
+	@PostMapping("/public-customer")
 	@Operation(
-		summary = "Save Public Customer step-1 draft",
-		description = "Stores first-step personal information for PUBLIC_CUSTOMER registration in users table with DRAFT state.",
+		summary = "Register Public Customer",
+		description = "Stores step-one personal information for PUBLIC_CUSTOMER registration in users table.",
 		responses = {
-			@ApiResponse(responseCode = "200", description = "Draft saved successfully"),
+			@ApiResponse(responseCode = "200", description = "Registration saved successfully"),
 			@ApiResponse(responseCode = "400", description = "Validation failed")
 		}
 	)
-	public ResponseEntity<UserRegistrationStepResponse> savePublicCustomerStepOneDraft(
-		@Valid @RequestBody BankCustomerStepOneRequest request
-	) {
-		return ResponseEntity.ok(userService.savePublicCustomerStepOneDraft(request));
-	}
-
-	@PostMapping("/public-customer/step-1/continue")
-	@Operation(
-		summary = "Save and continue Public Customer step-1",
-		description = "Stores first-step personal information for PUBLIC_CUSTOMER registration in users table and marks state as PENDING_STEP_2.",
-		responses = {
-			@ApiResponse(responseCode = "200", description = "Step saved successfully"),
-			@ApiResponse(responseCode = "400", description = "Validation failed")
-		}
-	)
-	public ResponseEntity<UserRegistrationStepResponse> continuePublicCustomerStepOne(
+	public ResponseEntity<UserRegistrationStepResponse> registerPublicCustomer(
 		@Valid @RequestBody BankCustomerStepOneRequest request
 	) {
 		return ResponseEntity.ok(userService.continuePublicCustomerStepOne(request));
 	}
 
-	@PostMapping("/bank-officer/step-1/draft")
+	@PostMapping("/bank-officer")
 	@Operation(
-		summary = "Save Bank Officer step-1 draft",
-		description = "Stores first-step personal information for BANK_OFFICER registration in users table with DRAFT state.",
+		summary = "Register Bank Officer",
+		description = "Stores step-one personal information for BANK_OFFICER registration in users table.",
 		responses = {
-			@ApiResponse(responseCode = "200", description = "Draft saved successfully"),
+			@ApiResponse(responseCode = "200", description = "Registration saved successfully"),
 			@ApiResponse(responseCode = "400", description = "Validation failed")
 		}
 	)
-	public ResponseEntity<UserRegistrationStepResponse> saveBankOfficerStepOneDraft(
-		@Valid @RequestBody BankCustomerStepOneRequest request
-	) {
-		return ResponseEntity.ok(userService.saveBankOfficerStepOneDraft(request));
-	}
-
-	@PostMapping("/bank-officer/step-1/continue")
-	@Operation(
-		summary = "Save and continue Bank Officer step-1",
-		description = "Stores first-step personal information for BANK_OFFICER registration in users table and marks state as PENDING_STEP_2.",
-		responses = {
-			@ApiResponse(responseCode = "200", description = "Step saved successfully"),
-			@ApiResponse(responseCode = "400", description = "Validation failed")
-		}
-	)
-	public ResponseEntity<UserRegistrationStepResponse> continueBankOfficerStepOne(
+	public ResponseEntity<UserRegistrationStepResponse> registerBankOfficer(
 		@Valid @RequestBody BankCustomerStepOneRequest request
 	) {
 		return ResponseEntity.ok(userService.continueBankOfficerStepOne(request));

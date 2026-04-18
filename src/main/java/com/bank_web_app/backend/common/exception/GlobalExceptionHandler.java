@@ -2,6 +2,8 @@ package com.bank_web_app.backend.common.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.stream.Collectors;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -36,6 +38,15 @@ public class GlobalExceptionHandler {
 		MethodArgumentNotValidException ex,
 		HttpServletRequest request
 	) {
+		Map<String, String> fieldErrors = new LinkedHashMap<>();
+		ex
+			.getBindingResult()
+			.getFieldErrors()
+			.forEach(error -> {
+				String message = error.getDefaultMessage() == null ? (error.getField() + " is invalid.") : error.getDefaultMessage();
+				fieldErrors.putIfAbsent(error.getField(), message);
+			});
+
 		String message = ex.getBindingResult()
 			.getFieldErrors()
 			.stream()
@@ -47,7 +58,7 @@ public class GlobalExceptionHandler {
 			message = "Request validation failed.";
 		}
 
-		return build(HttpStatus.BAD_REQUEST, message, request.getRequestURI());
+		return build(HttpStatus.BAD_REQUEST, message, request.getRequestURI(), fieldErrors.isEmpty() ? null : fieldErrors);
 	}
 
 	@ExceptionHandler(HttpMessageNotReadableException.class)
@@ -64,6 +75,14 @@ public class GlobalExceptionHandler {
 		HttpServletRequest request
 	) {
 		return build(HttpStatus.CONFLICT, "Request conflicts with existing data constraints.", request.getRequestURI());
+	}
+
+	@ExceptionHandler(DuplicateFieldsException.class)
+	public ResponseEntity<ApiErrorResponse> handleDuplicateFields(
+		DuplicateFieldsException ex,
+		HttpServletRequest request
+	) {
+		return build(HttpStatus.CONFLICT, "Some values are already in use.", request.getRequestURI(), ex.getFieldErrors());
 	}
 
 	@ExceptionHandler(ResponseStatusException.class)
@@ -90,12 +109,22 @@ public class GlobalExceptionHandler {
 	}
 
 	private ResponseEntity<ApiErrorResponse> build(HttpStatus status, String message, String path) {
+		return build(status, message, path, null);
+	}
+
+	private ResponseEntity<ApiErrorResponse> build(
+		HttpStatus status,
+		String message,
+		String path,
+		Map<String, String> fieldErrors
+	) {
 		ApiErrorResponse body = new ApiErrorResponse(
 			Instant.now(),
 			status.value(),
 			status.getReasonPhrase(),
 			message,
-			path
+			path,
+			fieldErrors
 		);
 		return ResponseEntity.status(status).body(body);
 	}
