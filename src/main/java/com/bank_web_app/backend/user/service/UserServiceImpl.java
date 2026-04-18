@@ -155,8 +155,7 @@ public class UserServiceImpl implements UserService {
 		if (value == null || value.trim().isEmpty()) {
 			throw new IllegalArgumentException(message);
 		}
-	}
-
+	}		
 	private User resolveTargetUser(Optional<User> existingByUsername, Optional<User> existingByEmail) {
 		if (existingByUsername.isPresent() && existingByEmail.isPresent()) {
 			User byUsername = existingByUsername.get();
