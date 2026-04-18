@@ -1,5 +1,6 @@
 package com.bank_web_app.backend.user.service;
 
+import com.bank_web_app.backend.common.exception.DuplicateFieldsException;
 import com.bank_web_app.backend.user.dto.request.BankCustomerStepOneRequest;
 import com.bank_web_app.backend.user.dto.response.BankCustomerSummaryResponse;
 import com.bank_web_app.backend.user.dto.response.UserRegistrationStepResponse;
@@ -7,8 +8,10 @@ import com.bank_web_app.backend.user.entity.Role;
 import com.bank_web_app.backend.user.entity.User;
 import com.bank_web_app.backend.user.repository.RoleRepository;
 import com.bank_web_app.backend.user.repository.UserRepository;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Optional;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -71,8 +74,24 @@ public class UserServiceImpl implements UserService {
 	@Override
 	@Transactional(readOnly = true)
 	public List<BankCustomerSummaryResponse> getBankCustomersForOfficer() {
+		return getUsersByRole(ROLE_BANK_CUSTOMER);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<BankCustomerSummaryResponse> getPublicCustomers() {
+		return getUsersByRole(ROLE_PUBLIC_CUSTOMER);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<BankCustomerSummaryResponse> getBankOfficers() {
+		return getUsersByRole(ROLE_BANK_OFFICER);
+	}
+
+	private List<BankCustomerSummaryResponse> getUsersByRole(String roleName) {
 		return userRepository
-			.findAllByRole_RoleNameOrderByUpdatedAtDesc(ROLE_BANK_CUSTOMER)
+			.findAllByRole_RoleNameOrderByUpdatedAtDesc(roleName)
 			.stream()
 			.map(user ->
 				new BankCustomerSummaryResponse(
@@ -101,22 +120,40 @@ public class UserServiceImpl implements UserService {
 			.findByRoleName(roleName)
 			.orElseThrow(() -> new IllegalStateException("Role " + roleName + " not found in roles table."));
 
-		Optional<User> existingByUsername = userRepository.findByUsername(request.username().trim());
-		Optional<User> existingByEmail = userRepository.findByEmail(request.email().trim());
+		String username = request.username().trim();
+		String email = request.email().trim();
+		String nic = request.nic().trim();
 
-		User user = resolveTargetUser(existingByUsername, existingByEmail);
-		if (user == null) {
-			user = new User();
+		LinkedHashMap<String, String> duplicateFieldErrors = new LinkedHashMap<>();
+		if (userRepository.existsByUsername(username)) {
+			duplicateFieldErrors.put("username", "Username is already in use.");
 		}
 
+		if (userRepository.existsByEmail(email)) {
+			duplicateFieldErrors.put("email", "Email is already in use.");
+		}
+
+		if (userRepository.existsByNic(nic)) {
+			duplicateFieldErrors.put("nic", "NIC is already in use.");
+		}
+
+		if (!duplicateFieldErrors.isEmpty()) {
+			throw new DuplicateFieldsException(duplicateFieldErrors);
+		}
+
+		User user = new User();
+
 		user.setRole(registrationRole);
-		user.setUsername(request.username().trim());
-		user.setEmail(request.email().trim());
+		user.setUsername(username);
+		user.setEmail(email);
 		user.setPasswordHash(passwordEncoder.encode(request.password()));
 		user.setFirstName(request.firstName().trim());
 		user.setLastName(request.lastName().trim());
 		user.setPhone(request.mobile().trim());
-		user.setNic(request.nic().trim());
+		user.setNic(nic);
+		user.setDob(parseDob(request.dob()));
+		user.setProvince(request.province().trim());
+		user.setAddress(request.address().trim());
 		user.setStatus(status);
 
 		User saved = userRepository.save(user);
@@ -155,26 +192,14 @@ public class UserServiceImpl implements UserService {
 		if (value == null || value.trim().isEmpty()) {
 			throw new IllegalArgumentException(message);
 		}
-	}		
-	private User resolveTargetUser(Optional<User> existingByUsername, Optional<User> existingByEmail) {
-		if (existingByUsername.isPresent() && existingByEmail.isPresent()) {
-			User byUsername = existingByUsername.get();
-			User byEmail = existingByEmail.get();
-			if (!byUsername.getUserId().equals(byEmail.getUserId())) {
-				throw new IllegalArgumentException("Username or email is already used by another user.");
-			}
-			return byUsername;
-		}
+	}
 
-		if (existingByUsername.isPresent()) {
-			return existingByUsername.get();
+	private LocalDate parseDob(String dob) {
+		try {
+			return LocalDate.parse(dob.trim());
+		} catch (DateTimeParseException ex) {
+			throw new IllegalArgumentException("DOB must be in yyyy-MM-dd format.");
 		}
-
-		if (existingByEmail.isPresent()) {
-			return existingByEmail.get();
-		}
-
-		return null;
 	}
 
 	private String formatCustomerId(Long userId) {

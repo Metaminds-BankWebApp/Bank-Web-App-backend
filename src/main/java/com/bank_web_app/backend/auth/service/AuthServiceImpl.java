@@ -18,10 +18,7 @@ import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.DisabledException;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -34,20 +31,20 @@ public class AuthServiceImpl implements AuthService {
 	private final UserRepository userRepository;
 	private final JwtService jwtService;
 	private final RefreshTokenRepository refreshTokenRepository;
-	private final AuthenticationManager authenticationManager;
+	private final PasswordEncoder passwordEncoder;
 	private final long refreshTokenExpirationMs;
 
 	public AuthServiceImpl(
 		UserRepository userRepository,
 		JwtService jwtService,
 		RefreshTokenRepository refreshTokenRepository,
-		AuthenticationManager authenticationManager,
+		PasswordEncoder passwordEncoder,
 		@Value("${jwt.refresh-token-expiration-ms:1209600000}") long refreshTokenExpirationMs
 	) {
 		this.userRepository = userRepository;
 		this.jwtService = jwtService;
 		this.refreshTokenRepository = refreshTokenRepository;
-		this.authenticationManager = authenticationManager;
+		this.passwordEncoder = passwordEncoder;
 		this.refreshTokenExpirationMs = refreshTokenExpirationMs;
 	}
 
@@ -55,18 +52,15 @@ public class AuthServiceImpl implements AuthService {
 	@Transactional
 	public LoginResponse login(LoginRequest request) {
 		String email = request.email().trim().toLowerCase(Locale.ROOT);
-
-		try {
-			authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(email, request.password()));
-		} catch (DisabledException ex) {
-			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User account is inactive.");
-		} catch (AuthenticationException ex) {
-			throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password.");
-		}
+		String password = request.password();
 
 		User user = userRepository
 			.findByEmail(email)
 			.orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password."));
+
+		if (!matchesPasswordAndUpgradeIfNeeded(user, password)) {
+			throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password.");
+		}
 
 		if ("INACTIVE".equalsIgnoreCase(user.getStatus())) {
 			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User account is inactive.");
@@ -184,6 +178,29 @@ public class AuthServiceImpl implements AuthService {
 		} catch (NoSuchAlgorithmException ex) {
 			throw new IllegalStateException("Unable to hash refresh token.", ex);
 		}
+	}
+
+	private boolean matchesPasswordAndUpgradeIfNeeded(User user, String rawPassword) {
+		String stored = user.getPasswordHash();
+		if (stored == null || stored.isBlank()) {
+			return false;
+		}
+
+		if (isBcryptHash(stored)) {
+			return passwordEncoder.matches(rawPassword, stored);
+		}
+
+		boolean matched = stored.equals(rawPassword);
+		if (matched) {
+			user.setPasswordHash(passwordEncoder.encode(rawPassword));
+			userRepository.save(user);
+		}
+
+		return matched;
+	}
+
+	private boolean isBcryptHash(String value) {
+		return value.startsWith("$2a$") || value.startsWith("$2b$") || value.startsWith("$2y$");
 	}
 
 	private String safe(String value) {
