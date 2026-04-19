@@ -2,6 +2,8 @@ package com.bank_web_app.backend.common.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.stream.Collectors;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -36,6 +38,15 @@ public class GlobalExceptionHandler {
 		MethodArgumentNotValidException ex,
 		HttpServletRequest request
 	) {
+		Map<String, String> fieldErrors = new LinkedHashMap<>();
+		ex
+			.getBindingResult()
+			.getFieldErrors()
+			.forEach(error -> {
+				String message = error.getDefaultMessage() == null ? (error.getField() + " is invalid.") : error.getDefaultMessage();
+				fieldErrors.putIfAbsent(error.getField(), message);
+			});
+
 		String message = ex.getBindingResult()
 			.getFieldErrors()
 			.stream()
@@ -47,7 +58,7 @@ public class GlobalExceptionHandler {
 			message = "Request validation failed.";
 		}
 
-		return build(HttpStatus.BAD_REQUEST, message, request.getRequestURI());
+		return build(HttpStatus.BAD_REQUEST, message, request.getRequestURI(), fieldErrors.isEmpty() ? null : fieldErrors);
 	}
 
 	@ExceptionHandler(HttpMessageNotReadableException.class)
@@ -63,7 +74,19 @@ public class GlobalExceptionHandler {
 		DataIntegrityViolationException ex,
 		HttpServletRequest request
 	) {
+		Map<String, String> fieldErrors = extractFieldErrorsFromDataIntegrity(ex);
+		if (!fieldErrors.isEmpty()) {
+			return build(HttpStatus.CONFLICT, "Some values are already in use.", request.getRequestURI(), fieldErrors);
+		}
 		return build(HttpStatus.CONFLICT, "Request conflicts with existing data constraints.", request.getRequestURI());
+	}
+
+	@ExceptionHandler(DuplicateFieldsException.class)
+	public ResponseEntity<ApiErrorResponse> handleDuplicateFields(
+		DuplicateFieldsException ex,
+		HttpServletRequest request
+	) {
+		return build(HttpStatus.CONFLICT, "Some values are already in use.", request.getRequestURI(), ex.getFieldErrors());
 	}
 
 	@ExceptionHandler(ResponseStatusException.class)
@@ -90,13 +113,52 @@ public class GlobalExceptionHandler {
 	}
 
 	private ResponseEntity<ApiErrorResponse> build(HttpStatus status, String message, String path) {
+		return build(status, message, path, null);
+	}
+
+	private ResponseEntity<ApiErrorResponse> build(
+		HttpStatus status,
+		String message,
+		String path,
+		Map<String, String> fieldErrors
+	) {
 		ApiErrorResponse body = new ApiErrorResponse(
 			Instant.now(),
 			status.value(),
 			status.getReasonPhrase(),
 			message,
-			path
+			path,
+			fieldErrors
 		);
 		return ResponseEntity.status(status).body(body);
+	}
+
+	private Map<String, String> extractFieldErrorsFromDataIntegrity(DataIntegrityViolationException ex) {
+		Map<String, String> fieldErrors = new LinkedHashMap<>();
+		String message = ex.getMostSpecificCause() != null ? ex.getMostSpecificCause().getMessage() : ex.getMessage();
+		if (message == null || message.isBlank()) {
+			return fieldErrors;
+		}
+
+		String normalized = message.toLowerCase();
+		if (normalized.contains("username") || normalized.contains("users_username_key")) {
+			fieldErrors.put("username", "Username is already in use.");
+		}
+		if (normalized.contains("email") || normalized.contains("users_email_key")) {
+			fieldErrors.put("email", "Email is already in use.");
+		}
+		if (normalized.contains("nic") || normalized.contains("users_nic_key")) {
+			fieldErrors.put("nic", "NIC is already in use.");
+		}
+		if (
+			normalized.contains("account_id") ||
+			normalized.contains("bank_customers_account_id_key") ||
+			normalized.contains("account_number") ||
+			normalized.contains("accounts_account_number_key")
+		) {
+			fieldErrors.put("bankAccount", "Bank account is already linked or already exists.");
+		}
+
+		return fieldErrors;
 	}
 }

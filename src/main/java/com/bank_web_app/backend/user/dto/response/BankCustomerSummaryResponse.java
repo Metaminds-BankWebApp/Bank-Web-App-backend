@@ -2,7 +2,7 @@ package com.bank_web_app.backend.user.dto.response;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-@Schema(name = "BankCustomerSummaryResponse", description = "Bank customer summary used by officer customer table")
+@Schema(name = "BankCustomerSummaryResponse", description = "Unified customer summary for officer/customer/admin listings")
 public record BankCustomerSummaryResponse(
 	@Schema(example = "42")
 	Long userId,

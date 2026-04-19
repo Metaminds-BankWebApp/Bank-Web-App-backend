@@ -20,4 +20,8 @@ public interface UserService {
 	UserRegistrationStepResponse continueBankOfficerStepOne(BankCustomerStepOneRequest request);
 
 	List<BankCustomerSummaryResponse> getBankCustomersForOfficer();
+
+	List<BankCustomerSummaryResponse> getPublicCustomers();
+
+	List<BankCustomerSummaryResponse> getBankOfficers();
 }
