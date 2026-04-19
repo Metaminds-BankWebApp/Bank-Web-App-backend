@@ -1,4 +1,4 @@
-package com.bank_web_app.backend.bankofficer.service;
+package com.bank_web_app.backend.admin.service;
 
 import com.bank_web_app.backend.user.dto.request.BankCustomerStepOneRequest;
 import com.bank_web_app.backend.user.dto.response.BankCustomerSummaryResponse;
@@ -8,23 +8,23 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 
 @Service
-public class CustomerOnboardingService {
+public class AdminBankOfficerService {
 
 	private final UserService userService;
 
-	public CustomerOnboardingService(UserService userService) {
+	public AdminBankOfficerService(UserService userService) {
 		this.userService = userService;
 	}
 
-	public UserRegistrationStepResponse createOfficerDraft(BankCustomerStepOneRequest request) {
+	public UserRegistrationStepResponse createDraft(BankCustomerStepOneRequest request) {
 		return userService.saveBankOfficerStepOneDraft(request);
 	}
 
-	public UserRegistrationStepResponse createOfficer(BankCustomerStepOneRequest request) {
+	public UserRegistrationStepResponse create(BankCustomerStepOneRequest request) {
 		return userService.continueBankOfficerStepOne(request);
 	}
 
-	public List<BankCustomerSummaryResponse> getBankOfficers() {
+	public List<BankCustomerSummaryResponse> getAll() {
 		return userService.getBankOfficers();
 	}
 }
