@@ -25,9 +25,14 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Predicate;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class UserServiceImpl implements UserService {
@@ -130,17 +135,12 @@ return new UserRegistrationStepResponse(user.getUserId(), ROLE_BANK_OFFICER, STA
 @Override
 @Transactional(readOnly = true)
 public List<BankCustomerSummaryResponse> getBankCustomersForOfficer() {
-return userRepository
-.findAllByRole_RoleNameOrderByUpdatedAtDesc(ROLE_BANK_CUSTOMER)
-.stream()
-.map(user -> {
-String customerCode = bankCustomerRepository
-.findByUser_UserId(user.getUserId())
-.map(BankCustomer::getCustomerCode)
-.orElse(formatCode("BC", user.getUserId()));
-return toSummary(user, customerCode);
-})
-.toList();
+	BankOfficer officer = resolveLoggedInBankOfficer();
+	return bankCustomerRepository
+		.findAllByOfficer_OfficerIdOrderByUpdatedAtDesc(officer.getOfficerId())
+		.stream()
+		.map(customer -> toSummary(customer.getUser(), customer.getCustomerCode()))
+		.toList();
 }
 
 @Override
@@ -233,32 +233,15 @@ bankOfficerRepository.save(officer);
 }
 
 private void createBankCustomerProfile(BankCustomerStepOneRequest request, User user, String accessStatus) {
-Long branchId = request.branchId();
-Long officerId = request.officerId();
-if (branchId == null) {
-throw new IllegalArgumentException("Branch id is required for bank customer registration.");
-}
-if (officerId == null) {
-throw new IllegalArgumentException("Officer id is required for bank customer registration.");
-}
+	BankOfficer loggedOfficer = resolveLoggedInBankOfficer();
 
 String accountNumber = resolveAccountNumber(request);
-if (accountRepository.existsByAccountNumber(accountNumber)) {
-throw new IllegalArgumentException("Account number is already in use.");
-}
-Account account = new Account();
-account.setAccountNumber(accountNumber);
-account.setAccountType(resolveAccountType(request.accountType()));
-account.setBalance(request.openingBalance() == null ? BigDecimal.ZERO : request.openingBalance());
-account.setStatus(STATUS_ACTIVE);
-Account savedAccount = accountRepository.save(account);
-
-Branch branch = branchRepository
-.findById(branchId)
-.orElseThrow(() -> new IllegalArgumentException("Branch not found."));
-BankOfficer officer = bankOfficerRepository
-.findById(officerId)
-.orElseThrow(() -> new IllegalArgumentException("Officer not found."));
+	Account savedAccount = accountRepository
+		.findByAccountNumber(accountNumber)
+		.orElseThrow(() -> new IllegalArgumentException("Account not found."));
+	if (bankCustomerRepository.existsByAccount_AccountId(savedAccount.getAccountId())) {
+		throw new IllegalArgumentException("Bank account is already linked to another customer.");
+	}
 
 String customerCode = resolveCustomerCode(
 request.customerCode(),
@@ -269,11 +252,35 @@ bankCustomerRepository::existsByCustomerCode
 BankCustomer customer = new BankCustomer();
 customer.setUser(user);
 customer.setCustomerCode(customerCode);
-customer.setOfficer(officer);
-customer.setBranch(branch);
+	customer.setOfficer(loggedOfficer);
+	customer.setBranch(loggedOfficer.getBranch());
 customer.setAccount(savedAccount);
 customer.setAccessStatus(accessStatus);
 bankCustomerRepository.save(customer);
+}
+
+private BankOfficer resolveLoggedInBankOfficer() {
+	Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+	if (
+		authentication == null ||
+		!authentication.isAuthenticated() ||
+		authentication instanceof AnonymousAuthenticationToken ||
+		authentication.getName() == null ||
+		authentication.getName().isBlank()
+	) {
+		throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Bank officer authentication is required.");
+	}
+
+	String principal = authentication.getName().trim();
+	String normalizedPrincipal = principal.toLowerCase(Locale.ROOT);
+	User officerUser = userRepository
+		.findByEmail(normalizedPrincipal)
+		.or(() -> userRepository.findByUsername(principal))
+		.or(() -> userRepository.findByUsername(normalizedPrincipal))
+		.orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Logged-in user was not found."));
+
+	return bankOfficerRepository.findByUser_UserId(officerUser.getUserId())
+		.orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Logged-in user is not a bank officer."));
 }
 
 private String resolveAccountNumber(BankCustomerStepOneRequest request) {

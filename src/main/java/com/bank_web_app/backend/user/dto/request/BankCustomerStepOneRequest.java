@@ -56,10 +56,10 @@ String confirmPassword,
 @Schema(description = "Legacy bank account field retained for backward compatibility.", example = "123456789")
 @Positive(message = "Bank account must be a positive integer.")
 Integer bankAccount,
-@Schema(description = "Branch id used for BANK_CUSTOMER and BANK_OFFICER flows.", example = "1")
+@Schema(description = "Branch id kept for backward compatibility. BANK_CUSTOMER flow resolves branch from the authenticated officer.", example = "1")
 @Positive(message = "Branch id must be a positive number.")
 Long branchId,
-@Schema(description = "Officer id for BANK_CUSTOMER onboarding. Optional for other roles.", example = "5")
+@Schema(description = "Officer id kept for backward compatibility. BANK_CUSTOMER flow resolves officer from the authenticated user.", example = "5")
 @Positive(message = "Officer id must be a positive number.")
 Long officerId,
 @Schema(description = "Employee code used when creating BANK_OFFICER.", example = "EMP-BO-1001")
@@ -71,7 +71,7 @@ Long createdByAdminUserId,
 @Schema(description = "Customer code override. If empty, service auto-generates one.", example = "BC-000123")
 @Size(max = 50, message = "Customer code must not exceed 50 characters.")
 String customerCode,
-@Schema(description = "Account number for BANK_CUSTOMER.", example = "20010010012345")
+@Schema(description = "Account number used to look up or create the account row, then retrieve accountId.", example = "20010010012345")
 @Size(max = 30, message = "Account number must not exceed 30 characters.")
 String accountNumber,
 @Schema(description = "Account type for BANK_CUSTOMER. Defaults to SAVINGS.", example = "SAVINGS")
