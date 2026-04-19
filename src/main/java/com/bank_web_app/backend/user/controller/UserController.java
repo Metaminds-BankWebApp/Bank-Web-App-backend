@@ -60,7 +60,7 @@ public class UserController {
 	@PostMapping("/public-customer")
 	@Operation(
 		summary = "Register Public Customer",
-		description = "Stores step-one personal information for PUBLIC_CUSTOMER registration in users table.",
+		description = "Completes PUBLIC_CUSTOMER registration and stores status as SUCCESS.",
 		responses = {
 			@ApiResponse(responseCode = "200", description = "Registration saved successfully"),
 			@ApiResponse(responseCode = "400", description = "Validation failed")
@@ -75,7 +75,7 @@ public class UserController {
 	@PostMapping("/bank-officer")
 	@Operation(
 		summary = "Register Bank Officer",
-		description = "Stores step-one personal information for BANK_OFFICER registration in users table.",
+		description = "Completes BANK_OFFICER registration and stores status as SUCCESS.",
 		responses = {
 			@ApiResponse(responseCode = "200", description = "Registration saved successfully"),
 			@ApiResponse(responseCode = "400", description = "Validation failed")
