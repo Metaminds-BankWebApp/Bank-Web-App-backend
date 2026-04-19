@@ -6,6 +6,4 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface PublicCustomerIncomeRepository extends JpaRepository<PublicCustomerIncome, Long> {
 	List<PublicCustomerIncome> findAllByFinancialRecord_RecordId(Long recordId);
-
-	void deleteByFinancialRecord_RecordId(Long recordId);
 }
