@@ -1,4 +1,4 @@
-package com.bank_web_app.backend.security;
+package com.bank_web_app.backend.security.jwt;
 
 import com.bank_web_app.backend.user.entity.User;
 import com.bank_web_app.backend.user.repository.UserRepository;
