@@ -2,7 +2,7 @@
 
 ## Development Demo Logins
 
-The following demo users are seeded by Flyway migration `V3__seed_demo_users.sql`.
+The following demo users are seeded by Flyway migration `V3__seed_roles_and_demo_users.sql`.
 
 Important:
 - Seeded password value is `Demo@1234`.

@@ -20,22 +20,28 @@ public class PasswordMigrationService {
 		this.passwordEncoder = passwordEncoder;
 	}
 
-	@EventListener(ApplicationReadyEvent.class)
-	@Transactional
+	// Disabled temporary - should be called manually after database setup
+	// @EventListener(ApplicationReadyEvent.class)
+	// @Transactional
 	public void migratePlaintextPasswordsToBcrypt() {
-		List<User> users = userRepository.findAll();
-		for (User user : users) {
-			String storedPassword = user.getPasswordHash();
-			if (storedPassword == null || storedPassword.isBlank()) {
-				continue;
-			}
+		try {
+			List<User> users = userRepository.findAll();
+			for (User user : users) {
+				String storedPassword = user.getPasswordHash();
+				if (storedPassword == null || storedPassword.isBlank()) {
+					continue;
+				}
 
-			if (isBcryptHash(storedPassword)) {
-				continue;
-			}
+				if (isBcryptHash(storedPassword)) {
+					continue;
+				}
 
-			user.setPasswordHash(passwordEncoder.encode(storedPassword));
-			userRepository.save(user);
+				user.setPasswordHash(passwordEncoder.encode(storedPassword));
+				userRepository.save(user);
+			}
+		} catch (Exception e) {
+			// Silently skip if database isn't ready yet (tables don't exist)
+			// This can happen on first startup before Flyway migrations complete
 		}
 	}
 

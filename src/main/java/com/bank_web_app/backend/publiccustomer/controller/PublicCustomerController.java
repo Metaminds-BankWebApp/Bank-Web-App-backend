@@ -1,6 +1,6 @@
-package com.bank_web_app.backend.bankcustomer.controller;
+package com.bank_web_app.backend.publiccustomer.controller;
 
-import com.bank_web_app.backend.bankcustomer.service.BankCustomerService;
+import com.bank_web_app.backend.publiccustomer.service.PublicCustomerService;
 import com.bank_web_app.backend.user.dto.request.BankCustomerStepOneRequest;
 import com.bank_web_app.backend.user.dto.response.BankCustomerSummaryResponse;
 import com.bank_web_app.backend.user.dto.response.UserRegistrationStepResponse;
@@ -14,27 +14,27 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/bank-customers")
-public class BankCustomerController {
+@RequestMapping("/api/public-customers")
+public class PublicCustomerController {
 
-	private final BankCustomerService bankCustomerService;
+	private final PublicCustomerService publicCustomerService;
 
-	public BankCustomerController(BankCustomerService bankCustomerService) {
-		this.bankCustomerService = bankCustomerService;
+	public PublicCustomerController(PublicCustomerService publicCustomerService) {
+		this.publicCustomerService = publicCustomerService;
 	}
 
-	@PostMapping("/step-1/draft")
+	@PostMapping("/draft")
 	public ResponseEntity<UserRegistrationStepResponse> saveDraft(@Valid @RequestBody BankCustomerStepOneRequest request) {
-		return ResponseEntity.ok(bankCustomerService.saveDraft(request));
+		return ResponseEntity.ok(publicCustomerService.saveDraft(request));
 	}
 
-	@PostMapping("/step-1/continue")
-	public ResponseEntity<UserRegistrationStepResponse> saveAndContinue(@Valid @RequestBody BankCustomerStepOneRequest request) {
-		return ResponseEntity.ok(bankCustomerService.saveAndContinue(request));
+	@PostMapping
+	public ResponseEntity<UserRegistrationStepResponse> register(@Valid @RequestBody BankCustomerStepOneRequest request) {
+		return ResponseEntity.ok(publicCustomerService.register(request));
 	}
 
 	@GetMapping
 	public ResponseEntity<List<BankCustomerSummaryResponse>> getAll() {
-		return ResponseEntity.ok(bankCustomerService.getAllForOfficerView());
+		return ResponseEntity.ok(publicCustomerService.getAll());
 	}
 }
