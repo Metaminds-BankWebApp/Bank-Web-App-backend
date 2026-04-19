@@ -64,6 +64,9 @@ public class User {
     @Column(name = "address", length = 255)
     private String address;
 
+    @Column(name = "profile_picture_url", length = 500)
+    private String profilePictureUrl;
+
     @Column(name = "status", nullable = false, length = 20)
     private String status;
 
