@@ -74,6 +74,10 @@ public class GlobalExceptionHandler {
 		DataIntegrityViolationException ex,
 		HttpServletRequest request
 	) {
+		Map<String, String> fieldErrors = extractFieldErrorsFromDataIntegrity(ex);
+		if (!fieldErrors.isEmpty()) {
+			return build(HttpStatus.CONFLICT, "Some values are already in use.", request.getRequestURI(), fieldErrors);
+		}
 		return build(HttpStatus.CONFLICT, "Request conflicts with existing data constraints.", request.getRequestURI());
 	}
 
@@ -127,5 +131,34 @@ public class GlobalExceptionHandler {
 			fieldErrors
 		);
 		return ResponseEntity.status(status).body(body);
+	}
+
+	private Map<String, String> extractFieldErrorsFromDataIntegrity(DataIntegrityViolationException ex) {
+		Map<String, String> fieldErrors = new LinkedHashMap<>();
+		String message = ex.getMostSpecificCause() != null ? ex.getMostSpecificCause().getMessage() : ex.getMessage();
+		if (message == null || message.isBlank()) {
+			return fieldErrors;
+		}
+
+		String normalized = message.toLowerCase();
+		if (normalized.contains("username") || normalized.contains("users_username_key")) {
+			fieldErrors.put("username", "Username is already in use.");
+		}
+		if (normalized.contains("email") || normalized.contains("users_email_key")) {
+			fieldErrors.put("email", "Email is already in use.");
+		}
+		if (normalized.contains("nic") || normalized.contains("users_nic_key")) {
+			fieldErrors.put("nic", "NIC is already in use.");
+		}
+		if (
+			normalized.contains("account_id") ||
+			normalized.contains("bank_customers_account_id_key") ||
+			normalized.contains("account_number") ||
+			normalized.contains("accounts_account_number_key")
+		) {
+			fieldErrors.put("bankAccount", "Bank account is already linked or already exists.");
+		}
+
+		return fieldErrors;
 	}
 }
