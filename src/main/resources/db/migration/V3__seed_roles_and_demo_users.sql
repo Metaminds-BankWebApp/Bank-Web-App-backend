@@ -6,9 +6,9 @@ VALUES
     ('PUBLIC_CUSTOMER', 'Public customer user', CURRENT_TIMESTAMP)
 ON CONFLICT (role_name) DO NOTHING;
 
-INSERT INTO branches (branch_code, branch_name, branch_email, branch_phone, address, status, created_at)
+INSERT INTO branches (branch_code, branch_name, branch_email, branch_phone, address, status, created_at, updated_at)
 VALUES
-    ('COL-001', 'Colombo Main', 'colombo.main@primecore.local', '0112000001', 'No 1, Main Street, Colombo', 'ACTIVE', CURRENT_TIMESTAMP)
+    ('COL-001', 'Colombo Main', 'colombo.main@primecore.local', '0112000001', 'No 1, Main Street, Colombo', 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 ON CONFLICT (branch_code) DO NOTHING;
 
 WITH admin_role AS (
