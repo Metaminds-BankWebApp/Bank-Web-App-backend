@@ -4,6 +4,7 @@ import com.bank_web_app.backend.publiccustomer.dto.request.PublicCustomerCardSte
 import com.bank_web_app.backend.publiccustomer.dto.request.PublicCustomerIncomeStepRequest;
 import com.bank_web_app.backend.publiccustomer.dto.request.PublicCustomerLiabilityStepRequest;
 import com.bank_web_app.backend.publiccustomer.dto.request.PublicCustomerLoanStepRequest;
+import com.bank_web_app.backend.publiccustomer.dto.response.PublicCustomerMeResponse;
 import com.bank_web_app.backend.publiccustomer.dto.response.PublicCustomerFinancialRecordResponse;
 import com.bank_web_app.backend.publiccustomer.dto.response.PublicCustomerFinancialRecordSummaryResponse;
 import com.bank_web_app.backend.publiccustomer.dto.response.PublicCustomerFinancialStepResponse;
@@ -22,12 +23,19 @@ import com.bank_web_app.backend.publiccustomer.repository.PublicCustomerLiabilit
 import com.bank_web_app.backend.publiccustomer.repository.PublicCustomerLoanRepository;
 import com.bank_web_app.backend.publiccustomer.repository.PublicCustomerMissedPaymentRepository;
 import com.bank_web_app.backend.publiccustomer.repository.PublicCustomerProfileRepository;
+import com.bank_web_app.backend.user.entity.User;
+import com.bank_web_app.backend.user.repository.UserRepository;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class PublicCustomerFinancialRecordService {
@@ -40,6 +48,7 @@ public class PublicCustomerFinancialRecordService {
 	private final PublicCustomerLiabilityRepository liabilityRepository;
 	private final PublicCustomerMissedPaymentRepository missedPaymentRepository;
 	private final PublicCustomerFinancialRecordMapper financialRecordMapper;
+	private final UserRepository userRepository;
 
 	public PublicCustomerFinancialRecordService(
 		PublicCustomerProfileRepository publicCustomerProfileRepository,
@@ -49,7 +58,8 @@ public class PublicCustomerFinancialRecordService {
 		PublicCustomerCardRepository cardRepository,
 		PublicCustomerLiabilityRepository liabilityRepository,
 		PublicCustomerMissedPaymentRepository missedPaymentRepository,
-		PublicCustomerFinancialRecordMapper financialRecordMapper
+		PublicCustomerFinancialRecordMapper financialRecordMapper,
+		UserRepository userRepository
 	) {
 		this.publicCustomerProfileRepository = publicCustomerProfileRepository;
 		this.financialRecordRepository = financialRecordRepository;
@@ -59,12 +69,25 @@ public class PublicCustomerFinancialRecordService {
 		this.liabilityRepository = liabilityRepository;
 		this.missedPaymentRepository = missedPaymentRepository;
 		this.financialRecordMapper = financialRecordMapper;
+		this.userRepository = userRepository;
+	}
+
+	@Transactional(readOnly = true)
+	public PublicCustomerMeResponse getLoggedInPublicCustomerProfile() {
+		PublicCustomerProfile profile = resolveLoggedInPublicCustomerProfile();
+		return new PublicCustomerMeResponse(
+			profile.getPublicCustomerId(),
+			profile.getUser().getUserId(),
+			profile.getCustomerCode()
+		);
 	}
 
 	@Transactional
 	public PublicCustomerFinancialStepResponse saveIncomeStep(Long publicCustomerId, PublicCustomerIncomeStepRequest request) {
 		PublicCustomerFinancialRecord currentRecord = getOrCreateCurrentRecord(publicCustomerId);
 		Long recordId = currentRecord.getRecordId();
+
+		incomeRepository.deleteByFinancialRecord_RecordId(recordId);
 
 		for (PublicCustomerIncomeStepRequest.IncomeItem incomeItem : request.incomes()) {
 			PublicCustomerIncome income = new PublicCustomerIncome();
@@ -87,6 +110,8 @@ public class PublicCustomerFinancialRecordService {
 		PublicCustomerFinancialRecord currentRecord = getOrCreateCurrentRecord(publicCustomerId);
 		Long recordId = currentRecord.getRecordId();
 
+		loanRepository.deleteByFinancialRecord_RecordId(recordId);
+
 		for (PublicCustomerLoanStepRequest.LoanItem loanItem : request.loans()) {
 			PublicCustomerLoan loan = new PublicCustomerLoan();
 			loan.setFinancialRecord(currentRecord);
@@ -105,6 +130,8 @@ public class PublicCustomerFinancialRecordService {
 		PublicCustomerFinancialRecord currentRecord = getOrCreateCurrentRecord(publicCustomerId);
 		Long recordId = currentRecord.getRecordId();
 
+		cardRepository.deleteByFinancialRecord_RecordId(recordId);
+
 		for (PublicCustomerCardStepRequest.CardItem cardItem : request.cards()) {
 			PublicCustomerCard card = new PublicCustomerCard();
 			card.setFinancialRecord(currentRecord);
@@ -122,6 +149,8 @@ public class PublicCustomerFinancialRecordService {
 	public PublicCustomerFinancialStepResponse saveLiabilityStep(Long publicCustomerId, PublicCustomerLiabilityStepRequest request) {
 		PublicCustomerFinancialRecord currentRecord = getOrCreateCurrentRecord(publicCustomerId);
 		Long recordId = currentRecord.getRecordId();
+
+		liabilityRepository.deleteByFinancialRecord_RecordId(recordId);
 
 		for (PublicCustomerLiabilityStepRequest.LiabilityItem liabilityItem : request.liabilities()) {
 			PublicCustomerLiability liability = new PublicCustomerLiability();
@@ -228,5 +257,30 @@ public class PublicCustomerFinancialRecordService {
 	private void touchRecord(PublicCustomerFinancialRecord record) {
 		record.setUpdatedAt(LocalDateTime.now());
 		financialRecordRepository.save(record);
+	}
+
+	private PublicCustomerProfile resolveLoggedInPublicCustomerProfile() {
+		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+		if (
+			authentication == null ||
+			!authentication.isAuthenticated() ||
+			authentication instanceof AnonymousAuthenticationToken ||
+			authentication.getName() == null ||
+			authentication.getName().isBlank()
+		) {
+			throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Public customer authentication is required.");
+		}
+
+		String principal = authentication.getName().trim();
+		String normalizedPrincipal = principal.toLowerCase(Locale.ROOT);
+		User user = userRepository
+			.findByEmail(normalizedPrincipal)
+			.or(() -> userRepository.findByUsername(principal))
+			.or(() -> userRepository.findByUsername(normalizedPrincipal))
+			.orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Logged-in user was not found."));
+
+		return publicCustomerProfileRepository
+			.findByUser_UserId(user.getUserId())
+			.orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Logged-in user is not a public customer."));
 	}
 }
