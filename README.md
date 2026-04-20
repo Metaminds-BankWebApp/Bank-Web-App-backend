@@ -25,7 +25,7 @@ Use role only for authorization and UI branching.
 
 Public Customer flow:
 - Use publicCustomerId from /api/auth/me.
-- Call public customer application and financial endpoints with that ID.
+- Make relevant [functionality] with permit with that ID.
 
 Bank Officer flow:
 - Use officerId from /api/auth/me.
@@ -34,7 +34,7 @@ Bank Officer flow:
 
 Bank Customer flow:
 - Use bankCustomerId from /api/auth/me.
-- Call transact, beneficiary, OTP, and history endpoints with bankCustomerId.
+- Make relevant [functionality] with permit by bankCustomerId.
 
 Admin flow:
 - Use roleName and roleId only for permission checks and UI access.
