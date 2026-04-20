@@ -160,12 +160,10 @@ public class CreditEvaluationService {
 		return creditEvaluationMapper.toSelfResponse(evaluation);
 	}
 
-	@Transactional(readOnly = true)
+	@Transactional
 	public BankCreditEvaluationResponse getCurrentBankEvaluationForCustomer() {
 		BankCustomer bankCustomer = resolveLoggedInBankCustomer();
-		BankCreditEvaluation evaluation = bankCreditEvaluationRepository
-			.findTopByBankCustomer_BankCustomerIdOrderByCreatedAtDesc(bankCustomer.getBankCustomerId())
-			.orElseThrow(() -> new IllegalArgumentException("No bank credit evaluation found for this bank customer yet."));
+		BankCreditEvaluation evaluation = getOrCreateLatestBankEvaluationForCustomer(bankCustomer);
 		return creditEvaluationMapper.toBankResponse(evaluation);
 	}
 
@@ -266,7 +264,18 @@ public class CreditEvaluationService {
 	public BankCreditEvaluationResponse getCurrentBankEvaluationForOfficer(Long bankCustomerId) {
 		BankOfficer officer = resolveLoggedInBankOfficer();
 		BankCustomer bankCustomer = resolveOwnedBankCustomer(bankCustomerId, officer);
-		return creditEvaluationMapper.toBankResponse(getOrCreateLatestBankEvaluation(bankCustomer, officer));
+		return creditEvaluationMapper.toBankResponse(getOrCreateLatestBankEvaluationForCustomer(bankCustomer));
+	}
+
+	@Transactional
+	public BankCreditEvaluation getOrCreateLatestBankEvaluationForCustomer(BankCustomer bankCustomer) {
+		if (bankCustomer == null || bankCustomer.getBankCustomerId() == null) {
+			throw new IllegalArgumentException("Bank customer is required to generate a bank credit evaluation.");
+		}
+		if (bankCustomer.getOfficer() == null || bankCustomer.getOfficer().getOfficerId() == null) {
+			throw new IllegalArgumentException("Bank customer must be assigned to a bank officer before generating a bank credit evaluation.");
+		}
+		return getOrCreateLatestBankEvaluation(bankCustomer, bankCustomer.getOfficer());
 	}
 
 	@Transactional
