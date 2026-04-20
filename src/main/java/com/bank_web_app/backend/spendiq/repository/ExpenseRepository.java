@@ -14,4 +14,6 @@ public interface ExpenseRepository extends JpaRepository<Expense, Long> {
 		LocalDate fromDate,
 		LocalDate toDate
 	);
+
+	boolean existsByTrackingSourceAndTrackingReference(String trackingSource, String trackingReference);
 }
