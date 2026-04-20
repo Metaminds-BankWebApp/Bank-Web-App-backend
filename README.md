@@ -14,4 +14,4 @@ Important:
 | ADMIN | admin.demo@primecore.local | admin.demo | Demo@1234 |
 | BANK_OFFICER | officer.demo@primecore.local | officer.demo | Demo@1234 |
 | BANK_CUSTOMER | bank.customer.demo@primecore.local | bank.customer.demo | Demo@1234 |
-| PUBLIC_CUSTOMER | public.customer.demo@primecore.local | public.customer.demo | Demo@1234 |
+| PUBLIC_CUSTOMER | public.customer.demo@primecore.local | public.customer.demo | Demo@123 |4

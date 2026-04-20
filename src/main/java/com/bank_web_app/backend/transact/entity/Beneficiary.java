@@ -1,5 +1,6 @@
 package com.bank_web_app.backend.transact.entity;
 
+import com.bank_web_app.backend.bankcustomer.entity.BankCustomer;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -17,38 +18,29 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "bank_customer_transaction_otp_logs")
+@Table(name = "bank_customer_beneficiaries")
 @Getter
 @Setter
 @NoArgsConstructor
-public class OtpRecord {
+public class Beneficiary {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
-	@Column(name = "otp_log_id")
-	private Long otpLogId;
+	@Column(name = "beneficiary_id")
+	private Long beneficiaryId;
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
-	@JoinColumn(name = "transaction_id", nullable = false)
-	private Transaction transaction;
+	@JoinColumn(name = "bank_customer_id", nullable = false)
+	private BankCustomer bankCustomer;
 
-	@Column(name = "otp_code_hash", nullable = false, length = 255)
-	private String otpCodeHash;
+	@Column(name = "beneficiary_account_no", nullable = false, length = 20)
+	private String beneficiaryAccountNo;
 
-	@Column(name = "sent_to_email", nullable = false, length = 150)
-	private String sentToEmail;
+	@Column(name = "nick_name", nullable = false, length = 100)
+	private String nickName;
 
-	@Column(name = "otp_status", nullable = false, length = 20)
-	private String otpStatus;
-
-	@Column(name = "expires_at", nullable = false)
-	private LocalDateTime expiresAt;
-
-	@Column(name = "verified_at")
-	private LocalDateTime verifiedAt;
-
-	@Column(name = "resend_count", nullable = false)
-	private Integer resendCount;
+	@Column(name = "remark", nullable = false, length = 255)
+	private String remark;
 
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private LocalDateTime createdAt;
@@ -59,12 +51,6 @@ public class OtpRecord {
 	@PrePersist
 	void onCreate() {
 		LocalDateTime now = LocalDateTime.now();
-		if (otpStatus == null || otpStatus.isBlank()) {
-			otpStatus = "SENT";
-		}
-		if (resendCount == null) {
-			resendCount = 0;
-		}
 		createdAt = now;
 		updatedAt = now;
 	}

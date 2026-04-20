@@ -1,5 +1,6 @@
-package com.bank_web_app.backend.transact.entity;
+package com.bank_web_app.backend.bankcustomer.entity;
 
+import com.bank_web_app.backend.bankofficer.entity.BankOfficer;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -17,38 +18,27 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "bank_customer_transaction_otp_logs")
+@Table(name = "bank_customer_financial_records")
 @Getter
 @Setter
 @NoArgsConstructor
-public class OtpRecord {
+public class BankCustomerFinancialRecord {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
-	@Column(name = "otp_log_id")
-	private Long otpLogId;
+	@Column(name = "bank_record_id")
+	private Long bankRecordId;
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
-	@JoinColumn(name = "transaction_id", nullable = false)
-	private Transaction transaction;
+	@JoinColumn(name = "bank_customer_id", nullable = false)
+	private BankCustomer bankCustomer;
 
-	@Column(name = "otp_code_hash", nullable = false, length = 255)
-	private String otpCodeHash;
+	@ManyToOne(fetch = FetchType.LAZY, optional = false)
+	@JoinColumn(name = "verified_by_officer_id", nullable = false)
+	private BankOfficer verifiedByOfficer;
 
-	@Column(name = "sent_to_email", nullable = false, length = 150)
-	private String sentToEmail;
-
-	@Column(name = "otp_status", nullable = false, length = 20)
-	private String otpStatus;
-
-	@Column(name = "expires_at", nullable = false)
-	private LocalDateTime expiresAt;
-
-	@Column(name = "verified_at")
-	private LocalDateTime verifiedAt;
-
-	@Column(name = "resend_count", nullable = false)
-	private Integer resendCount;
+	@Column(name = "data_source", nullable = false, length = 30)
+	private String dataSource = "MANUAL";
 
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private LocalDateTime createdAt;
@@ -59,14 +49,11 @@ public class OtpRecord {
 	@PrePersist
 	void onCreate() {
 		LocalDateTime now = LocalDateTime.now();
-		if (otpStatus == null || otpStatus.isBlank()) {
-			otpStatus = "SENT";
-		}
-		if (resendCount == null) {
-			resendCount = 0;
-		}
 		createdAt = now;
 		updatedAt = now;
+		if (dataSource == null || dataSource.isBlank()) {
+			dataSource = "MANUAL";
+		}
 	}
 
 	@PreUpdate
