@@ -20,7 +20,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -78,10 +77,10 @@ public class PublicCustomerController {
 		return ResponseEntity.ok(publicCustomerService.getAll());
 	}
 
-	@PutMapping("/{publicCustomerId}/financial-records/steps/income")
+	@PostMapping("/{publicCustomerId}/financial-records/steps/income")
 	@Operation(
 		summary = "Save income step",
-		description = "Stores step 1 (income) for the current financial record.",
+		description = "Appends step 1 (income) rows to the current financial record without deleting previous entries.",
 		responses = {
 			@ApiResponse(responseCode = "200", description = "Income step saved successfully"),
 			@ApiResponse(responseCode = "400", description = "Validation failed or public customer not found")
@@ -94,10 +93,10 @@ public class PublicCustomerController {
 		return ResponseEntity.ok(publicCustomerService.saveIncomeStep(publicCustomerId, request));
 	}
 
-	@PutMapping("/{publicCustomerId}/financial-records/steps/loans")
+	@PostMapping("/{publicCustomerId}/financial-records/steps/loans")
 	@Operation(
 		summary = "Save loans step",
-		description = "Stores step 2 (loans) for the current financial record.",
+		description = "Appends step 2 (loans) rows to the current financial record without deleting previous entries.",
 		responses = {
 			@ApiResponse(responseCode = "200", description = "Loans step saved successfully"),
 			@ApiResponse(responseCode = "400", description = "Validation failed or public customer not found")
@@ -110,10 +109,10 @@ public class PublicCustomerController {
 		return ResponseEntity.ok(publicCustomerService.saveLoanStep(publicCustomerId, request));
 	}
 
-	@PutMapping("/{publicCustomerId}/financial-records/steps/cards")
+	@PostMapping("/{publicCustomerId}/financial-records/steps/cards")
 	@Operation(
 		summary = "Save cards step",
-		description = "Stores step 3 (cards) for the current financial record.",
+		description = "Appends step 3 (cards) rows to the current financial record without deleting previous entries.",
 		responses = {
 			@ApiResponse(responseCode = "200", description = "Cards step saved successfully"),
 			@ApiResponse(responseCode = "400", description = "Validation failed or public customer not found")
@@ -126,10 +125,10 @@ public class PublicCustomerController {
 		return ResponseEntity.ok(publicCustomerService.saveCardStep(publicCustomerId, request));
 	}
 
-	@PutMapping("/{publicCustomerId}/financial-records/steps/liabilities")
+	@PostMapping("/{publicCustomerId}/financial-records/steps/liabilities")
 	@Operation(
 		summary = "Save liabilities step",
-		description = "Stores step 4 (liabilities + missed payments) for the current financial record.",
+		description = "Appends step 4 (liabilities + missed payments) data to the current financial record without deleting previous entries.",
 		responses = {
 			@ApiResponse(responseCode = "200", description = "Liabilities step saved successfully"),
 			@ApiResponse(responseCode = "400", description = "Validation failed or public customer not found")
