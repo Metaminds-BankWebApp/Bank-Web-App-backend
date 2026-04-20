@@ -1,4 +1,4 @@
-package com.bank_web_app.backend.transact.entity;
+package com.bank_web_app.backend.publiccustomer.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -17,38 +17,23 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "bank_customer_transaction_otp_logs")
+@Table(name = "public_customer_financial_records")
 @Getter
 @Setter
 @NoArgsConstructor
-public class OtpRecord {
+public class PublicCustomerFinancialRecord {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
-	@Column(name = "otp_log_id")
-	private Long otpLogId;
+	@Column(name = "record_id")
+	private Long recordId;
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
-	@JoinColumn(name = "transaction_id", nullable = false)
-	private Transaction transaction;
+	@JoinColumn(name = "public_customer_id", nullable = false)
+	private PublicCustomerProfile publicCustomer;
 
-	@Column(name = "otp_code_hash", nullable = false, length = 255)
-	private String otpCodeHash;
-
-	@Column(name = "sent_to_email", nullable = false, length = 150)
-	private String sentToEmail;
-
-	@Column(name = "otp_status", nullable = false, length = 20)
-	private String otpStatus;
-
-	@Column(name = "expires_at", nullable = false)
-	private LocalDateTime expiresAt;
-
-	@Column(name = "verified_at")
-	private LocalDateTime verifiedAt;
-
-	@Column(name = "resend_count", nullable = false)
-	private Integer resendCount;
+	@Column(name = "record_status", nullable = false, length = 20)
+	private String recordStatus = "CURRENT";
 
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private LocalDateTime createdAt;
@@ -59,12 +44,6 @@ public class OtpRecord {
 	@PrePersist
 	void onCreate() {
 		LocalDateTime now = LocalDateTime.now();
-		if (otpStatus == null || otpStatus.isBlank()) {
-			otpStatus = "SENT";
-		}
-		if (resendCount == null) {
-			resendCount = 0;
-		}
 		createdAt = now;
 		updatedAt = now;
 	}
