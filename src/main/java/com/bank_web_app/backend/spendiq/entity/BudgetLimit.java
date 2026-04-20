@@ -10,25 +10,25 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "expense_records")
+@Table(name = "budget_limits")
 @Getter
 @Setter
 @NoArgsConstructor
-public class Expense {
+public class BudgetLimit {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
-	@Column(name = "expense_id")
-	private Long expenseId;
+	@Column(name = "budget_id")
+	private Long budgetId;
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
 	@JoinColumn(name = "user_id", nullable = false)
@@ -38,20 +38,30 @@ public class Expense {
 	@JoinColumn(name = "category_id", nullable = false)
 	private ExpenseCategory category;
 
-	@Column(name = "amount", nullable = false, precision = 15, scale = 2)
-	private BigDecimal amount;
+	@Column(name = "budget_amount", nullable = false, precision = 15, scale = 2)
+	private BigDecimal budgetAmount;
 
-	@Column(name = "expense_date", nullable = false)
-	private LocalDate expenseDate;
+	@Column(name = "month", nullable = false)
+	private Integer month;
 
-	@Column(name = "payment_type", nullable = false, length = 50)
-	private String paymentType;
+	@Column(name = "year", nullable = false)
+	private Integer year;
 
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private LocalDateTime createdAt;
 
+	@Column(name = "updated_at", nullable = false)
+	private LocalDateTime updatedAt;
+
 	@PrePersist
 	void onCreate() {
-		createdAt = LocalDateTime.now();
+		LocalDateTime now = LocalDateTime.now();
+		createdAt = now;
+		updatedAt = now;
+	}
+
+	@PreUpdate
+	void onUpdate() {
+		updatedAt = LocalDateTime.now();
 	}
 }

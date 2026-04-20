@@ -48,11 +48,11 @@ public class OpenApiConfig {
                                 return;
                         }
 
-                        openApi.getPaths().forEach((path, pathItem) -> {
-                                String requiredRole = resolveRequiredRole(path);
+                openApi.getPaths().forEach((path, pathItem) -> {
+                        String requiredRole = resolveRequiredRole(path);
 
                                 pathItem.readOperations().forEach(operation -> {
-                                        if (path.startsWith("/api/auth")) {
+                                if (isPublicAuthPath(path)) {
                                                 operation.setSecurity(new ArrayList<>());
                                                 appendRoleNote(operation, "PUBLIC (no bearer token required)");
                                                 return;
@@ -71,6 +71,16 @@ public class OpenApiConfig {
                         });
                 };
         }
+
+                private static boolean isPublicAuthPath(String path) {
+                        return "/api/auth/login".equals(path)
+                                || "/api/auth/refresh".equals(path)
+                                || "/api/auth/logout".equals(path)
+                                || "/api/auth/register".equals(path)
+                                || "/api/auth/forgot-password".equals(path)
+                                || "/api/auth/verify-otp".equals(path)
+                                || "/api/auth/reset-password".equals(path);
+                }
 
         private static void appendRoleNote(io.swagger.v3.oas.models.Operation operation, String roleLabel) {
                 String roleLine = "Required role: " + roleLabel;
