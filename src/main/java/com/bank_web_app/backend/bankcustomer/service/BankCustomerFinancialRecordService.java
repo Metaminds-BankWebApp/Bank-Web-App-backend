@@ -111,6 +111,8 @@ public class BankCustomerFinancialRecordService {
 		BankCustomerFinancialRecord currentRecord = getOrCreateLatestRecord(customer);
 		Long bankRecordId = currentRecord.getBankRecordId();
 
+		incomeRepository.deleteByFinancialRecord_BankRecordId(bankRecordId);
+
 		for (BankCustomerIncomeStepRequest.IncomeItem incomeItem : request.incomes()) {
 			BankCustomerIncome income = new BankCustomerIncome();
 			income.setFinancialRecord(currentRecord);
@@ -147,6 +149,8 @@ public class BankCustomerFinancialRecordService {
 		BankCustomerFinancialRecord currentRecord = getOrCreateLatestRecord(customer);
 		Long bankRecordId = currentRecord.getBankRecordId();
 
+		loanRepository.deleteByFinancialRecord_BankRecordId(bankRecordId);
+
 		for (BankCustomerLoanStepRequest.LoanItem loanItem : request.loans()) {
 			BankCustomerLoan loan = new BankCustomerLoan();
 			loan.setFinancialRecord(currentRecord);
@@ -180,6 +184,8 @@ public class BankCustomerFinancialRecordService {
 		BankCustomerFinancialRecord currentRecord = getOrCreateLatestRecord(customer);
 		Long bankRecordId = currentRecord.getBankRecordId();
 
+		cardRepository.deleteByFinancialRecord_BankRecordId(bankRecordId);
+
 		for (BankCustomerCardStepRequest.CardItem cardItem : request.cards()) {
 			BankCustomerCard card = new BankCustomerCard();
 			card.setFinancialRecord(currentRecord);
@@ -212,6 +218,8 @@ public class BankCustomerFinancialRecordService {
 		BankCustomer customer = resolveOwnedBankCustomer(bankCustomerId);
 		BankCustomerFinancialRecord currentRecord = getOrCreateLatestRecord(customer);
 		Long bankRecordId = currentRecord.getBankRecordId();
+
+		liabilityRepository.deleteByFinancialRecord_BankRecordId(bankRecordId);
 
 		for (BankCustomerLiabilityStepRequest.LiabilityItem liabilityItem : request.liabilities()) {
 			BankCustomerLiability liability = new BankCustomerLiability();
