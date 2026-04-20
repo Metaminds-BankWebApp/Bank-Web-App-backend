@@ -19,33 +19,29 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "expense_records")
+@Table(name = "income_records")
 @Getter
 @Setter
 @NoArgsConstructor
-public class Expense {
+public class IncomeRecord {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
-	@Column(name = "expense_id")
-	private Long expenseId;
+	@Column(name = "income_id")
+	private Long incomeId;
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
 	@JoinColumn(name = "user_id", nullable = false)
 	private User user;
 
-	@ManyToOne(fetch = FetchType.LAZY, optional = false)
-	@JoinColumn(name = "category_id", nullable = false)
-	private ExpenseCategory category;
+	@Column(name = "source_name", nullable = false, length = 100)
+	private String sourceName;
 
 	@Column(name = "amount", nullable = false, precision = 15, scale = 2)
 	private BigDecimal amount;
 
-	@Column(name = "expense_date", nullable = false)
-	private LocalDate expenseDate;
-
-	@Column(name = "payment_type", nullable = false, length = 50)
-	private String paymentType;
+	@Column(name = "income_date", nullable = false)
+	private LocalDate incomeDate;
 
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private LocalDateTime createdAt;
