@@ -124,7 +124,7 @@ WHERE NOT EXISTS (
 );
 
 -- 4) incomes
-WITH income_seed(username, income_category, amount, salary_type, employment_type, contract_duration_months, income_stability) AS (
+WITH income_seed(username, income_category, amount, salary_type, employment_type, duration_months, income_stability) AS (
     VALUES
         ('pc.calc01', 'SALARY',   160000.00, 'FIXED_BASIC_SALARY', 'PERMANENT', NULL, NULL),
         ('pc.calc02', 'SALARY',   100000.00, 'FIXED_BASIC_SALARY', 'PERMANENT', NULL, NULL),
@@ -144,7 +144,7 @@ INSERT INTO public_customer_incomes (
     amount,
     salary_type,
     employment_type,
-    contract_duration_months,
+    duration_months,
     income_stability,
     created_at
 )
@@ -154,7 +154,7 @@ SELECT
     i.amount,
     i.salary_type,
     i.employment_type,
-    i.contract_duration_months,
+    i.duration_months,
     i.income_stability,
     CURRENT_TIMESTAMP
 FROM income_seed i
@@ -171,7 +171,7 @@ WHERE NOT EXISTS (
       AND existing.amount = i.amount
       AND COALESCE(existing.salary_type, '') = COALESCE(i.salary_type, '')
       AND COALESCE(existing.employment_type, '') = COALESCE(i.employment_type, '')
-      AND COALESCE(existing.contract_duration_months, -1) = COALESCE(i.contract_duration_months, -1)
+      AND COALESCE(existing.duration_months, -1) = COALESCE(i.duration_months, -1)
       AND COALESCE(existing.income_stability, '') = COALESCE(i.income_stability, '')
 );
 

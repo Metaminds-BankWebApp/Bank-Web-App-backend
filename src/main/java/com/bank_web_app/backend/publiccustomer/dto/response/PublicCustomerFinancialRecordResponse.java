@@ -22,7 +22,7 @@ public record PublicCustomerFinancialRecordResponse(
 		BigDecimal amount,
 		String salaryType,
 		String employmentType,
-		Integer contractDurationMonths,
+		Integer durationMonths,
 		String incomeStability,
 		LocalDateTime createdAt
 	) {

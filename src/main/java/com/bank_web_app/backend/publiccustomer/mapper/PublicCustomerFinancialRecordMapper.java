@@ -42,7 +42,7 @@ public class PublicCustomerFinancialRecordMapper {
 				income.getAmount(),
 				income.getSalaryType(),
 				income.getEmploymentType(),
-				income.getContractDurationMonths(),
+				income.getDurationMonths(),
 				income.getIncomeStability(),
 				income.getCreatedAt()
 			))
