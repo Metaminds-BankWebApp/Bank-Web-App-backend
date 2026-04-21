@@ -11,5 +11,7 @@ public interface ExpenseCategoryRepository extends JpaRepository<ExpenseCategory
 
 	Optional<ExpenseCategory> findByCategoryIdAndUser_UserId(Long categoryId, Long userId);
 
+	Optional<ExpenseCategory> findByUser_UserIdAndCategoryNameIgnoreCase(Long userId, String categoryName);
+
 	boolean existsByUser_UserIdAndCategoryNameIgnoreCase(Long userId, String categoryName);
 }

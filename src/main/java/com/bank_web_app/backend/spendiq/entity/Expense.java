@@ -47,6 +47,12 @@ public class Expense {
 	@Column(name = "payment_type", nullable = false, length = 50)
 	private String paymentType;
 
+	@Column(name = "tracking_source", length = 30)
+	private String trackingSource;
+
+	@Column(name = "tracking_reference", length = 50)
+	private String trackingReference;
+
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private LocalDateTime createdAt;
 
