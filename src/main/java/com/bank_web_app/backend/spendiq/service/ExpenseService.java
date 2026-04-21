@@ -1,5 +1,6 @@
 package com.bank_web_app.backend.spendiq.service;
 
+import com.bank_web_app.backend.bankcustomer.entity.BankCustomer;
 import com.bank_web_app.backend.spendiq.dto.request.CreateExpenseCategoryRequest;
 import com.bank_web_app.backend.spendiq.dto.request.CreateExpenseRecordRequest;
 import com.bank_web_app.backend.spendiq.dto.request.CreateIncomeRecordRequest;
@@ -22,6 +23,7 @@ import com.bank_web_app.backend.user.repository.UserRepository;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
 import org.springframework.http.HttpStatus;
@@ -34,6 +36,11 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class ExpenseService {
+
+	private static final String SOURCE_TRANSACT = "TRANSACT";
+	private static final String DEFAULT_TRANSFER_CATEGORY_NAME = "Bank Transfer";
+	private static final String DEFAULT_TRANSFER_CATEGORY_TYPE = "VARIABLE";
+	private static final String DEFAULT_TRANSFER_PAYMENT_TYPE = "BANK_TRANSFER";
 
 	private final ExpenseCategoryRepository expenseCategoryRepository;
 	private final ExpenseRepository expenseRepository;
@@ -70,6 +77,52 @@ public class ExpenseService {
 		category.setCategoryName(categoryName);
 		category.setCategoryType(categoryType);
 		return toCategoryResponse(expenseCategoryRepository.save(category));
+	}
+
+	@Transactional
+	public void trackTransactExpenseForBankCustomer(
+		BankCustomer bankCustomer,
+		String referenceNo,
+		BigDecimal amount,
+		LocalDateTime transactionDate
+	) {
+		if (bankCustomer == null || bankCustomer.getUser() == null || bankCustomer.getUser().getUserId() == null) {
+			throw new IllegalArgumentException("Bank customer user context is required for SpendIQ tracking.");
+		}
+
+		String normalizedReferenceNo = normalizeText(referenceNo);
+		if (normalizedReferenceNo.isBlank()) {
+			throw new IllegalArgumentException("Transaction reference is required for SpendIQ tracking.");
+		}
+
+		if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+			throw new IllegalArgumentException("Tracked expense amount must be greater than 0.");
+		}
+
+		if (expenseRepository.existsByTrackingSourceAndTrackingReference(SOURCE_TRANSACT, normalizedReferenceNo)) {
+			return;
+		}
+
+		Long userId = bankCustomer.getUser().getUserId();
+		ExpenseCategory category = expenseCategoryRepository
+			.findByUser_UserIdAndCategoryNameIgnoreCase(userId, DEFAULT_TRANSFER_CATEGORY_NAME)
+			.orElseGet(() -> {
+				ExpenseCategory createdCategory = new ExpenseCategory();
+				createdCategory.setUser(bankCustomer.getUser());
+				createdCategory.setCategoryName(DEFAULT_TRANSFER_CATEGORY_NAME);
+				createdCategory.setCategoryType(DEFAULT_TRANSFER_CATEGORY_TYPE);
+				return expenseCategoryRepository.save(createdCategory);
+			});
+
+		Expense expense = new Expense();
+		expense.setUser(bankCustomer.getUser());
+		expense.setCategory(category);
+		expense.setAmount(amount);
+		expense.setExpenseDate(transactionDate == null ? LocalDate.now() : transactionDate.toLocalDate());
+		expense.setPaymentType(DEFAULT_TRANSFER_PAYMENT_TYPE);
+		expense.setTrackingSource(SOURCE_TRANSACT);
+		expense.setTrackingReference(normalizedReferenceNo);
+		expenseRepository.save(expense);
 	}
 
 	@Transactional(readOnly = true)

@@ -24,7 +24,7 @@ public record CreateTransactionRequest(
 	@Schema(description = "Transfer remark or invoice reference.", example = "Invoice #INV-1002", requiredMode = Schema.RequiredMode.REQUIRED)
 	@NotBlank(message = "Remark is required.")
 	String remark,
-	@Schema(description = "Whether to save this transfer for expense tracking.", example = "false")
+	@Schema(description = "Whether to auto-track this successful transfer in SpendIQ expenses.", example = "false")
 	Boolean expenseTrackingEnabled
 ) {
 }
