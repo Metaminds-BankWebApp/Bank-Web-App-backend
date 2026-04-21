@@ -8,6 +8,7 @@ import com.bank_web_app.backend.spendiq.service.ExpenseService;
 import com.bank_web_app.backend.transact.dto.request.CreateBeneficiaryRequest;
 import com.bank_web_app.backend.transact.dto.request.CreateTransactionRequest;
 import com.bank_web_app.backend.transact.dto.request.ResendTransactionOtpRequest;
+import com.bank_web_app.backend.transact.dto.request.UpdateBeneficiaryRequest;
 import com.bank_web_app.backend.transact.dto.request.VerifyTransactionOtpRequest;
 import com.bank_web_app.backend.transact.dto.response.BeneficiaryResponse;
 import com.bank_web_app.backend.transact.dto.response.TransactionInitiateResponse;
@@ -269,17 +270,46 @@ public class TransactionService {
 	@Transactional
 	public BeneficiaryResponse createBeneficiary(CreateBeneficiaryRequest request) {
 		BankCustomer bankCustomer = resolveLoggedInBankCustomer();
+		Long bankCustomerId = bankCustomer.getBankCustomerId();
 
 		String accountNo = normalizeAccountNumber(request.beneficiaryAccountNo());
 		if (accountNo.equals(bankCustomer.getAccount().getAccountNumber())) {
 			throw new IllegalArgumentException("Beneficiary account cannot be the same as sender account.");
 		}
-		if (accountRepository.findByAccountNumber(accountNo).isEmpty()) {
-			throw new IllegalArgumentException("Beneficiary account does not exist.");
-		}
+		Account beneficiaryAccount = accountRepository
+			.findByAccountNumber(accountNo)
+			.orElseThrow(() -> new IllegalArgumentException("Account number not found"));
+		validateActiveAccount(beneficiaryAccount, "Beneficiary account is not active.");
+		ensureNoDuplicateBeneficiary(bankCustomerId, accountNo, null);
 
 		Beneficiary beneficiary = new Beneficiary();
 		beneficiary.setBankCustomer(bankCustomer);
+		beneficiary.setBeneficiaryAccountNo(accountNo);
+		beneficiary.setNickName(request.nickName().trim());
+		beneficiary.setRemark(request.remark().trim());
+		beneficiary = beneficiaryRepository.save(beneficiary);
+
+		return toBeneficiaryResponse(beneficiary);
+	}
+
+	@Transactional
+	public BeneficiaryResponse updateBeneficiary(Long beneficiaryId, UpdateBeneficiaryRequest request) {
+		BankCustomer bankCustomer = resolveLoggedInBankCustomer();
+		Long bankCustomerId = bankCustomer.getBankCustomerId();
+		Beneficiary beneficiary = beneficiaryRepository
+			.findByBeneficiaryIdAndBankCustomer_BankCustomerId(beneficiaryId, bankCustomerId)
+			.orElseThrow(() -> new IllegalArgumentException("Beneficiary was not found for this bank customer."));
+
+		String accountNo = normalizeAccountNumber(request.beneficiaryAccountNo());
+		if (accountNo.equals(bankCustomer.getAccount().getAccountNumber())) {
+			throw new IllegalArgumentException("Beneficiary account cannot be the same as sender account.");
+		}
+		Account beneficiaryAccount = accountRepository
+			.findByAccountNumber(accountNo)
+			.orElseThrow(() -> new IllegalArgumentException("Account number not found"));
+		validateActiveAccount(beneficiaryAccount, "Beneficiary account is not active.");
+		ensureNoDuplicateBeneficiary(bankCustomerId, accountNo, beneficiaryId);
+
 		beneficiary.setBeneficiaryAccountNo(accountNo);
 		beneficiary.setNickName(request.nickName().trim());
 		beneficiary.setRemark(request.remark().trim());
@@ -350,6 +380,19 @@ public class TransactionService {
 
 	private String normalizeAccountNumber(String accountNo) {
 		return accountNo == null ? "" : accountNo.replaceAll("\\s+", "").trim();
+	}
+
+	private void ensureNoDuplicateBeneficiary(Long bankCustomerId, String accountNo, Long beneficiaryIdToIgnore) {
+		boolean duplicateExists = beneficiaryIdToIgnore == null
+			? beneficiaryRepository.existsByBankCustomer_BankCustomerIdAndBeneficiaryAccountNo(bankCustomerId, accountNo)
+			: beneficiaryRepository.existsByBankCustomer_BankCustomerIdAndBeneficiaryAccountNoAndBeneficiaryIdNot(
+				bankCustomerId,
+				accountNo,
+				beneficiaryIdToIgnore
+			);
+		if (duplicateExists) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "Beneficiary already added");
+		}
 	}
 
 	private void trackExpenseForSuccessfulTransaction(BankCustomer bankCustomer, Transaction transaction) {
