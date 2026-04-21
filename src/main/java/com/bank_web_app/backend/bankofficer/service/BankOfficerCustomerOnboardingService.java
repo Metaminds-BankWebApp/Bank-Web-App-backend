@@ -87,6 +87,10 @@ public class BankOfficerCustomerOnboardingService {
 		return financialRecordService.saveLiabilityStepAndContinue(bankCustomerId, request);
 	}
 
+	public BankCustomerCribStepResponse saveCribLinkingStepAndContinue(Long bankCustomerId, BankCustomerCribRequestStepRequest request) {
+		return financialRecordService.saveCribLinkingStepAndContinue(bankCustomerId, request);
+	}
+
 	public BankCustomerCribStepResponse saveCribRequestStepAndContinue(Long bankCustomerId, BankCustomerCribRequestStepRequest request) {
 		return financialRecordService.saveCribRequestStepAndContinue(bankCustomerId, request);
 	}
