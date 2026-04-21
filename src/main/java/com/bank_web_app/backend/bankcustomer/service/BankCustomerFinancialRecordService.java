@@ -139,7 +139,7 @@ public class BankCustomerFinancialRecordService {
 			income.setAmount(incomeItem.amount());
 			income.setSalaryType(incomeItem.salaryType());
 			income.setEmploymentType(incomeItem.employmentType());
-			income.setContractDurationMonths(incomeItem.contractDurationMonths());
+			income.setDurationMonths(incomeItem.durationMonths());
 			income.setIncomeStability(incomeItem.incomeStability());
 			incomeRepository.save(income);
 		}

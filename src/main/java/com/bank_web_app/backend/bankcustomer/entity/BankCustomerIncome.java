@@ -44,8 +44,8 @@ public class BankCustomerIncome {
 	@Column(name = "employment_type", length = 30)
 	private String employmentType;
 
-	@Column(name = "contract_duration_months")
-	private Integer contractDurationMonths;
+	@Column(name = "duration_months")
+	private Integer durationMonths;
 
 	@Column(name = "income_stability", length = 30)
 	private String incomeStability;
