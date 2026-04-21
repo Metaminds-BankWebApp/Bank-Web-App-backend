@@ -30,6 +30,8 @@ import com.bank_web_app.backend.bankcustomer.repository.BankCustomerLiabilityRep
 import com.bank_web_app.backend.bankcustomer.repository.BankCustomerLoanRepository;
 import com.bank_web_app.backend.bankcustomer.repository.BankCustomerMissedPaymentRepository;
 import com.bank_web_app.backend.bankcustomer.repository.BankCustomerRepository;
+import com.bank_web_app.backend.crib.dto.response.CribDatasetSnapshotResponse;
+import com.bank_web_app.backend.crib.service.CribDatasetService;
 import com.bank_web_app.backend.user.entity.User;
 import com.bank_web_app.backend.user.repository.UserRepository;
 import java.time.LocalDateTime;
@@ -46,6 +48,13 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class BankCustomerFinancialRecordService {
+	private static final String STATUS_PENDING_STEP_2 = "PENDING_STEP_2";
+	private static final String STATUS_PENDING_STEP_3 = "PENDING_STEP_3";
+	private static final String STATUS_PENDING_STEP_4 = "PENDING_STEP_4";
+	private static final String STATUS_PENDING_STEP_5 = "PENDING_STEP_5";
+	private static final String STATUS_PENDING_STEP_6 = "PENDING_STEP_6";
+	private static final String STATUS_PENDING_STEP_7 = "PENDING_STEP_7";
+	private static final String STATUS_COMPLETED = "COMPLETED";
 
 	private final BankCustomerRepository bankCustomerRepository;
 	private final BankCustomerFinancialRecordRepository financialRecordRepository;
@@ -55,6 +64,7 @@ public class BankCustomerFinancialRecordService {
 	private final BankCustomerLiabilityRepository liabilityRepository;
 	private final BankCustomerMissedPaymentRepository missedPaymentRepository;
 	private final BankCustomerCribRequestRepository cribRequestRepository;
+	private final CribDatasetService cribDatasetService;
 	private final BankCustomerFinancialRecordMapper financialRecordMapper;
 	private final UserRepository userRepository;
 	private final BankOfficerRepository bankOfficerRepository;
@@ -68,6 +78,7 @@ public class BankCustomerFinancialRecordService {
 		BankCustomerLiabilityRepository liabilityRepository,
 		BankCustomerMissedPaymentRepository missedPaymentRepository,
 		BankCustomerCribRequestRepository cribRequestRepository,
+		CribDatasetService cribDatasetService,
 		BankCustomerFinancialRecordMapper financialRecordMapper,
 		UserRepository userRepository,
 		BankOfficerRepository bankOfficerRepository
@@ -80,6 +91,7 @@ public class BankCustomerFinancialRecordService {
 		this.liabilityRepository = liabilityRepository;
 		this.missedPaymentRepository = missedPaymentRepository;
 		this.cribRequestRepository = cribRequestRepository;
+		this.cribDatasetService = cribDatasetService;
 		this.financialRecordMapper = financialRecordMapper;
 		this.userRepository = userRepository;
 		this.bankOfficerRepository = bankOfficerRepository;
@@ -107,9 +119,8 @@ public class BankCustomerFinancialRecordService {
 	@Transactional
 	public BankCustomerFinancialStepResponse saveIncomeStepAndContinue(Long bankCustomerId, BankCustomerIncomeStepRequest request) {
 		BankCustomerFinancialStepResponse response = doSaveIncomeStep(bankCustomerId, request);
-		BankCustomer customer = bankCustomerRepository.findById(bankCustomerId)
-			.orElseThrow(() -> new IllegalArgumentException("Bank customer not found."));
-		customer.setAccessStatus("PENDING_STEP_3");
+		BankCustomer customer = resolveOwnedBankCustomer(bankCustomerId, STATUS_PENDING_STEP_3);
+		customer.setAccessStatus(STATUS_PENDING_STEP_4);
 		bankCustomerRepository.save(customer);
 		return response;
 	}
@@ -128,7 +139,7 @@ public class BankCustomerFinancialRecordService {
 			income.setAmount(incomeItem.amount());
 			income.setSalaryType(incomeItem.salaryType());
 			income.setEmploymentType(incomeItem.employmentType());
-			income.setContractDurationMonths(incomeItem.contractDurationMonths());
+			income.setDurationMonths(incomeItem.durationMonths());
 			income.setIncomeStability(incomeItem.incomeStability());
 			incomeRepository.save(income);
 		}
@@ -145,9 +156,8 @@ public class BankCustomerFinancialRecordService {
 	@Transactional
 	public BankCustomerFinancialStepResponse saveLoanStepAndContinue(Long bankCustomerId, BankCustomerLoanStepRequest request) {
 		BankCustomerFinancialStepResponse response = doSaveLoanStep(bankCustomerId, request);
-		BankCustomer customer = bankCustomerRepository.findById(bankCustomerId)
-			.orElseThrow(() -> new IllegalArgumentException("Bank customer not found."));
-		customer.setAccessStatus("PENDING_STEP_4");
+		BankCustomer customer = resolveOwnedBankCustomer(bankCustomerId, STATUS_PENDING_STEP_4);
+		customer.setAccessStatus(STATUS_PENDING_STEP_5);
 		bankCustomerRepository.save(customer);
 		return response;
 	}
@@ -180,9 +190,8 @@ public class BankCustomerFinancialRecordService {
 	@Transactional
 	public BankCustomerFinancialStepResponse saveCardStepAndContinue(Long bankCustomerId, BankCustomerCardStepRequest request) {
 		BankCustomerFinancialStepResponse response = doSaveCardStep(bankCustomerId, request);
-		BankCustomer customer = bankCustomerRepository.findById(bankCustomerId)
-			.orElseThrow(() -> new IllegalArgumentException("Bank customer not found."));
-		customer.setAccessStatus("PENDING_STEP_5");
+		BankCustomer customer = resolveOwnedBankCustomer(bankCustomerId, STATUS_PENDING_STEP_5);
+		customer.setAccessStatus(STATUS_PENDING_STEP_6);
 		bankCustomerRepository.save(customer);
 		return response;
 	}
@@ -215,11 +224,50 @@ public class BankCustomerFinancialRecordService {
 	@Transactional
 	public BankCustomerFinancialStepResponse saveLiabilityStepAndContinue(Long bankCustomerId, BankCustomerLiabilityStepRequest request) {
 		BankCustomerFinancialStepResponse response = doSaveLiabilityStep(bankCustomerId, request);
-		BankCustomer customer = bankCustomerRepository.findById(bankCustomerId)
-			.orElseThrow(() -> new IllegalArgumentException("Bank customer not found."));
-		customer.setAccessStatus("PENDING_STEP_6");
+		BankCustomer customer = resolveOwnedBankCustomer(bankCustomerId, STATUS_PENDING_STEP_6);
+		customer.setAccessStatus(STATUS_PENDING_STEP_7);
 		bankCustomerRepository.save(customer);
 		return response;
+	}
+
+	@Transactional
+	public BankCustomerCribStepResponse saveCribLinkingStepAndContinue(Long bankCustomerId, BankCustomerCribRequestStepRequest request) {
+		BankCustomer customer = resolveOwnedBankCustomer(bankCustomerId, STATUS_PENDING_STEP_2);
+		String customerNic = customer.getUser() == null ? null : customer.getUser().getNic();
+		String requestedNic = request.nic() == null ? "" : request.nic().trim();
+		if (!requestedNic.isBlank() && customerNic != null && !customerNic.trim().isBlank() && !requestedNic.equalsIgnoreCase(customerNic.trim())) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Provided NIC does not match the selected bank customer.");
+		}
+		String nic = requestedNic.isBlank() ? customerNic : requestedNic;
+		if (nic == null || nic.trim().isBlank()) {
+			throw new IllegalArgumentException("NIC/ID is required to link CRIB data.");
+		}
+		CribDatasetSnapshotResponse cribSnapshot = cribDatasetService.lookupSnapshotByNic(nic);
+
+		BankCustomerCribRequest cribRequest = new BankCustomerCribRequest();
+		cribRequest.setBankCustomer(customer);
+		cribRequest.setRequestedByOfficer(customer.getOfficer());
+		cribRequest.setRequestType(normalizeRequestType(request.requestType()));
+		cribRequest.setRequestStatus("COMPLETED");
+		cribRequest.setReportStatus("READY");
+		LocalDateTime now = LocalDateTime.now();
+		cribRequest.setRequestedAt(now);
+		cribRequest.setResponseReceivedAt(now);
+
+		BankCustomerCribRequest saved = cribRequestRepository.save(cribRequest);
+
+		customer.setAccessStatus(STATUS_PENDING_STEP_3);
+		bankCustomerRepository.save(customer);
+
+		return new BankCustomerCribStepResponse(
+			saved.getCribRequestId(),
+			bankCustomerId,
+			"CRIB_LINKING",
+			saved.getRequestStatus(),
+			saved.getReportStatus(),
+			"CRIB linking step saved successfully.",
+			cribSnapshot
+		);
 	}
 
 	@Transactional
@@ -235,7 +283,6 @@ public class BankCustomerFinancialRecordService {
 		cribRequest.setRequestedAt(LocalDateTime.now());
 
 		BankCustomerCribRequest saved = cribRequestRepository.save(cribRequest);
-
 		customer.setAccessStatus("PENDING_STEP_7");
 		bankCustomerRepository.save(customer);
 
@@ -245,7 +292,8 @@ public class BankCustomerFinancialRecordService {
 			"CRIB_REQUEST",
 			saved.getRequestStatus(),
 			saved.getReportStatus(),
-			"CRIB request step saved successfully."
+			"CRIB request step saved successfully.",
+			null
 		);
 	}
 
@@ -276,16 +324,16 @@ public class BankCustomerFinancialRecordService {
 			"CRIB_RETRIEVAL",
 			saved.getRequestStatus(),
 			saved.getReportStatus(),
-			"CRIB retrieval step saved successfully."
+			"CRIB retrieval step saved successfully.",
+			null
 		);
 	}
 
 	@Transactional
 	public BankCustomerCribStepResponse completeCribReviewAndOnboarding(Long bankCustomerId) {
-		BankCustomer customer = resolveOwnedBankCustomer(bankCustomerId);
-		customer.setAccessStatus("COMPLETED");
+		BankCustomer customer = resolveOwnedBankCustomer(bankCustomerId, STATUS_PENDING_STEP_7);
+		customer.setAccessStatus(STATUS_COMPLETED);
 		bankCustomerRepository.save(customer);
-
 		BankCustomerCribRequest latest = cribRequestRepository
 			.findTopByBankCustomer_BankCustomerIdOrderByRequestedAtDesc(bankCustomerId)
 			.orElse(null);
@@ -296,7 +344,8 @@ public class BankCustomerFinancialRecordService {
 			"CRIB_REVIEW",
 			latest != null ? latest.getRequestStatus() : null,
 			latest != null ? latest.getReportStatus() : null,
-			"Bank customer onboarding completed successfully."
+			"Bank customer onboarding completed successfully.",
+			null
 		);
 	}
 
@@ -459,6 +508,10 @@ public class BankCustomerFinancialRecordService {
 	}
 
 	private BankCustomer resolveOwnedBankCustomer(Long bankCustomerId) {
+		return resolveOwnedBankCustomer(bankCustomerId, null);
+	}
+
+	private BankCustomer resolveOwnedBankCustomer(Long bankCustomerId, String expectedAccessStatus) {
 		BankOfficer officer = resolveLoggedInBankOfficer();
 		BankCustomer customer = bankCustomerRepository.findById(bankCustomerId)
 			.orElseThrow(() -> new IllegalArgumentException("Bank customer not found."));
@@ -470,6 +523,9 @@ public class BankCustomerFinancialRecordService {
 		String accessStatus = customer.getAccessStatus() == null ? "" : customer.getAccessStatus().trim().toUpperCase(Locale.ROOT);
 		if ("DRAFT".equals(accessStatus)) {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Bank customer step-1 must be completed before adding financial data.");
+		}
+		if (expectedAccessStatus != null && !expectedAccessStatus.equals(accessStatus)) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Bank customer is not at the expected onboarding step.");
 		}
 
 		return customer;

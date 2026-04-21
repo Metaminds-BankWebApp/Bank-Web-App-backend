@@ -160,7 +160,7 @@ public class CreditEvaluationMapper {
 
 	private String resolveUtilizationBand(BigDecimal utilizationRatio) {
 		BigDecimal ratio = sanitizeRatio(utilizationRatio);
-		if (ratio.compareTo(new BigDecimal("0.30")) <= 0) {
+		if (ratio.compareTo(new BigDecimal("0.40")) <= 0) {
 			return "Low";
 		}
 		if (ratio.compareTo(new BigDecimal("0.70")) <= 0) {
