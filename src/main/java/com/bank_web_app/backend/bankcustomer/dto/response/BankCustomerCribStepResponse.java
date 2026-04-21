@@ -1,6 +1,7 @@
 package com.bank_web_app.backend.bankcustomer.dto.response;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import com.bank_web_app.backend.crib.dto.response.CribDatasetSnapshotResponse;
 
 @Schema(name = "BankCustomerCribStepResponse", description = "Response returned after saving CRIB onboarding steps.")
 public record BankCustomerCribStepResponse(
@@ -15,6 +16,8 @@ public record BankCustomerCribStepResponse(
 	@Schema(description = "Current report status", example = "PENDING")
 	String reportStatus,
 	@Schema(description = "Operation result message", example = "CRIB request step saved successfully.")
-	String message
+	String message,
+	@Schema(description = "Retrieved CRIB snapshot for the bank customer")
+	CribDatasetSnapshotResponse snapshot
 ) {
 }
