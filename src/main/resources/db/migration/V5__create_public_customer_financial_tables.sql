@@ -23,15 +23,15 @@ CREATE TABLE IF NOT EXISTS public_customer_incomes (
     amount NUMERIC(15,2) NOT NULL,
     salary_type VARCHAR(30),
     employment_type VARCHAR(30),
-    contract_duration_months INTEGER,
+    duration_months INTEGER,
     income_stability VARCHAR(30),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_public_customer_incomes_record FOREIGN KEY (record_id)
         REFERENCES public_customer_financial_records (record_id) ON DELETE CASCADE,
     CONSTRAINT chk_public_customer_incomes_category CHECK (income_category IN ('SALARY', 'BUSINESS')),
     CONSTRAINT chk_public_customer_incomes_amount_positive CHECK (amount > 0),
-    CONSTRAINT chk_public_customer_incomes_contract_duration_non_negative CHECK (
-        contract_duration_months IS NULL OR contract_duration_months >= 0
+    CONSTRAINT chk_public_customer_incomes_duration_non_negative CHECK (
+        duration_months IS NULL OR duration_months >= 0
     )
 );
 

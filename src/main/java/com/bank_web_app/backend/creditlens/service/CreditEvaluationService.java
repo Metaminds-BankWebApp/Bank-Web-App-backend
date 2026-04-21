@@ -683,7 +683,7 @@ public class CreditEvaluationService {
 			.map(income -> share.multiply(resolveIncomeRiskMultiplier(
 				income.getIncomeCategory(),
 				income.getEmploymentType(),
-				income.getContractDurationMonths(),
+				income.getDurationMonths(),
 				income.getIncomeStability()
 			)))
 			.reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -700,7 +700,7 @@ public class CreditEvaluationService {
 			.map(income -> share.multiply(resolveIncomeRiskMultiplier(
 				income.getIncomeCategory(),
 				income.getEmploymentType(),
-				income.getContractDurationMonths(),
+				income.getDurationMonths(),
 				income.getIncomeStability()
 			)))
 			.reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -710,32 +710,26 @@ public class CreditEvaluationService {
 	private BigDecimal resolveIncomeRiskMultiplier(
 		String incomeCategory,
 		String employmentType,
-		Integer contractDurationMonths,
+		Integer durationMonths,
 		String incomeStability
 	) {
 		String normalizedCategory = normalizeText(incomeCategory);
 		String normalizedEmploymentType = normalizeText(employmentType);
 		String normalizedIncomeStability = normalizeText(incomeStability);
-		int durationMonths = contractDurationMonths == null ? 0 : contractDurationMonths;
+		int normalizedDurationMonths = durationMonths == null ? 0 : durationMonths;
 
 		if ("SALARY".equals(normalizedCategory)) {
 			if (normalizedEmploymentType.contains("PERMANENT")) {
-				if (durationMonths <= 0 || durationMonths > 12) {
+				if (normalizedDurationMonths <= 0 || normalizedDurationMonths > 12) {
 					return BigDecimal.ZERO;
 				}
-				if (durationMonths >= 6) {
+				if (normalizedDurationMonths >= 6) {
 					return new BigDecimal("0.5");
 				}
 				return BigDecimal.ONE;
 			}
 			if (normalizedEmploymentType.contains("CONTRACT")) {
-				return durationMonths > 0 && durationMonths < 6 ? BigDecimal.ONE : new BigDecimal("0.5");
-			}
-			if (durationMonths > 12) {
-				return BigDecimal.ZERO;
-			}
-			if (durationMonths >= 6) {
-				return new BigDecimal("0.5");
+				return normalizedDurationMonths > 0 && normalizedDurationMonths < 6 ? BigDecimal.ONE : new BigDecimal("0.5");
 			}
 			return BigDecimal.ONE;
 		}

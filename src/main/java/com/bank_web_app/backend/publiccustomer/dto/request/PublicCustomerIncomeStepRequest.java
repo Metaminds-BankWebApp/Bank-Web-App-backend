@@ -29,9 +29,9 @@ public record PublicCustomerIncomeStepRequest(
 		String salaryType,
 		@Schema(description = "Employment type when category is SALARY", example = "PERMANENT")
 		String employmentType,
-		@Schema(description = "Contract duration in months", example = "12")
-		@Min(value = 0, message = "Contract duration months cannot be negative.")
-		Integer contractDurationMonths,
+		@Schema(description = "Income duration in months for permanent or contract salary entries", example = "12")
+		@Min(value = 0, message = "Duration months cannot be negative.")
+		Integer durationMonths,
 		@Schema(description = "Income stability when category is BUSINESS", example = "STABLE")
 		String incomeStability
 	) {
