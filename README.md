@@ -19,20 +19,24 @@ Use this prompt when frontend work needs to be aligned with backend APIs:
 ```text
 Integrate frontend APIs with role-specific flows.
 
+[mention the frontend logic flow]
 Use /api/auth/me as the single identity source after login.
 Do not decode JWT manually for ownership.
 Use role only for authorization and UI branching.
 
 Public Customer flow:
+-[mention the frontend logic flow]
 - Use publicCustomerId from /api/auth/me.
 - Make relevant [functionality] with permit with that ID.
 
 Bank Officer flow:
+-[mention the frontend logic flow]
 - Use officerId from /api/auth/me.
 - After creating a customer, resolve the created bankCustomerId.
 - Save onboarding financial steps 2 to 5 using bankCustomerId.
 
 Bank Customer flow:
+-[mention the frontend logic flow]
 - Use bankCustomerId from /api/auth/me.
 - Make relevant [functionality] with permit by bankCustomerId.
 

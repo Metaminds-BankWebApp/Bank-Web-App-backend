@@ -4,6 +4,7 @@ import com.bank_web_app.backend.bankcustomer.entity.Account;
 import com.bank_web_app.backend.bankcustomer.entity.BankCustomer;
 import com.bank_web_app.backend.bankcustomer.repository.AccountRepository;
 import com.bank_web_app.backend.bankcustomer.repository.BankCustomerRepository;
+import com.bank_web_app.backend.spendiq.service.ExpenseService;
 import com.bank_web_app.backend.transact.dto.request.CreateBeneficiaryRequest;
 import com.bank_web_app.backend.transact.dto.request.CreateTransactionRequest;
 import com.bank_web_app.backend.transact.dto.request.ResendTransactionOtpRequest;
@@ -25,6 +26,8 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -36,6 +39,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class TransactionService {
+
+	private static final Logger LOGGER = LoggerFactory.getLogger(TransactionService.class);
 
 	private static final String ROLE_BANK_CUSTOMER = "BANK_CUSTOMER";
 	private static final String STATUS_PENDING_OTP = "PENDING_OTP";
@@ -57,6 +62,7 @@ public class TransactionService {
 	private final AccountRepository accountRepository;
 	private final UserRepository userRepository;
 	private final PasswordEncoder passwordEncoder;
+	private final ExpenseService expenseService;
 	private final SecureRandom secureRandom;
 
 	public TransactionService(
@@ -66,7 +72,8 @@ public class TransactionService {
 		BankCustomerRepository bankCustomerRepository,
 		AccountRepository accountRepository,
 		UserRepository userRepository,
-		PasswordEncoder passwordEncoder
+		PasswordEncoder passwordEncoder,
+		ExpenseService expenseService
 	) {
 		this.transactionRepository = transactionRepository;
 		this.otpRecordRepository = otpRecordRepository;
@@ -75,6 +82,7 @@ public class TransactionService {
 		this.accountRepository = accountRepository;
 		this.userRepository = userRepository;
 		this.passwordEncoder = passwordEncoder;
+		this.expenseService = expenseService;
 		this.secureRandom = new SecureRandom();
 	}
 
@@ -193,6 +201,10 @@ public class TransactionService {
 		transaction.setFailureReason(null);
 		transaction.setTransactionDate(now);
 		transaction = transactionRepository.save(transaction);
+
+		if (Boolean.TRUE.equals(transaction.getExpenseTrackingEnabled())) {
+			trackExpenseForSuccessfulTransaction(bankCustomer, transaction);
+		}
 
 		return toTransactionResponse(transaction);
 	}
@@ -338,6 +350,19 @@ public class TransactionService {
 
 	private String normalizeAccountNumber(String accountNo) {
 		return accountNo == null ? "" : accountNo.replaceAll("\\s+", "").trim();
+	}
+
+	private void trackExpenseForSuccessfulTransaction(BankCustomer bankCustomer, Transaction transaction) {
+		try {
+			expenseService.trackTransactExpenseForBankCustomer(
+				bankCustomer,
+				transaction.getReferenceNo(),
+				transaction.getAmount(),
+				transaction.getTransactionDate()
+			);
+		} catch (RuntimeException ex) {
+			LOGGER.warn("SpendIQ tracking failed for transaction reference {}: {}", transaction.getReferenceNo(), ex.getMessage());
+		}
 	}
 
 	private TransactionResponse toTransactionResponse(Transaction transaction) {

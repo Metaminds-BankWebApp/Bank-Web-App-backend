@@ -36,7 +36,7 @@ public class TransactionController {
 	@PostMapping("/transactions/initiate")
 	@Operation(
 		summary = "Initiate transfer transaction",
-		description = "Creates a transaction for the logged-in BANK_CUSTOMER and issues OTP for verification.",
+		description = "Creates a transaction for the logged-in BANK_CUSTOMER and issues OTP for verification. If expenseTrackingEnabled is true, SpendIQ expense tracking runs after successful OTP verification.",
 		responses = {
 			@ApiResponse(responseCode = "200", description = "Transaction initiated and OTP issued"),
 			@ApiResponse(responseCode = "400", description = "Validation failed or account/amount is invalid"),
@@ -51,7 +51,7 @@ public class TransactionController {
 	@PostMapping("/transactions/verify-otp")
 	@Operation(
 		summary = "Verify transfer OTP",
-		description = "Verifies OTP for pending transaction and completes money transfer when OTP succeeds.",
+		description = "Verifies OTP for pending transaction and completes money transfer when OTP succeeds. SpendIQ expense is auto-created when the transaction has expenseTrackingEnabled=true.",
 		responses = {
 			@ApiResponse(responseCode = "200", description = "OTP verified and transaction completed"),
 			@ApiResponse(responseCode = "400", description = "Invalid OTP, expired OTP, or business validation failure"),
