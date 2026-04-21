@@ -1,17 +1,21 @@
 package com.bank_web_app.backend.bankcustomer.service;
 
 import com.bank_web_app.backend.bankcustomer.dto.request.BankCustomerCardStepRequest;
+import com.bank_web_app.backend.bankcustomer.dto.request.BankCustomerCribRequestStepRequest;
+import com.bank_web_app.backend.bankcustomer.dto.request.BankCustomerCribRetrievalStepRequest;
 import com.bank_web_app.backend.bankcustomer.dto.request.BankCustomerIncomeStepRequest;
 import com.bank_web_app.backend.bankcustomer.dto.request.BankCustomerLiabilityStepRequest;
 import com.bank_web_app.backend.bankcustomer.dto.request.BankCustomerLoanStepRequest;
 import com.bank_web_app.backend.bankcustomer.dto.response.BankCustomerFinancialRecordResponse;
 import com.bank_web_app.backend.bankcustomer.dto.response.BankCustomerFinancialRecordSummaryResponse;
+import com.bank_web_app.backend.bankcustomer.dto.response.BankCustomerCribStepResponse;
 import com.bank_web_app.backend.bankcustomer.dto.response.BankCustomerFinancialStepResponse;
 import com.bank_web_app.backend.bankofficer.dto.response.BankOfficerCustomerIdentityResponse;
 import com.bank_web_app.backend.bankofficer.entity.BankOfficer;
 import com.bank_web_app.backend.bankofficer.repository.BankOfficerRepository;
 import com.bank_web_app.backend.bankcustomer.entity.BankCustomer;
 import com.bank_web_app.backend.bankcustomer.entity.BankCustomerCard;
+import com.bank_web_app.backend.bankcustomer.entity.BankCustomerCribRequest;
 import com.bank_web_app.backend.bankcustomer.entity.BankCustomerFinancialRecord;
 import com.bank_web_app.backend.bankcustomer.entity.BankCustomerIncome;
 import com.bank_web_app.backend.bankcustomer.entity.BankCustomerLiability;
@@ -19,6 +23,7 @@ import com.bank_web_app.backend.bankcustomer.entity.BankCustomerLoan;
 import com.bank_web_app.backend.bankcustomer.entity.BankCustomerMissedPayment;
 import com.bank_web_app.backend.bankcustomer.mapper.BankCustomerFinancialRecordMapper;
 import com.bank_web_app.backend.bankcustomer.repository.BankCustomerCardRepository;
+import com.bank_web_app.backend.bankcustomer.repository.BankCustomerCribRequestRepository;
 import com.bank_web_app.backend.bankcustomer.repository.BankCustomerFinancialRecordRepository;
 import com.bank_web_app.backend.bankcustomer.repository.BankCustomerIncomeRepository;
 import com.bank_web_app.backend.bankcustomer.repository.BankCustomerLiabilityRepository;
@@ -49,6 +54,7 @@ public class BankCustomerFinancialRecordService {
 	private final BankCustomerCardRepository cardRepository;
 	private final BankCustomerLiabilityRepository liabilityRepository;
 	private final BankCustomerMissedPaymentRepository missedPaymentRepository;
+	private final BankCustomerCribRequestRepository cribRequestRepository;
 	private final BankCustomerFinancialRecordMapper financialRecordMapper;
 	private final UserRepository userRepository;
 	private final BankOfficerRepository bankOfficerRepository;
@@ -61,6 +67,7 @@ public class BankCustomerFinancialRecordService {
 		BankCustomerCardRepository cardRepository,
 		BankCustomerLiabilityRepository liabilityRepository,
 		BankCustomerMissedPaymentRepository missedPaymentRepository,
+		BankCustomerCribRequestRepository cribRequestRepository,
 		BankCustomerFinancialRecordMapper financialRecordMapper,
 		UserRepository userRepository,
 		BankOfficerRepository bankOfficerRepository
@@ -72,6 +79,7 @@ public class BankCustomerFinancialRecordService {
 		this.cardRepository = cardRepository;
 		this.liabilityRepository = liabilityRepository;
 		this.missedPaymentRepository = missedPaymentRepository;
+		this.cribRequestRepository = cribRequestRepository;
 		this.financialRecordMapper = financialRecordMapper;
 		this.userRepository = userRepository;
 		this.bankOfficerRepository = bankOfficerRepository;
@@ -203,9 +211,87 @@ public class BankCustomerFinancialRecordService {
 		BankCustomerFinancialStepResponse response = doSaveLiabilityStep(bankCustomerId, request);
 		BankCustomer customer = bankCustomerRepository.findById(bankCustomerId)
 			.orElseThrow(() -> new IllegalArgumentException("Bank customer not found."));
-		customer.setAccessStatus("COMPLETED");
+		customer.setAccessStatus("PENDING_STEP_6");
 		bankCustomerRepository.save(customer);
 		return response;
+	}
+
+	@Transactional
+	public BankCustomerCribStepResponse saveCribRequestStepAndContinue(Long bankCustomerId, BankCustomerCribRequestStepRequest request) {
+		BankCustomer customer = resolveOwnedBankCustomer(bankCustomerId);
+
+		BankCustomerCribRequest cribRequest = new BankCustomerCribRequest();
+		cribRequest.setBankCustomer(customer);
+		cribRequest.setRequestedByOfficer(customer.getOfficer());
+		cribRequest.setRequestType(normalizeRequestType(request.requestType()));
+		cribRequest.setRequestStatus("SUBMITTED");
+		cribRequest.setReportStatus("PENDING");
+		cribRequest.setRequestedAt(LocalDateTime.now());
+
+		BankCustomerCribRequest saved = cribRequestRepository.save(cribRequest);
+
+		customer.setAccessStatus("PENDING_STEP_7");
+		bankCustomerRepository.save(customer);
+
+		return new BankCustomerCribStepResponse(
+			saved.getCribRequestId(),
+			bankCustomerId,
+			"CRIB_REQUEST",
+			saved.getRequestStatus(),
+			saved.getReportStatus(),
+			"CRIB request step saved successfully."
+		);
+	}
+
+	@Transactional
+	public BankCustomerCribStepResponse saveCribRetrievalStepAndContinue(Long bankCustomerId, BankCustomerCribRetrievalStepRequest request) {
+		BankCustomer customer = resolveOwnedBankCustomer(bankCustomerId);
+
+		BankCustomerCribRequest cribRequest = cribRequestRepository
+			.findTopByBankCustomer_BankCustomerIdOrderByRequestedAtDesc(bankCustomerId)
+			.orElseThrow(() -> new IllegalArgumentException("No CRIB request found for this bank customer."));
+
+		String requestStatus = normalizeRequestStatus(request.requestStatus());
+		String reportStatus = normalizeReportStatus(request.reportStatus());
+		cribRequest.setRequestStatus(requestStatus);
+		cribRequest.setReportStatus(reportStatus);
+		if ("READY".equals(reportStatus) || "FAILED".equals(reportStatus)) {
+			cribRequest.setResponseReceivedAt(LocalDateTime.now());
+		}
+
+		BankCustomerCribRequest saved = cribRequestRepository.save(cribRequest);
+
+		customer.setAccessStatus("PENDING_STEP_8");
+		bankCustomerRepository.save(customer);
+
+		return new BankCustomerCribStepResponse(
+			saved.getCribRequestId(),
+			bankCustomerId,
+			"CRIB_RETRIEVAL",
+			saved.getRequestStatus(),
+			saved.getReportStatus(),
+			"CRIB retrieval step saved successfully."
+		);
+	}
+
+	@Transactional
+	public BankCustomerCribStepResponse completeCribReviewAndOnboarding(Long bankCustomerId) {
+		BankCustomer customer = resolveOwnedBankCustomer(bankCustomerId);
+		customer.setAccessStatus("COMPLETED");
+		bankCustomerRepository.save(customer);
+
+		BankCustomerCribRequest latest = cribRequestRepository
+			.findTopByBankCustomer_BankCustomerIdOrderByRequestedAtDesc(bankCustomerId)
+			.orElse(null);
+
+		return new BankCustomerCribStepResponse(
+			latest != null ? latest.getCribRequestId() : null,
+			bankCustomerId,
+			"CRIB_REVIEW",
+			latest != null ? latest.getRequestStatus() : null,
+			latest != null ? latest.getReportStatus() : null,
+			"Bank customer onboarding completed successfully."
+		);
 	}
 
 	private BankCustomerFinancialStepResponse doSaveLiabilityStep(Long bankCustomerId, BankCustomerLiabilityStepRequest request) {
@@ -298,6 +384,50 @@ public class BankCustomerFinancialRecordService {
 		}
 		if (!"SALARY".equals(normalized) && !"BUSINESS".equals(normalized)) {
 			throw new IllegalArgumentException("Income category must be SALARY or BUSINESS.");
+		}
+		return normalized;
+	}
+
+	private String normalizeRequestType(String requestType) {
+		String normalized = requestType == null ? "" : requestType.trim().toUpperCase(Locale.ROOT);
+		if (!"FULL_REPORT".equals(normalized) && !"SUMMARY_ONLY".equals(normalized) && !"REFRESH".equals(normalized)) {
+			throw new IllegalArgumentException("Request type must be FULL_REPORT, SUMMARY_ONLY, or REFRESH.");
+		}
+		return normalized;
+	}
+
+	private String normalizeRequestStatus(String requestStatus) {
+		String normalized = requestStatus == null ? "" : requestStatus.trim().toUpperCase(Locale.ROOT);
+		if (normalized.isBlank()) {
+			return "COMPLETED";
+		}
+		if (
+			!"PENDING".equals(normalized) &&
+			!"SUBMITTED".equals(normalized) &&
+			!"IN_PROGRESS".equals(normalized) &&
+			!"COMPLETED".equals(normalized) &&
+			!"FAILED".equals(normalized) &&
+			!"CANCELLED".equals(normalized)
+		) {
+			throw new IllegalArgumentException("Request status must be PENDING, SUBMITTED, IN_PROGRESS, COMPLETED, FAILED, or CANCELLED.");
+		}
+		return normalized;
+	}
+
+	private String normalizeReportStatus(String reportStatus) {
+		String normalized = reportStatus == null ? "" : reportStatus.trim().toUpperCase(Locale.ROOT);
+		if (normalized.isBlank()) {
+			return "READY";
+		}
+		if (
+			!"NOT_REQUESTED".equals(normalized) &&
+			!"PENDING".equals(normalized) &&
+			!"PROCESSING".equals(normalized) &&
+			!"READY".equals(normalized) &&
+			!"FAILED".equals(normalized) &&
+			!"EXPIRED".equals(normalized)
+		) {
+			throw new IllegalArgumentException("Report status must be NOT_REQUESTED, PENDING, PROCESSING, READY, FAILED, or EXPIRED.");
 		}
 		return normalized;
 	}
