@@ -11,9 +11,13 @@ public interface BankCustomerRepository extends JpaRepository<BankCustomer, Long
 
 	Optional<BankCustomer> findByUser_UserIdAndOfficer_OfficerId(Long userId, Long officerId);
 
+	Optional<BankCustomer> findByUser_NicAndOfficer_OfficerId(String nic, Long officerId);
+
 	List<BankCustomer> findAllByOfficer_OfficerIdOrderByUpdatedAtDesc(Long officerId);
 
 	boolean existsByCustomerCode(String customerCode);
 
 	boolean existsByAccount_AccountId(Long accountId);
+
+	boolean existsByAccount_AccountIdAndBankCustomerIdNot(Long accountId, Long bankCustomerId);
 }

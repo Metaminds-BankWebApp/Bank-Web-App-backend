@@ -2,6 +2,8 @@ package com.bank_web_app.backend.bankofficer.controller;
 
 import com.bank_web_app.backend.bankofficer.dto.response.AccountVerificationResponse;
 import com.bank_web_app.backend.bankofficer.dto.response.BankOfficerCustomerIdentityResponse;
+import com.bank_web_app.backend.bankofficer.dto.response.BankOfficerCustomerStepOnePrefillResponse;
+import com.bank_web_app.backend.bankofficer.dto.request.BankCustomerStepOneUpdateRequest;
 import com.bank_web_app.backend.bankcustomer.dto.request.BankCustomerCardStepRequest;
 import com.bank_web_app.backend.bankcustomer.dto.request.BankCustomerCribRequestStepRequest;
 import com.bank_web_app.backend.bankcustomer.dto.request.BankCustomerCribRetrievalStepRequest;
@@ -25,6 +27,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -71,6 +74,62 @@ public class BankOfficerCustomerController {
 	)
 	public ResponseEntity<UserRegistrationStepResponse> saveAndContinue(@Valid @RequestBody BankCustomerStepOneRequest request) {
 		return ResponseEntity.ok(onboardingService.saveAndContinue(request));
+	}
+
+	@GetMapping("/step-1/by-nic")
+	@Operation(
+		summary = "Get existing BANK_CUSTOMER step-1 data by NIC",
+		description = "Returns step-1 details for an existing bank customer owned by the logged-in bank officer. Use this to prefill forms before updating instead of creating duplicate rows.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Existing bank customer step-1 data retrieved successfully"),
+			@ApiResponse(responseCode = "400", description = "Validation failed"),
+			@ApiResponse(responseCode = "401", description = "Unauthorized: bank officer authentication is required"),
+			@ApiResponse(responseCode = "403", description = "Forbidden: authenticated user is not a bank officer"),
+			@ApiResponse(responseCode = "404", description = "NIC not found for this bank officer")
+		}
+	)
+	public ResponseEntity<BankOfficerCustomerStepOnePrefillResponse> getOwnedStepOneByNic(@RequestParam String nic) {
+		return ResponseEntity.ok(onboardingService.getOwnedBankCustomerStepOneByNic(nic));
+	}
+
+	@PutMapping("/{bankCustomerId}/step-1/draft")
+	@Operation(
+		summary = "Update BANK_CUSTOMER step-1 as draft",
+		description = "Updates an existing bank customer step-1 record in DRAFT state. This prevents duplicate insert conflicts when editing and re-saving.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Step-1 draft updated successfully"),
+			@ApiResponse(responseCode = "400", description = "Validation failed"),
+			@ApiResponse(responseCode = "401", description = "Unauthorized: bank officer authentication is required"),
+			@ApiResponse(responseCode = "403", description = "Forbidden: bank customer is not assigned to this officer"),
+			@ApiResponse(responseCode = "404", description = "Bank customer not found"),
+			@ApiResponse(responseCode = "409", description = "Conflict: NIC, email, username, or account already in use")
+		}
+	)
+	public ResponseEntity<UserRegistrationStepResponse> updateDraft(
+		@PathVariable Long bankCustomerId,
+		@Valid @RequestBody BankCustomerStepOneUpdateRequest request
+	) {
+		return ResponseEntity.ok(onboardingService.updateStepOneDraft(bankCustomerId, request));
+	}
+
+	@PutMapping("/{bankCustomerId}/step-1/continue")
+	@Operation(
+		summary = "Update BANK_CUSTOMER step-1 and continue",
+		description = "Updates an existing bank customer step-1 record and sets onboarding state to PENDING_STEP_2, allowing the officer to continue without duplicate insert errors.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Step-1 updated successfully"),
+			@ApiResponse(responseCode = "400", description = "Validation failed"),
+			@ApiResponse(responseCode = "401", description = "Unauthorized: bank officer authentication is required"),
+			@ApiResponse(responseCode = "403", description = "Forbidden: bank customer is not assigned to this officer"),
+			@ApiResponse(responseCode = "404", description = "Bank customer not found"),
+			@ApiResponse(responseCode = "409", description = "Conflict: NIC, email, username, or account already in use")
+		}
+	)
+	public ResponseEntity<UserRegistrationStepResponse> updateAndContinue(
+		@PathVariable Long bankCustomerId,
+		@Valid @RequestBody BankCustomerStepOneUpdateRequest request
+	) {
+		return ResponseEntity.ok(onboardingService.updateStepOneAndContinue(bankCustomerId, request));
 	}
 
 	@GetMapping
@@ -243,11 +302,10 @@ public class BankOfficerCustomerController {
 	@PostMapping("/{bankCustomerId}/financial-records/steps/crib-linking/continue")
 	@Operation(
 		summary = "Save CRIB linking step and continue (Step 2)",
-		description = "Saves CRIB request and retrieval data in one combined step after personal details, then transitions the customer to step-3. Only the assigned bank officer can perform this step for their customers.",
+		description = "Saves CRIB request and retrieval data in one combined step after personal details, then transitions the customer to step-3. If NIC/ID is not found in CRIB, the API still succeeds with FAILED statuses so onboarding can continue with manual financial data entry.",
 		responses = {
-			@ApiResponse(responseCode = "200", description = "CRIB linking step saved successfully and customer advanced to next step"),
+			@ApiResponse(responseCode = "200", description = "CRIB linking processed and customer advanced to next step (including NIC-not-found fallback)"),
 			@ApiResponse(responseCode = "400", description = "Validation failed or bank customer not found"),
-			@ApiResponse(responseCode = "404", description = "Provided ID/NIC was not found in CRIB"),
 			@ApiResponse(responseCode = "401", description = "Unauthorized: bank officer authentication is required"),
 			@ApiResponse(responseCode = "403", description = "Forbidden: bank customer is not assigned to this officer or step-1 not completed")
 		}
