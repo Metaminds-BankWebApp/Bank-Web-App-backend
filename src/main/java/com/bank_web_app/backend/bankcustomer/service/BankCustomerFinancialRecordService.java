@@ -119,9 +119,9 @@ public class BankCustomerFinancialRecordService {
 	@Transactional
 	public BankCustomerFinancialStepResponse saveIncomeStepAndContinue(Long bankCustomerId, BankCustomerIncomeStepRequest request) {
 		BankCustomerFinancialStepResponse response = doSaveIncomeStep(bankCustomerId, request);
-		BankCustomer customer = resolveOwnedBankCustomer(bankCustomerId, STATUS_PENDING_STEP_3);
-		customer.setAccessStatus(STATUS_PENDING_STEP_4);
-		bankCustomerRepository.save(customer);
+		BankCustomer customer = resolveOwnedBankCustomer(bankCustomerId);
+		ensureCustomerReachedStep(customer, STATUS_PENDING_STEP_3);
+		advanceCustomerStepIfNeeded(customer, STATUS_PENDING_STEP_4);
 		return response;
 	}
 
@@ -156,9 +156,9 @@ public class BankCustomerFinancialRecordService {
 	@Transactional
 	public BankCustomerFinancialStepResponse saveLoanStepAndContinue(Long bankCustomerId, BankCustomerLoanStepRequest request) {
 		BankCustomerFinancialStepResponse response = doSaveLoanStep(bankCustomerId, request);
-		BankCustomer customer = resolveOwnedBankCustomer(bankCustomerId, STATUS_PENDING_STEP_4);
-		customer.setAccessStatus(STATUS_PENDING_STEP_5);
-		bankCustomerRepository.save(customer);
+		BankCustomer customer = resolveOwnedBankCustomer(bankCustomerId);
+		ensureCustomerReachedStep(customer, STATUS_PENDING_STEP_4);
+		advanceCustomerStepIfNeeded(customer, STATUS_PENDING_STEP_5);
 		return response;
 	}
 
@@ -190,9 +190,9 @@ public class BankCustomerFinancialRecordService {
 	@Transactional
 	public BankCustomerFinancialStepResponse saveCardStepAndContinue(Long bankCustomerId, BankCustomerCardStepRequest request) {
 		BankCustomerFinancialStepResponse response = doSaveCardStep(bankCustomerId, request);
-		BankCustomer customer = resolveOwnedBankCustomer(bankCustomerId, STATUS_PENDING_STEP_5);
-		customer.setAccessStatus(STATUS_PENDING_STEP_6);
-		bankCustomerRepository.save(customer);
+		BankCustomer customer = resolveOwnedBankCustomer(bankCustomerId);
+		ensureCustomerReachedStep(customer, STATUS_PENDING_STEP_5);
+		advanceCustomerStepIfNeeded(customer, STATUS_PENDING_STEP_6);
 		return response;
 	}
 
@@ -224,15 +224,16 @@ public class BankCustomerFinancialRecordService {
 	@Transactional
 	public BankCustomerFinancialStepResponse saveLiabilityStepAndContinue(Long bankCustomerId, BankCustomerLiabilityStepRequest request) {
 		BankCustomerFinancialStepResponse response = doSaveLiabilityStep(bankCustomerId, request);
-		BankCustomer customer = resolveOwnedBankCustomer(bankCustomerId, STATUS_PENDING_STEP_6);
-		customer.setAccessStatus(STATUS_PENDING_STEP_7);
-		bankCustomerRepository.save(customer);
+		BankCustomer customer = resolveOwnedBankCustomer(bankCustomerId);
+		ensureCustomerReachedStep(customer, STATUS_PENDING_STEP_6);
+		advanceCustomerStepIfNeeded(customer, STATUS_PENDING_STEP_7);
 		return response;
 	}
 
 	@Transactional
 	public BankCustomerCribStepResponse saveCribLinkingStepAndContinue(Long bankCustomerId, BankCustomerCribRequestStepRequest request) {
-		BankCustomer customer = resolveOwnedBankCustomer(bankCustomerId, STATUS_PENDING_STEP_2);
+		BankCustomer customer = resolveOwnedBankCustomer(bankCustomerId);
+		ensureCustomerReachedStep(customer, STATUS_PENDING_STEP_2);
 		String customerNic = customer.getUser() == null ? null : customer.getUser().getNic();
 		String requestedNic = request.nic() == null ? "" : request.nic().trim();
 		if (!requestedNic.isBlank() && customerNic != null && !customerNic.trim().isBlank() && !requestedNic.equalsIgnoreCase(customerNic.trim())) {
@@ -242,22 +243,34 @@ public class BankCustomerFinancialRecordService {
 		if (nic == null || nic.trim().isBlank()) {
 			throw new IllegalArgumentException("NIC/ID is required to link CRIB data.");
 		}
-		CribDatasetSnapshotResponse cribSnapshot = cribDatasetService.lookupSnapshotByNic(nic);
+		CribDatasetSnapshotResponse cribSnapshot = null;
+		String requestStatus = "COMPLETED";
+		String reportStatus = "READY";
+		String responseMessage = "CRIB linking step saved successfully.";
+		try {
+			cribSnapshot = cribDatasetService.lookupSnapshotByNic(nic);
+		} catch (ResponseStatusException ex) {
+			if (ex.getStatusCode().value() != HttpStatus.NOT_FOUND.value()) {
+				throw ex;
+			}
+			requestStatus = "FAILED";
+			reportStatus = "FAILED";
+			responseMessage = "ID not found in CRIB. Continued with manual financial capture.";
+		}
 
 		BankCustomerCribRequest cribRequest = new BankCustomerCribRequest();
 		cribRequest.setBankCustomer(customer);
 		cribRequest.setRequestedByOfficer(customer.getOfficer());
 		cribRequest.setRequestType(normalizeRequestType(request.requestType()));
-		cribRequest.setRequestStatus("COMPLETED");
-		cribRequest.setReportStatus("READY");
+		cribRequest.setRequestStatus(requestStatus);
+		cribRequest.setReportStatus(reportStatus);
 		LocalDateTime now = LocalDateTime.now();
 		cribRequest.setRequestedAt(now);
 		cribRequest.setResponseReceivedAt(now);
 
 		BankCustomerCribRequest saved = cribRequestRepository.save(cribRequest);
 
-		customer.setAccessStatus(STATUS_PENDING_STEP_3);
-		bankCustomerRepository.save(customer);
+		advanceCustomerStepIfNeeded(customer, STATUS_PENDING_STEP_3);
 
 		return new BankCustomerCribStepResponse(
 			saved.getCribRequestId(),
@@ -265,7 +278,7 @@ public class BankCustomerFinancialRecordService {
 			"CRIB_LINKING",
 			saved.getRequestStatus(),
 			saved.getReportStatus(),
-			"CRIB linking step saved successfully.",
+			responseMessage,
 			cribSnapshot
 		);
 	}
@@ -507,6 +520,40 @@ public class BankCustomerFinancialRecordService {
 		financialRecordRepository.save(record);
 	}
 
+	private void ensureCustomerReachedStep(BankCustomer customer, String minimumRequiredStatus) {
+		String currentStatus = normalizeAccessStatus(customer.getAccessStatus());
+		String requiredStatus = normalizeAccessStatus(minimumRequiredStatus);
+		if (onboardingStepRank(currentStatus) < onboardingStepRank(requiredStatus)) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Bank customer is not at the expected onboarding step.");
+		}
+	}
+
+	private void advanceCustomerStepIfNeeded(BankCustomer customer, String minimumNextStatus) {
+		String currentStatus = normalizeAccessStatus(customer.getAccessStatus());
+		String nextStatus = normalizeAccessStatus(minimumNextStatus);
+		if (onboardingStepRank(currentStatus) < onboardingStepRank(nextStatus)) {
+			customer.setAccessStatus(nextStatus);
+			bankCustomerRepository.save(customer);
+		}
+	}
+
+	private int onboardingStepRank(String accessStatus) {
+		return switch (accessStatus) {
+			case STATUS_PENDING_STEP_2 -> 2;
+			case STATUS_PENDING_STEP_3 -> 3;
+			case STATUS_PENDING_STEP_4 -> 4;
+			case STATUS_PENDING_STEP_5 -> 5;
+			case STATUS_PENDING_STEP_6 -> 6;
+			case STATUS_PENDING_STEP_7 -> 7;
+			case STATUS_COMPLETED -> 8;
+			default -> 0;
+		};
+	}
+
+	private String normalizeAccessStatus(String accessStatus) {
+		return accessStatus == null ? "" : accessStatus.trim().toUpperCase(Locale.ROOT);
+	}
+
 	private BankCustomer resolveOwnedBankCustomer(Long bankCustomerId) {
 		return resolveOwnedBankCustomer(bankCustomerId, null);
 	}
@@ -520,7 +567,7 @@ public class BankCustomerFinancialRecordService {
 			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This bank customer is not assigned to the logged-in officer.");
 		}
 
-		String accessStatus = customer.getAccessStatus() == null ? "" : customer.getAccessStatus().trim().toUpperCase(Locale.ROOT);
+		String accessStatus = normalizeAccessStatus(customer.getAccessStatus());
 		if ("DRAFT".equals(accessStatus)) {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Bank customer step-1 must be completed before adding financial data.");
 		}

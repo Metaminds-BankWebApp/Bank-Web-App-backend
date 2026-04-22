@@ -2,6 +2,8 @@ package com.bank_web_app.backend.admin.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -40,8 +42,9 @@ public class Branch {
 	@Column(name = "address", length = 150)
 	private String address;
 
+	@Enumerated(EnumType.STRING)
 	@Column(name = "status", nullable = false, length = 20)
-	private String status;
+	private BranchStatus status;
 
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private LocalDateTime createdAt;
@@ -54,8 +57,8 @@ public class Branch {
 		LocalDateTime now = LocalDateTime.now();
 		createdAt = now;
 		updatedAt = now;
-		if (status == null || status.isBlank()) {
-			status = "ACTIVE";
+		if (status == null) {
+			status = BranchStatus.ACTIVE;
 		}
 	}
 
