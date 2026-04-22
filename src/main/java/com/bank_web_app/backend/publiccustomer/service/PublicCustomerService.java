@@ -8,7 +8,7 @@ import com.bank_web_app.backend.publiccustomer.dto.response.PublicCustomerFinanc
 import com.bank_web_app.backend.publiccustomer.dto.response.PublicCustomerFinancialRecordSummaryResponse;
 import com.bank_web_app.backend.publiccustomer.dto.response.PublicCustomerFinancialStepResponse;
 import com.bank_web_app.backend.publiccustomer.dto.response.PublicCustomerMeResponse;
-import com.bank_web_app.backend.user.dto.request.BankCustomerStepOneRequest;
+import com.bank_web_app.backend.user.dto.request.UserRegistrationStepOneRequest;
 import com.bank_web_app.backend.user.dto.response.BankCustomerSummaryResponse;
 import com.bank_web_app.backend.user.dto.response.UserRegistrationStepResponse;
 import java.util.List;
@@ -28,11 +28,11 @@ public class PublicCustomerService {
 		this.financialRecordService = financialRecordService;
 	}
 
-	public UserRegistrationStepResponse saveDraft(BankCustomerStepOneRequest request) {
+	public UserRegistrationStepResponse saveDraft(UserRegistrationStepOneRequest request) {
 		return onboardingService.saveDraft(request);
 	}
 
-	public UserRegistrationStepResponse register(BankCustomerStepOneRequest request) {
+	public UserRegistrationStepResponse register(UserRegistrationStepOneRequest request) {
 		return onboardingService.register(request);
 	}
 

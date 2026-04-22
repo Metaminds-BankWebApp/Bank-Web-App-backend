@@ -1,7 +1,7 @@
 package com.bank_web_app.backend.admin.controller;
 
 import com.bank_web_app.backend.admin.service.AdminBankOfficerService;
-import com.bank_web_app.backend.user.dto.request.BankCustomerStepOneRequest;
+import com.bank_web_app.backend.user.dto.request.UserRegistrationStepOneRequest;
 import com.bank_web_app.backend.user.dto.response.BankCustomerSummaryResponse;
 import com.bank_web_app.backend.user.dto.response.UserRegistrationStepResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -37,7 +37,7 @@ public class AdminBankOfficerController {
 			@ApiResponse(responseCode = "409", description = "Conflict: NIC, email, or username already in use")
 		}
 	)
-	public ResponseEntity<UserRegistrationStepResponse> createDraft(@Valid @RequestBody BankCustomerStepOneRequest request) {
+	public ResponseEntity<UserRegistrationStepResponse> createDraft(@Valid @RequestBody UserRegistrationStepOneRequest request) {
 		return ResponseEntity.ok(adminBankOfficerService.createDraft(request));
 	}
 
@@ -51,7 +51,7 @@ public class AdminBankOfficerController {
 			@ApiResponse(responseCode = "409", description = "Conflict: NIC, email, or username already in use")
 		}
 	)
-	public ResponseEntity<UserRegistrationStepResponse> create(@Valid @RequestBody BankCustomerStepOneRequest request) {
+	public ResponseEntity<UserRegistrationStepResponse> create(@Valid @RequestBody UserRegistrationStepOneRequest request) {
 		return ResponseEntity.ok(adminBankOfficerService.create(request));
 	}
 
