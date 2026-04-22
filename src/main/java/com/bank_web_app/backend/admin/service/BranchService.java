@@ -1,13 +1,16 @@
 package com.bank_web_app.backend.admin.service;
 
+import java.util.List;
+import java.util.Locale;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.bank_web_app.backend.admin.dto.request.BranchRequest;
 import com.bank_web_app.backend.admin.dto.response.BranchResponse;
 import com.bank_web_app.backend.admin.entity.Branch;
+import com.bank_web_app.backend.admin.entity.BranchStatus;
 import com.bank_web_app.backend.admin.repository.BranchRepository;
-import java.util.List;
-import java.util.Locale;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class BranchService {
@@ -20,13 +23,8 @@ public class BranchService {
 
 	@Transactional
 	public BranchResponse create(BranchRequest request) {
-		String code = normalizeRequired(request.branchCode(), "Branch code is required.");
-		if (branchRepository.existsByBranchCode(code)) {
-			throw new IllegalArgumentException("Branch code is already in use.");
-		}
-
 		Branch branch = new Branch();
-		branch.setBranchCode(code);
+		branch.setBranchCode(generateBranchCode());
 		branch.setBranchName(normalizeRequired(request.branchName(), "Branch name is required."));
 		branch.setBranchEmail(normalizeOptional(request.branchEmail()));
 		branch.setBranchPhone(normalizeOptional(request.branchPhone()));
@@ -50,14 +48,6 @@ public class BranchService {
 	public BranchResponse update(Long branchId, BranchRequest request) {
 		Branch branch = findBranch(branchId);
 
-		String code = normalizeRequired(request.branchCode(), "Branch code is required.");
-		branchRepository.findByBranchCode(code).ifPresent(existing -> {
-			if (!existing.getBranchId().equals(branchId)) {
-				throw new IllegalArgumentException("Branch code is already in use.");
-			}
-		});
-
-		branch.setBranchCode(code);
 		branch.setBranchName(normalizeRequired(request.branchName(), "Branch name is required."));
 		branch.setBranchEmail(normalizeOptional(request.branchEmail()));
 		branch.setBranchPhone(normalizeOptional(request.branchPhone()));
@@ -75,7 +65,13 @@ public class BranchService {
 	}
 
 	private Branch findBranch(Long branchId) {
-		return branchRepository.findById(branchId).orElseThrow(() -> new IllegalArgumentException("Branch not found."));
+		return branchRepository.findById(branchId)
+			.orElseThrow(() -> new IllegalArgumentException("Branch not found."));
+	}
+
+	private String generateBranchCode() {
+		Long nextValue = branchRepository.getNextBranchCodeSequence();
+		return String.format("BR-%04d", nextValue);
 	}
 
 	private BranchResponse toResponse(Branch branch) {
@@ -86,7 +82,7 @@ public class BranchService {
 			branch.getBranchEmail(),
 			branch.getBranchPhone(),
 			branch.getAddress(),
-			branch.getStatus(),
+			branch.getStatus() == null ? null : branch.getStatus().name(),
 			branch.getUpdatedAt() == null ? null : branch.getUpdatedAt().toString()
 		);
 	}
@@ -102,16 +98,18 @@ public class BranchService {
 		return value == null ? null : value.trim();
 	}
 
-	private String normalizeStatus(String value) {
+	private BranchStatus normalizeStatus(String value) {
 		String normalized = normalizeOptional(value);
 		if (normalized == null || normalized.isBlank()) {
-			return "ACTIVE";
+			return BranchStatus.ACTIVE;
 		}
+
 		normalized = normalized.toUpperCase(Locale.ROOT);
-		if (!"ACTIVE".equals(normalized) && !"INACTIVE".equals(normalized)) {
-			throw new IllegalArgumentException("Status must be ACTIVE or INACTIVE.");
+
+		try {
+			return BranchStatus.valueOf(normalized);
+		} catch (IllegalArgumentException ex) {
+			throw new IllegalArgumentException("Status must be ACTIVE, INACTIVE, or MAINTENANCE.");
 		}
-		return normalized;
 	}
 }
-
