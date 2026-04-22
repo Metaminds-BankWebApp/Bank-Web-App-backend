@@ -4,6 +4,8 @@ import com.bank_web_app.backend.bankcustomer.entity.Account;
 import com.bank_web_app.backend.bankcustomer.entity.BankCustomer;
 import com.bank_web_app.backend.bankcustomer.repository.AccountRepository;
 import com.bank_web_app.backend.bankcustomer.repository.BankCustomerRepository;
+import com.bank_web_app.backend.common.email.EmailDeliveryException;
+import com.bank_web_app.backend.common.email.EmailService;
 import com.bank_web_app.backend.spendiq.service.ExpenseService;
 import com.bank_web_app.backend.transact.dto.request.CreateBeneficiaryRequest;
 import com.bank_web_app.backend.transact.dto.request.CreateTransactionRequest;
@@ -29,6 +31,7 @@ import java.util.List;
 import java.util.Locale;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -53,6 +56,8 @@ public class TransactionService {
 	private static final String OTP_STATUS_FAILED = "FAILED";
 	private static final int OTP_LENGTH = 6;
 	private static final int OTP_EXPIRY_MINUTES = 5;
+	private static final BigDecimal MAX_TRANSFER_AMOUNT = new BigDecimal("100000.00");
+	private static final BigDecimal MINIMUM_REMAINING_BALANCE = new BigDecimal("1000.00");
 	private static final DateTimeFormatter REFERENCE_TIME_FORMAT = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 	private static final String ALPHA_NUM = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
@@ -63,8 +68,11 @@ public class TransactionService {
 	private final AccountRepository accountRepository;
 	private final UserRepository userRepository;
 	private final PasswordEncoder passwordEncoder;
+	private final EmailService emailService;
 	private final ExpenseService expenseService;
 	private final SecureRandom secureRandom;
+	private final boolean otpEmailFailOpenEnabled;
+	private final boolean otpPlainLogEnabled;
 
 	public TransactionService(
 		TransactionRepository transactionRepository,
@@ -74,7 +82,10 @@ public class TransactionService {
 		AccountRepository accountRepository,
 		UserRepository userRepository,
 		PasswordEncoder passwordEncoder,
-		ExpenseService expenseService
+		EmailService emailService,
+		ExpenseService expenseService,
+		@Value("${app.transact.otp.fail-open-enabled:true}") boolean otpEmailFailOpenEnabled,
+		@Value("${app.transact.otp.log-plain-enabled:true}") boolean otpPlainLogEnabled
 	) {
 		this.transactionRepository = transactionRepository;
 		this.otpRecordRepository = otpRecordRepository;
@@ -83,14 +94,16 @@ public class TransactionService {
 		this.accountRepository = accountRepository;
 		this.userRepository = userRepository;
 		this.passwordEncoder = passwordEncoder;
+		this.emailService = emailService;
 		this.expenseService = expenseService;
 		this.secureRandom = new SecureRandom();
+		this.otpEmailFailOpenEnabled = otpEmailFailOpenEnabled;
+		this.otpPlainLogEnabled = otpPlainLogEnabled;
 	}
 
 	@Transactional
 	public TransactionInitiateResponse initiateTransaction(CreateTransactionRequest request) {
 		BankCustomer bankCustomer = resolveLoggedInBankCustomer();
-		Long bankCustomerId = bankCustomer.getBankCustomerId();
 
 		Account senderAccount = resolveSenderAccountForBankCustomer(bankCustomer);
 		String senderAccountNo = normalizeAccountNumber(senderAccount.getAccountNumber());
@@ -108,14 +121,8 @@ public class TransactionService {
 
 		validateActiveAccount(senderAccount, "Sender account is not active.");
 		validateActiveAccount(receiverAccount, "Receiver account is not active.");
-		requireSufficientBalance(senderAccount, request.amount());
-		ensureNoPendingDuplicateTransaction(
-			bankCustomerId,
-			receiverAccountNo,
-			receiverName,
-			request.amount(),
-			remark
-		);
+		validateTransferAmount(request.amount());
+		requireSufficientBalanceAndMinimumRemaining(senderAccount, request.amount());
 
 		String referenceNo = generateUniqueReferenceNo();
 
@@ -136,6 +143,10 @@ public class TransactionService {
 
 		String otpCode = generateOtp();
 		OtpRecord otpRecord = createOtpRecord(transaction, bankCustomer.getUser().getEmail(), otpCode, 0);
+		boolean otpEmailSent = sendTransferOtpEmail(bankCustomer, transaction, otpCode, otpRecord.getExpiresAt(), false);
+		String responseMessage = otpEmailSent
+			? "Transaction created. OTP has been issued for verification."
+			: "Transaction created. OTP email failed; use development OTP from backend logs.";
 
 		return new TransactionInitiateResponse(
 			transaction.getTransactionId(),
@@ -143,7 +154,7 @@ public class TransactionService {
 			transaction.getStatus(),
 			otpRecord.getSentToEmail(),
 			otpRecord.getExpiresAt(),
-			"Transaction created. OTP has been issued for verification."
+			responseMessage
 		);
 	}
 
@@ -189,11 +200,12 @@ public class TransactionService {
 
 		BigDecimal availableBalance;
 		try {
-			availableBalance = requireSufficientBalance(senderAccount, transaction.getAmount());
+			validateTransferAmount(transaction.getAmount());
+			availableBalance = requireSufficientBalanceAndMinimumRemaining(senderAccount, transaction.getAmount());
 		} catch (IllegalArgumentException ex) {
 			transaction.setStatus(STATUS_FAILED);
 			transaction.setOtpVerified(Boolean.FALSE);
-			transaction.setFailureReason("Insufficient balance.");
+			transaction.setFailureReason(toFailureReason(ex.getMessage()));
 			transactionRepository.save(transaction);
 			throw ex;
 		}
@@ -214,6 +226,7 @@ public class TransactionService {
 		transaction = transactionRepository.save(transaction);
 
 		if (Boolean.TRUE.equals(transaction.getExpenseTrackingEnabled())) {
+			// Expense tracking integration point after transfer is confirmed as SUCCESS.
 			trackExpenseForSuccessfulTransaction(bankCustomer, transaction);
 		}
 
@@ -247,6 +260,10 @@ public class TransactionService {
 			otpCode,
 			(previousOtp.getResendCount() == null ? 0 : previousOtp.getResendCount()) + 1
 		);
+		boolean otpEmailSent = sendTransferOtpEmail(bankCustomer, transaction, otpCode, otpRecord.getExpiresAt(), true);
+		String responseMessage = otpEmailSent
+			? "OTP has been reissued for this transaction."
+			: "OTP reissued, but email failed; use development OTP from backend logs.";
 
 		return new TransactionInitiateResponse(
 			transaction.getTransactionId(),
@@ -254,7 +271,7 @@ public class TransactionService {
 			transaction.getStatus(),
 			otpRecord.getSentToEmail(),
 			otpRecord.getExpiresAt(),
-			"OTP has been reissued for this transaction."
+			responseMessage
 		);
 	}
 
@@ -358,6 +375,90 @@ public class TransactionService {
 		return otpRecordRepository.save(otpRecord);
 	}
 
+	private boolean sendTransferOtpEmail(
+		BankCustomer bankCustomer,
+		Transaction transaction,
+		String otpCode,
+		LocalDateTime expiresAt,
+		boolean resend
+	) {
+		String toEmail = bankCustomer.getUser().getEmail();
+		String subject = resend
+			? "Primecore transfer OTP (resent)"
+			: "Primecore transfer OTP";
+		String customerName = resolveDisplayName(bankCustomer.getUser());
+		String body = buildOtpEmailBody(customerName, otpCode, transaction, expiresAt, resend);
+		try {
+			emailService.sendPlainText(toEmail, subject, body);
+			return true;
+		} catch (EmailDeliveryException ex) {
+			if (!otpEmailFailOpenEnabled) {
+				throw ex;
+			}
+			LOGGER.warn("OTP email delivery failed for transaction reference {}: {}", transaction.getReferenceNo(), ex.getMessage());
+			if (otpPlainLogEnabled) {
+				LOGGER.info(
+					"DEV OTP fallback - transactionRef={} transactionId={} otpCode={} expiresAt={}",
+					transaction.getReferenceNo(),
+					transaction.getTransactionId(),
+					otpCode,
+					expiresAt
+				);
+			}
+			return false;
+		}
+	}
+
+	private String buildOtpEmailBody(
+		String customerName,
+		String otpCode,
+		Transaction transaction,
+		LocalDateTime expiresAt,
+		boolean resend
+	) {
+		String greeting = customerName.isBlank() ? "Customer" : customerName;
+		String transferAmount = transaction.getAmount() == null ? "0.00" : transaction.getAmount().toPlainString();
+		String receiverAccountNo = transaction.getReceiverAccountNo() == null ? "" : transaction.getReceiverAccountNo();
+		String receiverName = transaction.getReceiverName() == null ? "" : transaction.getReceiverName();
+		String referenceNo = transaction.getReferenceNo() == null ? "" : transaction.getReferenceNo();
+
+		StringBuilder sb = new StringBuilder();
+		sb.append("Dear ").append(greeting).append(",\n\n");
+		if (resend) {
+			sb.append("Your new OTP for the transfer request is below.\n\n");
+		} else {
+			sb.append("Use the OTP below to verify your transfer request.\n\n");
+		}
+		sb.append("OTP: ").append(otpCode).append('\n');
+		sb.append("Expires at: ").append(expiresAt).append(" (valid for ").append(OTP_EXPIRY_MINUTES).append(" minutes)\n\n");
+		sb.append("Transaction details:\n");
+		sb.append("- Transaction ID: ").append(transaction.getTransactionId()).append('\n');
+		sb.append("- Reference No: ").append(referenceNo).append('\n');
+		sb.append("- Receiver account: ").append(receiverAccountNo).append('\n');
+		sb.append("- Receiver name: ").append(receiverName).append('\n');
+		sb.append("- Amount: Rs. ").append(transferAmount).append("\n\n");
+		sb.append("If you did not request this transfer, contact Primecore support immediately.\n\n");
+		sb.append("Primecore Transact");
+		return sb.toString();
+	}
+
+	private String resolveDisplayName(User user) {
+		if (user == null) {
+			return "";
+		}
+		String firstName = user.getFirstName() == null ? "" : user.getFirstName().trim();
+		String lastName = user.getLastName() == null ? "" : user.getLastName().trim();
+		String fullName = (firstName + " " + lastName).trim();
+		if (!fullName.isBlank()) {
+			return fullName;
+		}
+		String username = user.getUsername() == null ? "" : user.getUsername().trim();
+		if (!username.isBlank()) {
+			return username;
+		}
+		return user.getEmail() == null ? "" : user.getEmail().trim();
+	}
+
 	private String generateUniqueReferenceNo() {
 		for (int i = 0; i < 20; i += 1) {
 			String candidate = "TXN-" + LocalDateTime.now().format(REFERENCE_TIME_FORMAT) + "-" + randomAlphaNumeric(6);
@@ -388,37 +489,37 @@ public class TransactionService {
 		}
 	}
 
-	private BigDecimal requireSufficientBalance(Account senderAccount, BigDecimal amount) {
+	private void validateTransferAmount(BigDecimal amount) {
+		if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+			throw new IllegalArgumentException("Amount must be greater than 0.");
+		}
+		if (amount.compareTo(MAX_TRANSFER_AMOUNT) > 0) {
+			throw new IllegalArgumentException("Transaction amount must not exceed Rs. 100,000.00.");
+		}
+	}
+
+	private BigDecimal requireSufficientBalanceAndMinimumRemaining(Account senderAccount, BigDecimal amount) {
 		BigDecimal availableBalance = senderAccount.getBalance();
 		if (availableBalance == null || availableBalance.compareTo(amount) < 0) {
 			throw new IllegalArgumentException("Insufficient balance to complete this transaction.");
 		}
+		BigDecimal remainingBalance = availableBalance.subtract(amount);
+		if (remainingBalance.compareTo(MINIMUM_REMAINING_BALANCE) < 0) {
+			throw new IllegalArgumentException("Minimum balance of Rs. 1,000.00 must remain after transfer.");
+		}
 		return availableBalance;
+	}
+
+	private String toFailureReason(String message) {
+		if (message == null || message.isBlank()) {
+			return "Transaction failed.";
+		}
+		String trimmed = message.trim();
+		return trimmed.length() > 255 ? trimmed.substring(0, 255) : trimmed;
 	}
 
 	private String normalizeAccountNumber(String accountNo) {
 		return accountNo == null ? "" : accountNo.replaceAll("\\s+", "").trim();
-	}
-
-	private void ensureNoPendingDuplicateTransaction(
-		Long bankCustomerId,
-		String receiverAccountNo,
-		String receiverName,
-		BigDecimal amount,
-		String remark
-	) {
-		boolean duplicatePending = transactionRepository
-			.existsByBankCustomer_BankCustomerIdAndReceiverAccountNoAndReceiverNameAndAmountAndRemarkAndStatus(
-				bankCustomerId,
-				receiverAccountNo,
-				receiverName,
-				amount,
-				remark,
-				STATUS_PENDING_OTP
-			);
-		if (duplicatePending) {
-			throw new ResponseStatusException(HttpStatus.CONFLICT, "A pending transfer with same details already exists.");
-		}
 	}
 
 	private Account resolveSenderAccountForBankCustomer(BankCustomer bankCustomer) {

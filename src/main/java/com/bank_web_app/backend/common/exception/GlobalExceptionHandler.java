@@ -1,5 +1,6 @@
 package com.bank_web_app.backend.common.exception;
 
+import com.bank_web_app.backend.common.email.EmailDeliveryException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -106,6 +107,14 @@ public class GlobalExceptionHandler {
 			? status.getReasonPhrase()
 			: ex.getReason();
 		return build(status, message, request.getRequestURI());
+	}
+
+	@ExceptionHandler(EmailDeliveryException.class)
+	public ResponseEntity<ApiErrorResponse> handleEmailDelivery(
+		EmailDeliveryException ex,
+		HttpServletRequest request
+	) {
+		return build(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage(), request.getRequestURI());
 	}
 
 	@ExceptionHandler(Exception.class)

@@ -12,6 +12,36 @@ This repository already contains the main backend scaffolding. Use this section 
 - Add service methods first, then controller routes, then Swagger annotations, then frontend integration.
 - Validate new flows with `mvnw.cmd -q -DskipTests compile` before wiring the frontend.
 
+## Brevo SMTP (OTP Email)
+
+Use environment variables so SMTP credentials are never hardcoded in source files.
+
+`application.properties` equivalent:
+
+```properties
+spring.mail.host=smtp-relay.brevo.com
+spring.mail.port=587
+spring.mail.username=${SPRING_MAIL_USERNAME:a8df4f001@smtp-brevo.com}
+spring.mail.password=${SPRING_MAIL_PASSWORD}
+spring.mail.properties.mail.smtp.auth=${SPRING_MAIL_SMTP_AUTH:true}
+spring.mail.properties.mail.smtp.starttls.enable=${SPRING_MAIL_SMTP_STARTTLS_ENABLE:true}
+app.mail.from=${APP_MAIL_FROM:no-reply@primecore.local}
+```
+
+Where to put values:
+
+1. Set `SPRING_MAIL_USERNAME` to your Brevo SMTP login.
+2. Set `SPRING_MAIL_PASSWORD` to your Brevo SMTP key.
+3. Optional: set `APP_MAIL_FROM` for sender address shown in OTP email.
+
+Example shell export:
+
+```bash
+export SPRING_MAIL_USERNAME="a8df4f001@smtp-brevo.com"
+export SPRING_MAIL_PASSWORD="<your-brevo-smtp-key>"
+export APP_MAIL_FROM="no-reply@primecore.local"
+```
+
 ## API Integration Prompt for Frontend
 
 Use this prompt when frontend work needs to be aligned with backend APIs:

@@ -1,6 +1,7 @@
 package com.bank_web_app.backend.transact.dto.request;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
@@ -22,6 +23,7 @@ public record CreateTransactionRequest(
 	@Schema(description = "Transfer amount.", example = "12500.00", requiredMode = Schema.RequiredMode.REQUIRED)
 	@NotNull(message = "Amount is required.")
 	@DecimalMin(value = "0.01", message = "Amount must be greater than 0.")
+	@DecimalMax(value = "100000.00", message = "Transaction amount must not exceed Rs. 100,000.00.")
 	@Digits(integer = 13, fraction = 2, message = "Amount supports up to 13 digits and 2 decimal places.")
 	BigDecimal amount,
 	@Schema(description = "Transfer remark or invoice reference.", example = "Invoice #INV-1002", requiredMode = Schema.RequiredMode.REQUIRED)
