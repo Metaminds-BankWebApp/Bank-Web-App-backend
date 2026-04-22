@@ -38,10 +38,11 @@ public class TransactionController {
 	@PostMapping("/transactions/initiate")
 	@Operation(
 		summary = "Initiate transfer transaction",
-		description = "Creates a transaction for the logged-in BANK_CUSTOMER and issues OTP for verification. If expenseTrackingEnabled is true, SpendIQ expense tracking runs after successful OTP verification.",
+		description = "Creates a transaction for the logged-in BANK_CUSTOMER and issues OTP for verification. Sender account ownership is resolved from authenticated context (same ownership source as /api/auth/me bankCustomerId). If expenseTrackingEnabled is true, SpendIQ expense tracking runs after successful OTP verification.",
 		responses = {
 			@ApiResponse(responseCode = "200", description = "Transaction initiated and OTP issued"),
 			@ApiResponse(responseCode = "400", description = "Validation failed or account/amount is invalid"),
+			@ApiResponse(responseCode = "409", description = "A pending duplicate transfer request already exists"),
 			@ApiResponse(responseCode = "401", description = "Unauthorized: bank customer authentication is required"),
 			@ApiResponse(responseCode = "403", description = "Forbidden: logged-in user is not a bank customer")
 		}

@@ -16,4 +16,13 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
 	List<Transaction> findAllByBankCustomer_BankCustomerIdOrderByTransactionDateDesc(Long bankCustomerId);
 
 	boolean existsByReferenceNo(String referenceNo);
+
+	boolean existsByBankCustomer_BankCustomerIdAndReceiverAccountNoAndReceiverNameAndAmountAndRemarkAndStatus(
+		Long bankCustomerId,
+		String receiverAccountNo,
+		String receiverName,
+		java.math.BigDecimal amount,
+		String remark,
+		String status
+	);
 }

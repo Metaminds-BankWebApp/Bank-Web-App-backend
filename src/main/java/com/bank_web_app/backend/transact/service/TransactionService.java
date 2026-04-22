@@ -90,26 +90,33 @@ public class TransactionService {
 	@Transactional
 	public TransactionInitiateResponse initiateTransaction(CreateTransactionRequest request) {
 		BankCustomer bankCustomer = resolveLoggedInBankCustomer();
+		Long bankCustomerId = bankCustomer.getBankCustomerId();
 
-		String senderAccountNo = normalizeAccountNumber(request.senderAccountNo());
+		String senderAccountNo = normalizeAccountNumber(bankCustomer.getAccount().getAccountNumber());
 		String receiverAccountNo = normalizeAccountNumber(request.receiverAccountNo());
+		String receiverName = request.receiverName().trim();
+		String remark = request.remark().trim();
 
-		if (!senderAccountNo.equals(bankCustomer.getAccount().getAccountNumber())) {
-			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Sender account does not belong to logged-in bank customer.");
-		}
 		if (senderAccountNo.equals(receiverAccountNo)) {
 			throw new IllegalArgumentException("Sender and receiver account numbers cannot be the same.");
 		}
 
 		Account senderAccount = accountRepository
 			.findByAccountNumber(senderAccountNo)
-			.orElseThrow(() -> new IllegalArgumentException("Sender account was not found."));
+			.orElseThrow(() -> new IllegalStateException("Sender account was not found for logged-in bank customer."));
 		Account receiverAccount = accountRepository
 			.findByAccountNumber(receiverAccountNo)
-			.orElseThrow(() -> new IllegalArgumentException("Receiver account was not found."));
+			.orElseThrow(() -> new IllegalArgumentException("Account number is invalid"));
 
 		validateActiveAccount(senderAccount, "Sender account is not active.");
 		validateActiveAccount(receiverAccount, "Receiver account is not active.");
+		ensureNoPendingDuplicateTransaction(
+			bankCustomerId,
+			receiverAccountNo,
+			receiverName,
+			request.amount(),
+			remark
+		);
 
 		String referenceNo = generateUniqueReferenceNo();
 
@@ -117,9 +124,9 @@ public class TransactionService {
 		transaction.setBankCustomer(bankCustomer);
 		transaction.setSenderAccountNo(senderAccountNo);
 		transaction.setReceiverAccountNo(receiverAccountNo);
-		transaction.setReceiverName(request.receiverName().trim());
+		transaction.setReceiverName(receiverName);
 		transaction.setAmount(request.amount());
-		transaction.setRemark(request.remark().trim());
+		transaction.setRemark(remark);
 		transaction.setReferenceNo(referenceNo);
 		transaction.setStatus(STATUS_PENDING_OTP);
 		transaction.setOtpVerified(Boolean.FALSE);
@@ -380,6 +387,27 @@ public class TransactionService {
 
 	private String normalizeAccountNumber(String accountNo) {
 		return accountNo == null ? "" : accountNo.replaceAll("\\s+", "").trim();
+	}
+
+	private void ensureNoPendingDuplicateTransaction(
+		Long bankCustomerId,
+		String receiverAccountNo,
+		String receiverName,
+		BigDecimal amount,
+		String remark
+	) {
+		boolean duplicatePending = transactionRepository
+			.existsByBankCustomer_BankCustomerIdAndReceiverAccountNoAndReceiverNameAndAmountAndRemarkAndStatus(
+				bankCustomerId,
+				receiverAccountNo,
+				receiverName,
+				amount,
+				remark,
+				STATUS_PENDING_OTP
+			);
+		if (duplicatePending) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "A pending transfer with same details already exists.");
+		}
 	}
 
 	private void ensureNoDuplicateBeneficiary(Long bankCustomerId, String accountNo, Long beneficiaryIdToIgnore) {
