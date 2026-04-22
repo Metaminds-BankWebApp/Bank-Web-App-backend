@@ -92,7 +92,8 @@ public class TransactionService {
 		BankCustomer bankCustomer = resolveLoggedInBankCustomer();
 		Long bankCustomerId = bankCustomer.getBankCustomerId();
 
-		String senderAccountNo = normalizeAccountNumber(bankCustomer.getAccount().getAccountNumber());
+		Account senderAccount = resolveSenderAccountForBankCustomer(bankCustomer);
+		String senderAccountNo = normalizeAccountNumber(senderAccount.getAccountNumber());
 		String receiverAccountNo = normalizeAccountNumber(request.receiverAccountNo());
 		String receiverName = request.receiverName().trim();
 		String remark = request.remark().trim();
@@ -101,15 +102,13 @@ public class TransactionService {
 			throw new IllegalArgumentException("Sender and receiver account numbers cannot be the same.");
 		}
 
-		Account senderAccount = accountRepository
-			.findByAccountNumber(senderAccountNo)
-			.orElseThrow(() -> new IllegalStateException("Sender account was not found for logged-in bank customer."));
 		Account receiverAccount = accountRepository
 			.findByAccountNumber(receiverAccountNo)
 			.orElseThrow(() -> new IllegalArgumentException("Account number is invalid"));
 
 		validateActiveAccount(senderAccount, "Sender account is not active.");
 		validateActiveAccount(receiverAccount, "Receiver account is not active.");
+		requireSufficientBalance(senderAccount, request.amount());
 		ensureNoPendingDuplicateTransaction(
 			bankCustomerId,
 			receiverAccountNo,
@@ -176,9 +175,11 @@ public class TransactionService {
 			throw new IllegalArgumentException("Invalid OTP code.");
 		}
 
-		Account senderAccount = accountRepository
-			.findByAccountNumber(transaction.getSenderAccountNo())
-			.orElseThrow(() -> new IllegalStateException("Sender account was not found during verification."));
+		Account senderAccount = resolveSenderAccountForBankCustomer(bankCustomer);
+		String senderAccountNo = normalizeAccountNumber(senderAccount.getAccountNumber());
+		if (!senderAccountNo.equals(normalizeAccountNumber(transaction.getSenderAccountNo()))) {
+			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Sender account does not belong to logged-in bank customer.");
+		}
 		Account receiverAccount = accountRepository
 			.findByAccountNumber(transaction.getReceiverAccountNo())
 			.orElseThrow(() -> new IllegalStateException("Receiver account was not found during verification."));
@@ -186,13 +187,15 @@ public class TransactionService {
 		validateActiveAccount(senderAccount, "Sender account is not active.");
 		validateActiveAccount(receiverAccount, "Receiver account is not active.");
 
-		BigDecimal availableBalance = senderAccount.getBalance();
-		if (availableBalance == null || availableBalance.compareTo(transaction.getAmount()) < 0) {
+		BigDecimal availableBalance;
+		try {
+			availableBalance = requireSufficientBalance(senderAccount, transaction.getAmount());
+		} catch (IllegalArgumentException ex) {
 			transaction.setStatus(STATUS_FAILED);
 			transaction.setOtpVerified(Boolean.FALSE);
 			transaction.setFailureReason("Insufficient balance.");
 			transactionRepository.save(transaction);
-			throw new IllegalArgumentException("Insufficient balance to complete this transaction.");
+			throw ex;
 		}
 
 		senderAccount.setBalance(availableBalance.subtract(transaction.getAmount()));
@@ -280,7 +283,7 @@ public class TransactionService {
 		Long bankCustomerId = bankCustomer.getBankCustomerId();
 
 		String accountNo = normalizeAccountNumber(request.beneficiaryAccountNo());
-		if (accountNo.equals(bankCustomer.getAccount().getAccountNumber())) {
+		if (accountNo.equals(normalizeAccountNumber(bankCustomer.getAccount().getAccountNumber()))) {
 			throw new IllegalArgumentException("Beneficiary account cannot be the same as sender account.");
 		}
 		Account beneficiaryAccount = accountRepository
@@ -308,7 +311,7 @@ public class TransactionService {
 			.orElseThrow(() -> new IllegalArgumentException("Beneficiary was not found for this bank customer."));
 
 		String accountNo = normalizeAccountNumber(request.beneficiaryAccountNo());
-		if (accountNo.equals(bankCustomer.getAccount().getAccountNumber())) {
+		if (accountNo.equals(normalizeAccountNumber(bankCustomer.getAccount().getAccountNumber()))) {
 			throw new IllegalArgumentException("Beneficiary account cannot be the same as sender account.");
 		}
 		Account beneficiaryAccount = accountRepository
@@ -385,6 +388,14 @@ public class TransactionService {
 		}
 	}
 
+	private BigDecimal requireSufficientBalance(Account senderAccount, BigDecimal amount) {
+		BigDecimal availableBalance = senderAccount.getBalance();
+		if (availableBalance == null || availableBalance.compareTo(amount) < 0) {
+			throw new IllegalArgumentException("Insufficient balance to complete this transaction.");
+		}
+		return availableBalance;
+	}
+
 	private String normalizeAccountNumber(String accountNo) {
 		return accountNo == null ? "" : accountNo.replaceAll("\\s+", "").trim();
 	}
@@ -408,6 +419,24 @@ public class TransactionService {
 		if (duplicatePending) {
 			throw new ResponseStatusException(HttpStatus.CONFLICT, "A pending transfer with same details already exists.");
 		}
+	}
+
+	private Account resolveSenderAccountForBankCustomer(BankCustomer bankCustomer) {
+		if (bankCustomer == null || bankCustomer.getAccount() == null) {
+			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Sender account is not linked to logged-in bank customer.");
+		}
+		Long senderAccountId = bankCustomer.getAccount().getAccountId();
+		if (senderAccountId == null) {
+			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Sender account is not linked to logged-in bank customer.");
+		}
+		Account senderAccount = accountRepository
+			.findById(senderAccountId)
+			.orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Sender account is not linked to logged-in bank customer."));
+		String senderAccountNo = normalizeAccountNumber(senderAccount.getAccountNumber());
+		if (senderAccountNo.isBlank()) {
+			throw new IllegalStateException("Sender account number is invalid for logged-in bank customer.");
+		}
+		return senderAccount;
 	}
 
 	private void ensureNoDuplicateBeneficiary(Long bankCustomerId, String accountNo, Long beneficiaryIdToIgnore) {
