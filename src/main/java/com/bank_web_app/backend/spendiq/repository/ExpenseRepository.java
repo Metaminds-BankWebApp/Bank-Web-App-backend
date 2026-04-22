@@ -7,11 +7,13 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface ExpenseRepository extends JpaRepository<Expense, Long> {
 
-	List<Expense> findAllByAccount_AccountIdOrderByExpenseDateDescExpenseIdDesc(Long accountId);
+	List<Expense> findAllByUser_UserIdOrderByExpenseDateDescCreatedAtDesc(Long userId);
 
-	List<Expense> findAllByAccount_AccountIdAndExpenseDateBetweenOrderByExpenseDateDescExpenseIdDesc(
-		Long accountId,
-		LocalDate from,
-		LocalDate to
+	List<Expense> findAllByUser_UserIdAndExpenseDateBetweenOrderByExpenseDateDescCreatedAtDesc(
+		Long userId,
+		LocalDate fromDate,
+		LocalDate toDate
 	);
+
+	boolean existsByTrackingSourceAndTrackingReference(String trackingSource, String trackingReference);
 }

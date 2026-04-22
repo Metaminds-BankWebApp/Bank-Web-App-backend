@@ -2,10 +2,17 @@ package com.bank_web_app.backend.auth.service;
 
 import com.bank_web_app.backend.auth.dto.request.LoginRequest;
 import com.bank_web_app.backend.auth.dto.request.RefreshTokenRequest;
+import com.bank_web_app.backend.auth.dto.response.AuthMeResponse;
 import com.bank_web_app.backend.auth.dto.response.LoginResponse;
 import com.bank_web_app.backend.auth.entity.RefreshToken;
 import com.bank_web_app.backend.auth.repository.RefreshTokenRepository;
+import com.bank_web_app.backend.bankcustomer.entity.BankCustomer;
+import com.bank_web_app.backend.bankcustomer.repository.BankCustomerRepository;
+import com.bank_web_app.backend.bankofficer.entity.BankOfficer;
+import com.bank_web_app.backend.bankofficer.repository.BankOfficerRepository;
 import com.bank_web_app.backend.security.jwt.JwtService;
+import com.bank_web_app.backend.publiccustomer.entity.PublicCustomerProfile;
+import com.bank_web_app.backend.publiccustomer.repository.PublicCustomerProfileRepository;
 import com.bank_web_app.backend.user.entity.User;
 import com.bank_web_app.backend.user.repository.UserRepository;
 import java.nio.charset.StandardCharsets;
@@ -18,6 +25,9 @@ import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +39,9 @@ public class AuthServiceImpl implements AuthService {
 	private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
 	private final UserRepository userRepository;
+	private final BankCustomerRepository bankCustomerRepository;
+	private final PublicCustomerProfileRepository publicCustomerProfileRepository;
+	private final BankOfficerRepository bankOfficerRepository;
 	private final JwtService jwtService;
 	private final RefreshTokenRepository refreshTokenRepository;
 	private final PasswordEncoder passwordEncoder;
@@ -36,12 +49,18 @@ public class AuthServiceImpl implements AuthService {
 
 	public AuthServiceImpl(
 		UserRepository userRepository,
+		BankCustomerRepository bankCustomerRepository,
+		PublicCustomerProfileRepository publicCustomerProfileRepository,
+		BankOfficerRepository bankOfficerRepository,
 		JwtService jwtService,
 		RefreshTokenRepository refreshTokenRepository,
 		PasswordEncoder passwordEncoder,
 		@Value("${jwt.refresh-token-expiration-ms:1209600000}") long refreshTokenExpirationMs
 	) {
 		this.userRepository = userRepository;
+		this.bankCustomerRepository = bankCustomerRepository;
+		this.publicCustomerProfileRepository = publicCustomerProfileRepository;
+		this.bankOfficerRepository = bankOfficerRepository;
 		this.jwtService = jwtService;
 		this.refreshTokenRepository = refreshTokenRepository;
 		this.passwordEncoder = passwordEncoder;
@@ -116,6 +135,64 @@ public class AuthServiceImpl implements AuthService {
 				refreshTokenRepository.save(token);
 			}
 		});
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public AuthMeResponse me() {
+		User user = resolveLoggedInUser();
+		String fullName = (safe(user.getFirstName()) + " " + safe(user.getLastName())).trim();
+		if (fullName.isBlank()) {
+			fullName = user.getEmail();
+		}
+
+		Long bankCustomerId = bankCustomerRepository
+			.findByUser_UserId(user.getUserId())
+			.map(BankCustomer::getBankCustomerId)
+			.orElse(null);
+
+		Long publicCustomerId = publicCustomerProfileRepository
+			.findByUser_UserId(user.getUserId())
+			.map(PublicCustomerProfile::getPublicCustomerId)
+			.orElse(null);
+
+		Long officerId = bankOfficerRepository
+			.findByUser_UserId(user.getUserId())
+			.map(BankOfficer::getOfficerId)
+			.orElse(null);
+
+		return new AuthMeResponse(
+			user.getUserId(),
+			user.getEmail(),
+			user.getUsername(),
+			fullName,
+			user.getRole().getRoleId(),
+			user.getRole().getRoleName(),
+			bankCustomerId,
+			publicCustomerId,
+			officerId
+		);
+	}
+
+	private User resolveLoggedInUser() {
+		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+		if (
+			authentication == null ||
+			!authentication.isAuthenticated() ||
+			authentication instanceof AnonymousAuthenticationToken ||
+			authentication.getName() == null ||
+			authentication.getName().isBlank()
+		) {
+			throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authentication is required.");
+		}
+
+		String principal = authentication.getName().trim();
+		String normalizedPrincipal = principal.toLowerCase(Locale.ROOT);
+		return userRepository
+			.findByEmail(normalizedPrincipal)
+			.or(() -> userRepository.findByUsername(principal))
+			.or(() -> userRepository.findByUsername(normalizedPrincipal))
+			.orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Logged-in user was not found."));
 	}
 
 	private LoginResponse issueTokenPair(User user) {

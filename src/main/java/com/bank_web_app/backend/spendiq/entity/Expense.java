@@ -1,6 +1,6 @@
 package com.bank_web_app.backend.spendiq.entity;
 
-import com.bank_web_app.backend.bankcustomer.entity.Account;
+import com.bank_web_app.backend.user.entity.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -10,7 +10,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -20,7 +19,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "spendiq_expenses")
+@Table(name = "expense_records")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -32,14 +31,12 @@ public class Expense {
 	private Long expenseId;
 
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
-	@JoinColumn(name = "account_id", nullable = false)
-	private Account account;
+	@JoinColumn(name = "user_id", nullable = false)
+	private User user;
 
-	@Column(name = "title", nullable = false, length = 120)
-	private String title;
-
-	@Column(name = "category", nullable = false, length = 50)
-	private String category;
+	@ManyToOne(fetch = FetchType.LAZY, optional = false)
+	@JoinColumn(name = "category_id", nullable = false)
+	private ExpenseCategory category;
 
 	@Column(name = "amount", nullable = false, precision = 15, scale = 2)
 	private BigDecimal amount;
@@ -47,24 +44,20 @@ public class Expense {
 	@Column(name = "expense_date", nullable = false)
 	private LocalDate expenseDate;
 
-	@Column(name = "notes", length = 500)
-	private String notes;
+	@Column(name = "payment_type", nullable = false, length = 50)
+	private String paymentType;
+
+	@Column(name = "tracking_source", length = 30)
+	private String trackingSource;
+
+	@Column(name = "tracking_reference", length = 50)
+	private String trackingReference;
 
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private LocalDateTime createdAt;
 
-	@Column(name = "updated_at", nullable = false)
-	private LocalDateTime updatedAt;
-
 	@PrePersist
 	void onCreate() {
-		LocalDateTime now = LocalDateTime.now();
-		createdAt = now;
-		updatedAt = now;
-	}
-
-	@PreUpdate
-	void onUpdate() {
-		updatedAt = LocalDateTime.now();
+		createdAt = LocalDateTime.now();
 	}
 }

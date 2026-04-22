@@ -234,6 +234,12 @@ bankOfficerRepository.save(officer);
 
 private void createBankCustomerProfile(BankCustomerStepOneRequest request, User user, String accessStatus) {
 	BankOfficer loggedOfficer = resolveLoggedInBankOfficer();
+	if (request.officerId() != null && !loggedOfficer.getOfficerId().equals(request.officerId())) {
+		throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Step-1 officer id does not match the logged-in bank officer.");
+	}
+	if (request.branchId() != null && !loggedOfficer.getBranch().getBranchId().equals(request.branchId())) {
+		throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Step-1 branch id does not match the logged-in bank officer branch.");
+	}
 
 String accountNumber = resolveAccountNumber(request);
 	Account savedAccount = accountRepository

@@ -1,8 +1,14 @@
 package com.bank_web_app.backend.spendiq.controller;
 
-import com.bank_web_app.backend.spendiq.dto.request.CreateExpenseRequest;
-import com.bank_web_app.backend.spendiq.dto.response.ExpenseResponse;
-import com.bank_web_app.backend.spendiq.dto.response.ExpenseSummaryResponse;
+import com.bank_web_app.backend.spendiq.dto.request.CreateExpenseCategoryRequest;
+import com.bank_web_app.backend.spendiq.dto.request.CreateExpenseRecordRequest;
+import com.bank_web_app.backend.spendiq.dto.request.CreateIncomeRecordRequest;
+import com.bank_web_app.backend.spendiq.dto.request.UpsertBudgetLimitRequest;
+import com.bank_web_app.backend.spendiq.dto.response.BudgetLimitResponse;
+import com.bank_web_app.backend.spendiq.dto.response.ExpenseCategoryResponse;
+import com.bank_web_app.backend.spendiq.dto.response.ExpenseRecordResponse;
+import com.bank_web_app.backend.spendiq.dto.response.IncomeRecordResponse;
+import com.bank_web_app.backend.spendiq.dto.response.SpendIqMonthlySummaryResponse;
 import com.bank_web_app.backend.spendiq.service.ExpenseService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -11,19 +17,17 @@ import jakarta.validation.Valid;
 import java.time.LocalDate;
 import java.util.List;
 import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/spendiq/expenses")
-@Tag(name = "SpendIQ", description = "Expense tracking and spending insight APIs")
+@RequestMapping("/api/spendiq")
+@Tag(name = "SpendIQ", description = "Expense, income, category, and budget endpoints")
 public class ExpenseController {
 
 	private final ExpenseService expenseService;
@@ -32,54 +36,139 @@ public class ExpenseController {
 		this.expenseService = expenseService;
 	}
 
-	@PostMapping
-	@ResponseStatus(HttpStatus.CREATED)
+	@PostMapping("/categories")
 	@Operation(
-		summary = "Create expense",
-		description = "Create a manual expense record for an existing bank account.",
+		summary = "Create expense category",
+		description = "Creates an expense category for the authenticated user.",
 		responses = {
-			@ApiResponse(responseCode = "201", description = "Expense created"),
+			@ApiResponse(responseCode = "200", description = "Category created"),
 			@ApiResponse(responseCode = "400", description = "Validation failed"),
-			@ApiResponse(responseCode = "404", description = "Account not found")
+			@ApiResponse(responseCode = "401", description = "Authentication required")
 		}
 	)
-	public ExpenseResponse createExpense(@Valid @RequestBody CreateExpenseRequest request) {
-		return expenseService.createExpense(request);
+	public ResponseEntity<ExpenseCategoryResponse> createCategory(@Valid @RequestBody CreateExpenseCategoryRequest request) {
+		return ResponseEntity.ok(expenseService.createCategory(request));
 	}
 
-	@GetMapping
+	@GetMapping("/categories")
 	@Operation(
-		summary = "List expenses",
-		description = "List expenses for an account, optionally filtered by a date range.",
+		summary = "Get expense categories",
+		description = "Returns all categories owned by the authenticated user.",
 		responses = {
-			@ApiResponse(responseCode = "200", description = "Expenses returned"),
-			@ApiResponse(responseCode = "400", description = "Invalid query parameters"),
-			@ApiResponse(responseCode = "404", description = "Account not found")
+			@ApiResponse(responseCode = "200", description = "Categories returned"),
+			@ApiResponse(responseCode = "401", description = "Authentication required")
 		}
 	)
-	public ResponseEntity<List<ExpenseResponse>> getExpenses(
-		@RequestParam Long accountId,
-		@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-		@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to
+	public ResponseEntity<List<ExpenseCategoryResponse>> getCategories() {
+		return ResponseEntity.ok(expenseService.getCategories());
+	}
+
+	@PostMapping("/expenses")
+	@Operation(
+		summary = "Create expense record",
+		description = "Creates an expense record for the authenticated user.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Expense record created"),
+			@ApiResponse(responseCode = "400", description = "Validation failed"),
+			@ApiResponse(responseCode = "401", description = "Authentication required")
+		}
+	)
+	public ResponseEntity<ExpenseRecordResponse> createExpense(@Valid @RequestBody CreateExpenseRecordRequest request) {
+		return ResponseEntity.ok(expenseService.createExpense(request));
+	}
+
+	@GetMapping("/expenses")
+	@Operation(
+		summary = "Get expense records",
+		description = "Returns expense records for the authenticated user, optionally filtered by date range.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Expense records returned"),
+			@ApiResponse(responseCode = "400", description = "Invalid filter range"),
+			@ApiResponse(responseCode = "401", description = "Authentication required")
+		}
+	)
+	public ResponseEntity<List<ExpenseRecordResponse>> getExpenses(
+		@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+		@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate
 	) {
-		return ResponseEntity.ok(expenseService.getExpenses(accountId, from, to));
+		return ResponseEntity.ok(expenseService.getExpenses(fromDate, toDate));
+	}
+
+	@PostMapping("/incomes")
+	@Operation(
+		summary = "Create income record",
+		description = "Creates an income record for the authenticated user.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Income record created"),
+			@ApiResponse(responseCode = "400", description = "Validation failed"),
+			@ApiResponse(responseCode = "401", description = "Authentication required")
+		}
+	)
+	public ResponseEntity<IncomeRecordResponse> createIncome(@Valid @RequestBody CreateIncomeRecordRequest request) {
+		return ResponseEntity.ok(expenseService.createIncome(request));
+	}
+
+	@GetMapping("/incomes")
+	@Operation(
+		summary = "Get income records",
+		description = "Returns income records for the authenticated user, optionally filtered by date range.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Income records returned"),
+			@ApiResponse(responseCode = "400", description = "Invalid filter range"),
+			@ApiResponse(responseCode = "401", description = "Authentication required")
+		}
+	)
+	public ResponseEntity<List<IncomeRecordResponse>> getIncomes(
+		@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+		@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate
+	) {
+		return ResponseEntity.ok(expenseService.getIncomes(fromDate, toDate));
+	}
+
+	@PostMapping("/budgets")
+	@Operation(
+		summary = "Create or update budget limit",
+		description = "Creates a budget for category/month/year if missing, otherwise updates it.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Budget saved"),
+			@ApiResponse(responseCode = "400", description = "Validation failed"),
+			@ApiResponse(responseCode = "401", description = "Authentication required")
+		}
+	)
+	public ResponseEntity<BudgetLimitResponse> upsertBudget(@Valid @RequestBody UpsertBudgetLimitRequest request) {
+		return ResponseEntity.ok(expenseService.upsertBudget(request));
+	}
+
+	@GetMapping("/budgets")
+	@Operation(
+		summary = "Get budget limits",
+		description = "Returns budget limits for the authenticated user, optionally filtered by month and year.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Budgets returned"),
+			@ApiResponse(responseCode = "401", description = "Authentication required")
+		}
+	)
+	public ResponseEntity<List<BudgetLimitResponse>> getBudgets(
+		@RequestParam(required = false) Integer month,
+		@RequestParam(required = false) Integer year
+	) {
+		return ResponseEntity.ok(expenseService.getBudgets(month, year));
 	}
 
 	@GetMapping("/summary")
 	@Operation(
-		summary = "Get expense summary",
-		description = "Get SpendIQ summary metrics and category breakdown for an account.",
+		summary = "Get monthly SpendIQ summary",
+		description = "Returns monthly totals for income, expenses, budgets, and budget usage.",
 		responses = {
 			@ApiResponse(responseCode = "200", description = "Summary returned"),
-			@ApiResponse(responseCode = "400", description = "Invalid query parameters"),
-			@ApiResponse(responseCode = "404", description = "Account not found")
+			@ApiResponse(responseCode = "400", description = "Invalid month/year"),
+			@ApiResponse(responseCode = "401", description = "Authentication required")
 		}
 	)
-	public ResponseEntity<ExpenseSummaryResponse> getSummary(
-		@RequestParam Long accountId,
-		@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-		@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to
+	public ResponseEntity<SpendIqMonthlySummaryResponse> getMonthlySummary(
+		@RequestParam Integer month,
+		@RequestParam Integer year
 	) {
-		return ResponseEntity.ok(expenseService.getSummary(accountId, from, to));
+		return ResponseEntity.ok(expenseService.getMonthlySummary(month, year));
 	}
 }
