@@ -7,11 +7,6 @@ import jakarta.validation.constraints.Size;
 
 @Schema(name = "BranchRequest", description = "Payload for creating or updating a bank branch")
 public record BranchRequest(
-	@Schema(example = "COL-001")
-	@NotBlank(message = "Branch code is required.")
-	@Size(max = 20, message = "Branch code must not exceed 20 characters.")
-	String branchCode,
-
 	@Schema(example = "Colombo Main")
 	@NotBlank(message = "Branch name is required.")
 	@Size(max = 100, message = "Branch name must not exceed 100 characters.")
