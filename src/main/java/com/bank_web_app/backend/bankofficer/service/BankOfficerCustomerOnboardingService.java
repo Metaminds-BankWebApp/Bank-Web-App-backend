@@ -22,7 +22,7 @@ import com.bank_web_app.backend.bankofficer.dto.response.BankOfficerCustomerStep
 import com.bank_web_app.backend.bankofficer.entity.BankOfficer;
 import com.bank_web_app.backend.bankofficer.repository.BankOfficerRepository;
 import com.bank_web_app.backend.common.exception.DuplicateFieldsException;
-import com.bank_web_app.backend.user.dto.request.BankCustomerStepOneRequest;
+import com.bank_web_app.backend.user.dto.request.UserRegistrationStepOneRequest;
 import com.bank_web_app.backend.user.dto.response.BankCustomerSummaryResponse;
 import com.bank_web_app.backend.user.dto.response.UserRegistrationStepResponse;
 import com.bank_web_app.backend.user.entity.User;
@@ -75,11 +75,11 @@ public class BankOfficerCustomerOnboardingService {
 		this.passwordEncoder = passwordEncoder;
 	}
 
-	public UserRegistrationStepResponse saveDraft(BankCustomerStepOneRequest request) {
+	public UserRegistrationStepResponse saveDraft(UserRegistrationStepOneRequest request) {
 		return userService.saveBankCustomerStepOneDraft(request);
 	}
 
-	public UserRegistrationStepResponse saveAndContinue(BankCustomerStepOneRequest request) {
+	public UserRegistrationStepResponse saveAndContinue(UserRegistrationStepOneRequest request) {
 		return userService.continueBankCustomerStepOne(request);
 	}
 
