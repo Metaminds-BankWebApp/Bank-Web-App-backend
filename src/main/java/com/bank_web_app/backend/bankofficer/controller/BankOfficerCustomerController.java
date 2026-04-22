@@ -3,9 +3,12 @@ package com.bank_web_app.backend.bankofficer.controller;
 import com.bank_web_app.backend.bankofficer.dto.response.AccountVerificationResponse;
 import com.bank_web_app.backend.bankofficer.dto.response.BankOfficerCustomerIdentityResponse;
 import com.bank_web_app.backend.bankcustomer.dto.request.BankCustomerCardStepRequest;
+import com.bank_web_app.backend.bankcustomer.dto.request.BankCustomerCribRequestStepRequest;
+import com.bank_web_app.backend.bankcustomer.dto.request.BankCustomerCribRetrievalStepRequest;
 import com.bank_web_app.backend.bankcustomer.dto.request.BankCustomerIncomeStepRequest;
 import com.bank_web_app.backend.bankcustomer.dto.request.BankCustomerLiabilityStepRequest;
 import com.bank_web_app.backend.bankcustomer.dto.request.BankCustomerLoanStepRequest;
+import com.bank_web_app.backend.bankcustomer.dto.response.BankCustomerCribStepResponse;
 import com.bank_web_app.backend.bankcustomer.dto.response.BankCustomerFinancialRecordResponse;
 import com.bank_web_app.backend.bankcustomer.dto.response.BankCustomerFinancialRecordSummaryResponse;
 import com.bank_web_app.backend.bankcustomer.dto.response.BankCustomerFinancialStepResponse;
@@ -235,6 +238,76 @@ public class BankOfficerCustomerController {
 		@Valid @RequestBody BankCustomerLiabilityStepRequest request
 	) {
 		return ResponseEntity.ok(onboardingService.saveLiabilityStepAndContinue(bankCustomerId, request));
+	}
+
+	@PostMapping("/{bankCustomerId}/financial-records/steps/crib-linking/continue")
+	@Operation(
+		summary = "Save CRIB linking step and continue (Step 2)",
+		description = "Saves CRIB request and retrieval data in one combined step after personal details, then transitions the customer to step-3. Only the assigned bank officer can perform this step for their customers.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "CRIB linking step saved successfully and customer advanced to next step"),
+			@ApiResponse(responseCode = "400", description = "Validation failed or bank customer not found"),
+			@ApiResponse(responseCode = "404", description = "Provided ID/NIC was not found in CRIB"),
+			@ApiResponse(responseCode = "401", description = "Unauthorized: bank officer authentication is required"),
+			@ApiResponse(responseCode = "403", description = "Forbidden: bank customer is not assigned to this officer or step-1 not completed")
+		}
+	)
+	public ResponseEntity<BankCustomerCribStepResponse> saveCribLinkingStepAndContinue(
+		@PathVariable Long bankCustomerId,
+		@Valid @RequestBody BankCustomerCribRequestStepRequest request
+	) {
+		return ResponseEntity.ok(onboardingService.saveCribLinkingStepAndContinue(bankCustomerId, request));
+	}
+
+	@PostMapping("/{bankCustomerId}/financial-records/steps/crib-request/continue")
+	@Operation(
+		summary = "Save CRIB request step and continue (Step 6)",
+		description = "Saves CRIB request details and transitions the customer to step-7. Only the assigned bank officer can perform this step for their customers.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "CRIB request step saved successfully and customer advanced to next step"),
+			@ApiResponse(responseCode = "400", description = "Validation failed or bank customer not found"),
+			@ApiResponse(responseCode = "401", description = "Unauthorized: bank officer authentication is required"),
+			@ApiResponse(responseCode = "403", description = "Forbidden: bank customer is not assigned to this officer")
+		}
+	)
+	public ResponseEntity<BankCustomerCribStepResponse> saveCribRequestStepAndContinue(
+		@PathVariable Long bankCustomerId,
+		@Valid @RequestBody BankCustomerCribRequestStepRequest request
+	) {
+		return ResponseEntity.ok(onboardingService.saveCribRequestStepAndContinue(bankCustomerId, request));
+	}
+
+	@PostMapping("/{bankCustomerId}/financial-records/steps/crib-retrieval/continue")
+	@Operation(
+		summary = "Save CRIB retrieval step and continue (Step 7)",
+		description = "Saves CRIB retrieval/report status and transitions the customer to step-8 review. Only the assigned bank officer can perform this step for their customers.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "CRIB retrieval step saved successfully and customer advanced to next step"),
+			@ApiResponse(responseCode = "400", description = "Validation failed, CRIB request not found, or bank customer not found"),
+			@ApiResponse(responseCode = "401", description = "Unauthorized: bank officer authentication is required"),
+			@ApiResponse(responseCode = "403", description = "Forbidden: bank customer is not assigned to this officer")
+		}
+	)
+	public ResponseEntity<BankCustomerCribStepResponse> saveCribRetrievalStepAndContinue(
+		@PathVariable Long bankCustomerId,
+		@Valid @RequestBody BankCustomerCribRetrievalStepRequest request
+	) {
+		return ResponseEntity.ok(onboardingService.saveCribRetrievalStepAndContinue(bankCustomerId, request));
+	}
+
+	@PostMapping("/{bankCustomerId}/financial-records/steps/review/complete")
+	@Operation(
+		summary = "Complete review and onboarding (Step 8)",
+		description = "Marks bank customer onboarding as COMPLETED after review step. Only the assigned bank officer can complete onboarding for their customers.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Onboarding completed successfully"),
+			@ApiResponse(responseCode = "400", description = "Bank customer not found"),
+			@ApiResponse(responseCode = "401", description = "Unauthorized: bank officer authentication is required"),
+			@ApiResponse(responseCode = "403", description = "Forbidden: bank customer is not assigned to this officer")
+		}
+	)
+	public ResponseEntity<BankCustomerCribStepResponse> completeCribReviewAndOnboarding(@PathVariable Long bankCustomerId) {
+		return ResponseEntity.ok(onboardingService.completeCribReviewAndOnboarding(bankCustomerId));
 	}
 
 	@GetMapping("/{bankCustomerId}/financial-records/current")

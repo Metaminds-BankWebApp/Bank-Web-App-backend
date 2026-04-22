@@ -2,9 +2,12 @@ package com.bank_web_app.backend.bankofficer.service;
 
 import com.bank_web_app.backend.bankcustomer.entity.Account;
 import com.bank_web_app.backend.bankcustomer.dto.request.BankCustomerCardStepRequest;
+import com.bank_web_app.backend.bankcustomer.dto.request.BankCustomerCribRequestStepRequest;
+import com.bank_web_app.backend.bankcustomer.dto.request.BankCustomerCribRetrievalStepRequest;
 import com.bank_web_app.backend.bankcustomer.dto.request.BankCustomerIncomeStepRequest;
 import com.bank_web_app.backend.bankcustomer.dto.request.BankCustomerLiabilityStepRequest;
 import com.bank_web_app.backend.bankcustomer.dto.request.BankCustomerLoanStepRequest;
+import com.bank_web_app.backend.bankcustomer.dto.response.BankCustomerCribStepResponse;
 import com.bank_web_app.backend.bankcustomer.dto.response.BankCustomerFinancialRecordResponse;
 import com.bank_web_app.backend.bankcustomer.dto.response.BankCustomerFinancialRecordSummaryResponse;
 import com.bank_web_app.backend.bankcustomer.dto.response.BankCustomerFinancialStepResponse;
@@ -82,6 +85,22 @@ public class BankOfficerCustomerOnboardingService {
 
 	public BankCustomerFinancialStepResponse saveLiabilityStepAndContinue(Long bankCustomerId, BankCustomerLiabilityStepRequest request) {
 		return financialRecordService.saveLiabilityStepAndContinue(bankCustomerId, request);
+	}
+
+	public BankCustomerCribStepResponse saveCribLinkingStepAndContinue(Long bankCustomerId, BankCustomerCribRequestStepRequest request) {
+		return financialRecordService.saveCribLinkingStepAndContinue(bankCustomerId, request);
+	}
+
+	public BankCustomerCribStepResponse saveCribRequestStepAndContinue(Long bankCustomerId, BankCustomerCribRequestStepRequest request) {
+		return financialRecordService.saveCribRequestStepAndContinue(bankCustomerId, request);
+	}
+
+	public BankCustomerCribStepResponse saveCribRetrievalStepAndContinue(Long bankCustomerId, BankCustomerCribRetrievalStepRequest request) {
+		return financialRecordService.saveCribRetrievalStepAndContinue(bankCustomerId, request);
+	}
+
+	public BankCustomerCribStepResponse completeCribReviewAndOnboarding(Long bankCustomerId) {
+		return financialRecordService.completeCribReviewAndOnboarding(bankCustomerId);
 	}
 
 	public BankCustomerFinancialRecordResponse getCurrentFinancialRecord(Long bankCustomerId) {
