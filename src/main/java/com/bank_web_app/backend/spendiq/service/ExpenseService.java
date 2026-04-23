@@ -14,6 +14,7 @@ import com.bank_web_app.backend.spendiq.entity.BudgetLimit;
 import com.bank_web_app.backend.spendiq.entity.Expense;
 import com.bank_web_app.backend.spendiq.entity.ExpenseCategory;
 import com.bank_web_app.backend.spendiq.entity.IncomeRecord;
+import com.bank_web_app.backend.spendiq.entity.PaymentMethod;
 import com.bank_web_app.backend.spendiq.repository.BudgetLimitRepository;
 import com.bank_web_app.backend.spendiq.repository.ExpenseCategoryRepository;
 import com.bank_web_app.backend.spendiq.repository.ExpenseRepository;
@@ -40,7 +41,7 @@ public class ExpenseService {
 	private static final String SOURCE_TRANSACT = "TRANSACT";
 	private static final String DEFAULT_TRANSFER_CATEGORY_NAME = "Bank Transfer";
 	private static final String DEFAULT_TRANSFER_CATEGORY_TYPE = "VARIABLE";
-	private static final String DEFAULT_TRANSFER_PAYMENT_TYPE = "BANK_TRANSFER";
+	private static final PaymentMethod DEFAULT_TRANSFER_PAYMENT_TYPE = PaymentMethod.BANK_TRANSFER;
 
 	private final ExpenseCategoryRepository expenseCategoryRepository;
 	private final ExpenseRepository expenseRepository;
@@ -69,7 +70,7 @@ public class ExpenseService {
 		String categoryType = normalizeCategoryType(request.categoryType());
 
 		if (expenseCategoryRepository.existsByUser_UserIdAndCategoryNameIgnoreCase(user.getUserId(), categoryName)) {
-			throw new IllegalArgumentException("Category already exists for this user.");
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "Category already exists for this user.");
 		}
 
 		ExpenseCategory category = new ExpenseCategory();
@@ -138,16 +139,28 @@ public class ExpenseService {
 	@Transactional
 	public ExpenseRecordResponse createExpense(CreateExpenseRecordRequest request) {
 		User user = resolveLoggedInUser();
-		ExpenseCategory category = expenseCategoryRepository
-			.findByCategoryIdAndUser_UserId(request.categoryId(), user.getUserId())
-			.orElseThrow(() -> new IllegalArgumentException("Expense category not found for this user."));
+		ExpenseCategory category = resolveExpenseCategoryForCreate(user, request);
+		BigDecimal amount = request.amount();
+		LocalDate expenseDate = request.expenseDate();
+		PaymentMethod paymentType = request.paymentType();
+
+		if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "amount must be greater than 0.");
+		}
+		validateAmountScale(amount);
+		if (expenseDate == null) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "expenseDate is required.");
+		}
+		if (paymentType == null) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "paymentType is required.");
+		}
 
 		Expense expense = new Expense();
 		expense.setUser(user);
 		expense.setCategory(category);
-		expense.setAmount(request.amount());
-		expense.setExpenseDate(request.expenseDate());
-		expense.setPaymentType(normalizeText(request.paymentType()));
+		expense.setAmount(amount);
+		expense.setExpenseDate(expenseDate);
+		expense.setPaymentType(paymentType);
 		return toExpenseResponse(expenseRepository.save(expense));
 	}
 
@@ -178,6 +191,7 @@ public class ExpenseService {
 		IncomeRecord incomeRecord = new IncomeRecord();
 		incomeRecord.setUser(user);
 		incomeRecord.setSourceName(normalizeText(request.sourceName()));
+		validateAmountScale(request.amount());
 		incomeRecord.setAmount(request.amount());
 		incomeRecord.setIncomeDate(request.incomeDate());
 		return toIncomeResponse(incomeRecordRepository.save(incomeRecord));
@@ -209,7 +223,7 @@ public class ExpenseService {
 		User user = resolveLoggedInUser();
 		ExpenseCategory category = expenseCategoryRepository
 			.findByCategoryIdAndUser_UserId(request.categoryId(), user.getUserId())
-			.orElseThrow(() -> new IllegalArgumentException("Expense category not found for this user."));
+			.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Expense category not found for this user."));
 
 		BudgetLimit budgetLimit = budgetLimitRepository
 			.findByUser_UserIdAndCategory_CategoryIdAndMonthAndYear(
@@ -320,6 +334,38 @@ public class ExpenseService {
 		return normalized;
 	}
 
+	private void validateAmountScale(BigDecimal amount) {
+		if (amount == null) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "amount is required.");
+		}
+		if (amount.scale() > 2) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "amount can have at most 2 decimal places.");
+		}
+	}
+
+	private ExpenseCategory resolveExpenseCategoryForCreate(User user, CreateExpenseRecordRequest request) {
+		if (request.categoryId() != null) {
+			return expenseCategoryRepository
+				.findByCategoryIdAndUser_UserId(request.categoryId(), user.getUserId())
+				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Expense category not found for this user."));
+		}
+
+		String legacyCategory = normalizeText(request.category());
+		if (legacyCategory.isBlank()) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "categoryId or category is required.");
+		}
+
+		return expenseCategoryRepository
+			.findByUser_UserIdAndCategoryNameIgnoreCase(user.getUserId(), legacyCategory)
+			.orElseGet(() -> {
+				ExpenseCategory created = new ExpenseCategory();
+				created.setUser(user);
+				created.setCategoryName(legacyCategory);
+				created.setCategoryType("VARIABLE");
+				return expenseCategoryRepository.save(created);
+			});
+	}
+
 	private ExpenseCategoryResponse toCategoryResponse(ExpenseCategory category) {
 		return new ExpenseCategoryResponse(
 			category.getCategoryId(),
@@ -338,7 +384,7 @@ public class ExpenseService {
 			expense.getCategory().getCategoryName(),
 			expense.getAmount(),
 			expense.getExpenseDate(),
-			expense.getPaymentType(),
+			expense.getPaymentType().name(),
 			expense.getCreatedAt()
 		);
 	}
