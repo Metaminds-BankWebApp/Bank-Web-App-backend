@@ -11,6 +11,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     Optional<User> findByUsername(String username);
 
+    Optional<User> findByNic(String nic);
+
     List<User> findAllByRole_RoleNameOrderByUpdatedAtDesc(String roleName);
 
     boolean existsByEmail(String email);
@@ -18,4 +20,10 @@ public interface UserRepository extends JpaRepository<User, Long> {
     boolean existsByUsername(String username);
 
     boolean existsByNic(String nic);
+
+    boolean existsByUsernameAndUserIdNot(String username, Long userId);
+
+    boolean existsByEmailAndUserIdNot(String email, Long userId);
+
+    boolean existsByNicAndUserIdNot(String nic, Long userId);
 }

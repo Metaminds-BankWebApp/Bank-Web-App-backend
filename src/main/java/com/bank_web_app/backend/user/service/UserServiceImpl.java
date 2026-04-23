@@ -11,7 +11,7 @@ import com.bank_web_app.backend.bankofficer.repository.BankOfficerRepository;
 import com.bank_web_app.backend.common.exception.DuplicateFieldsException;
 import com.bank_web_app.backend.publiccustomer.entity.PublicCustomerProfile;
 import com.bank_web_app.backend.publiccustomer.repository.PublicCustomerProfileRepository;
-import com.bank_web_app.backend.user.dto.request.BankCustomerStepOneRequest;
+import com.bank_web_app.backend.user.dto.request.UserRegistrationStepOneRequest;
 import com.bank_web_app.backend.user.dto.response.BankCustomerSummaryResponse;
 import com.bank_web_app.backend.user.dto.response.UserRegistrationStepResponse;
 import com.bank_web_app.backend.user.entity.Role;
@@ -76,7 +76,7 @@ this.passwordEncoder = passwordEncoder;
 
 @Override
 @Transactional
-public UserRegistrationStepResponse saveBankCustomerStepOneDraft(BankCustomerStepOneRequest request) {
+public UserRegistrationStepResponse saveBankCustomerStepOneDraft(UserRegistrationStepOneRequest request) {
 User user = createUserForRole(request, ROLE_BANK_CUSTOMER);
 createBankCustomerProfile(request, user, STATE_DRAFT);
 return new UserRegistrationStepResponse(user.getUserId(), ROLE_BANK_CUSTOMER, STATE_DRAFT, "Bank customer draft saved successfully.");
@@ -84,7 +84,7 @@ return new UserRegistrationStepResponse(user.getUserId(), ROLE_BANK_CUSTOMER, ST
 
 @Override
 @Transactional
-public UserRegistrationStepResponse continueBankCustomerStepOne(BankCustomerStepOneRequest request) {
+public UserRegistrationStepResponse continueBankCustomerStepOne(UserRegistrationStepOneRequest request) {
 User user = createUserForRole(request, ROLE_BANK_CUSTOMER);
 createBankCustomerProfile(request, user, STATE_PENDING_STEP_2);
 return new UserRegistrationStepResponse(
@@ -97,7 +97,7 @@ STATE_PENDING_STEP_2,
 
 @Override
 @Transactional
-public UserRegistrationStepResponse savePublicCustomerStepOneDraft(BankCustomerStepOneRequest request) {
+public UserRegistrationStepResponse savePublicCustomerStepOneDraft(UserRegistrationStepOneRequest request) {
 User user = createUserForRole(request, ROLE_PUBLIC_CUSTOMER);
 createPublicCustomerProfile(request, user);
 return new UserRegistrationStepResponse(user.getUserId(), ROLE_PUBLIC_CUSTOMER, STATE_DRAFT, "Public customer draft saved successfully.");
@@ -105,7 +105,7 @@ return new UserRegistrationStepResponse(user.getUserId(), ROLE_PUBLIC_CUSTOMER, 
 
 @Override
 @Transactional
-public UserRegistrationStepResponse continuePublicCustomerStepOne(BankCustomerStepOneRequest request) {
+public UserRegistrationStepResponse continuePublicCustomerStepOne(UserRegistrationStepOneRequest request) {
 User user = createUserForRole(request, ROLE_PUBLIC_CUSTOMER);
 createPublicCustomerProfile(request, user);
 return new UserRegistrationStepResponse(
@@ -118,7 +118,7 @@ STATE_SUCCESS,
 
 @Override
 @Transactional
-public UserRegistrationStepResponse saveBankOfficerStepOneDraft(BankCustomerStepOneRequest request) {
+public UserRegistrationStepResponse saveBankOfficerStepOneDraft(UserRegistrationStepOneRequest request) {
 User user = createUserForRole(request, ROLE_BANK_OFFICER);
 createBankOfficerProfile(request, user);
 return new UserRegistrationStepResponse(user.getUserId(), ROLE_BANK_OFFICER, STATE_DRAFT, "Bank officer draft saved successfully.");
@@ -126,7 +126,7 @@ return new UserRegistrationStepResponse(user.getUserId(), ROLE_BANK_OFFICER, STA
 
 @Override
 @Transactional
-public UserRegistrationStepResponse continueBankOfficerStepOne(BankCustomerStepOneRequest request) {
+public UserRegistrationStepResponse continueBankOfficerStepOne(UserRegistrationStepOneRequest request) {
 User user = createUserForRole(request, ROLE_BANK_OFFICER);
 createBankOfficerProfile(request, user);
 return new UserRegistrationStepResponse(user.getUserId(), ROLE_BANK_OFFICER, STATE_SUCCESS, "Bank officer registration completed successfully.");
@@ -169,7 +169,7 @@ return userRepository
 .toList();
 }
 
-private User createUserForRole(BankCustomerStepOneRequest request, String roleName) {
+private User createUserForRole(UserRegistrationStepOneRequest request, String roleName) {
 validateBaseRequest(request);
 Role role = roleRepository
 .findByRoleName(roleName)
@@ -195,7 +195,7 @@ user.setStatus(STATUS_ACTIVE);
 return userRepository.save(user);
 }
 
-private void createPublicCustomerProfile(BankCustomerStepOneRequest request, User user) {
+private void createPublicCustomerProfile(UserRegistrationStepOneRequest request, User user) {
 String customerCode = resolveCustomerCode(
 request.customerCode(),
 "PC",
@@ -208,7 +208,7 @@ profile.setCustomerCode(customerCode);
 publicCustomerProfileRepository.save(profile);
 }
 
-private void createBankOfficerProfile(BankCustomerStepOneRequest request, User user) {
+private void createBankOfficerProfile(UserRegistrationStepOneRequest request, User user) {
 Long branchId = request.branchId();
 if (branchId == null) {
 throw new IllegalArgumentException("Branch id is required for bank officer registration.");
@@ -232,7 +232,7 @@ officer.setCreatedByAdminUser(resolveOptionalAdmin(request.createdByAdminUserId(
 bankOfficerRepository.save(officer);
 }
 
-private void createBankCustomerProfile(BankCustomerStepOneRequest request, User user, String accessStatus) {
+private void createBankCustomerProfile(UserRegistrationStepOneRequest request, User user, String accessStatus) {
 	BankOfficer loggedOfficer = resolveLoggedInBankOfficer();
 	if (request.officerId() != null && !loggedOfficer.getOfficerId().equals(request.officerId())) {
 		throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Step-1 officer id does not match the logged-in bank officer.");
@@ -289,7 +289,7 @@ private BankOfficer resolveLoggedInBankOfficer() {
 		.orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Logged-in user is not a bank officer."));
 }
 
-private String resolveAccountNumber(BankCustomerStepOneRequest request) {
+private String resolveAccountNumber(UserRegistrationStepOneRequest request) {
 String fromRequest = safeTrim(request.accountNumber());
 if (!fromRequest.isBlank()) {
 return fromRequest;
@@ -336,7 +336,7 @@ candidate = generated + "-" + suffix;
 return candidate;
 }
 
-private void validateBaseRequest(BankCustomerStepOneRequest request) {
+private void validateBaseRequest(UserRegistrationStepOneRequest request) {
 if (request == null) {
 throw new IllegalArgumentException("Request body is required.");
 }

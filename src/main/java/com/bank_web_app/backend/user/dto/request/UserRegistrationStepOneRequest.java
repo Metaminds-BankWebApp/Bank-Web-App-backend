@@ -9,8 +9,8 @@ import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 
-@Schema(name = "BankCustomerStepOneRequest", description = "Step 1 payload for role-aware user registration.")
-public record BankCustomerStepOneRequest(
+@Schema(name = "UserRegistrationStepOneRequest", description = "Step 1 payload for role-aware user registration.")
+public record UserRegistrationStepOneRequest(
 @Schema(description = "Customer first name", example = "John", requiredMode = Schema.RequiredMode.REQUIRED)
 @NotBlank(message = "First name is required.")
 @Size(min = 2, max = 100, message = "First name must be between 2 and 100 characters.")

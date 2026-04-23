@@ -1,6 +1,6 @@
 package com.bank_web_app.backend.publiccustomer.service;
 
-import com.bank_web_app.backend.user.dto.request.BankCustomerStepOneRequest;
+import com.bank_web_app.backend.user.dto.request.UserRegistrationStepOneRequest;
 import com.bank_web_app.backend.user.dto.response.BankCustomerSummaryResponse;
 import com.bank_web_app.backend.user.dto.response.UserRegistrationStepResponse;
 import com.bank_web_app.backend.user.service.UserService;
@@ -16,11 +16,11 @@ public class PublicCustomerOnboardingService {
 		this.userService = userService;
 	}
 
-	public UserRegistrationStepResponse saveDraft(BankCustomerStepOneRequest request) {
+	public UserRegistrationStepResponse saveDraft(UserRegistrationStepOneRequest request) {
 		return userService.savePublicCustomerStepOneDraft(request);
 	}
 
-	public UserRegistrationStepResponse register(BankCustomerStepOneRequest request) {
+	public UserRegistrationStepResponse register(UserRegistrationStepOneRequest request) {
 		return userService.continuePublicCustomerStepOne(request);
 	}
 
