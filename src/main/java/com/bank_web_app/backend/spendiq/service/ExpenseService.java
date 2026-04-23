@@ -144,9 +144,7 @@ public class ExpenseService {
 		LocalDate expenseDate = request.expenseDate();
 		PaymentMethod paymentType = request.paymentType();
 
-		if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
-			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "amount must be greater than 0.");
-		}
+		validatePositiveAmount(amount);
 		validateAmountScale(amount);
 		if (expenseDate == null) {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "expenseDate is required.");
@@ -162,6 +160,43 @@ public class ExpenseService {
 		expense.setExpenseDate(expenseDate);
 		expense.setPaymentType(paymentType);
 		return toExpenseResponse(expenseRepository.save(expense));
+	}
+
+	@Transactional
+	public ExpenseRecordResponse updateExpense(Long expenseId, CreateExpenseRecordRequest request) {
+		User user = resolveLoggedInUser();
+		Expense expense = expenseRepository
+			.findByExpenseIdAndUser_UserId(expenseId, user.getUserId())
+			.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Expense record not found for this user."));
+		ExpenseCategory category = resolveExpenseCategoryForCreate(user, request);
+
+		BigDecimal amount = request.amount();
+		LocalDate expenseDate = request.expenseDate();
+		PaymentMethod paymentType = request.paymentType();
+
+		validatePositiveAmount(amount);
+		validateAmountScale(amount);
+		if (expenseDate == null) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "expenseDate is required.");
+		}
+		if (paymentType == null) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "paymentType is required.");
+		}
+
+		expense.setCategory(category);
+		expense.setAmount(amount);
+		expense.setExpenseDate(expenseDate);
+		expense.setPaymentType(paymentType);
+		return toExpenseResponse(expenseRepository.save(expense));
+	}
+
+	@Transactional
+	public void deleteExpense(Long expenseId) {
+		User user = resolveLoggedInUser();
+		Expense expense = expenseRepository
+			.findByExpenseIdAndUser_UserId(expenseId, user.getUserId())
+			.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Expense record not found for this user."));
+		expenseRepository.delete(expense);
 	}
 
 	@Transactional(readOnly = true)
@@ -191,10 +226,43 @@ public class ExpenseService {
 		IncomeRecord incomeRecord = new IncomeRecord();
 		incomeRecord.setUser(user);
 		incomeRecord.setSourceName(normalizeText(request.sourceName()));
+		validatePositiveAmount(request.amount());
 		validateAmountScale(request.amount());
 		incomeRecord.setAmount(request.amount());
 		incomeRecord.setIncomeDate(request.incomeDate());
 		return toIncomeResponse(incomeRecordRepository.save(incomeRecord));
+	}
+
+	@Transactional
+	public IncomeRecordResponse updateIncome(Long incomeId, CreateIncomeRecordRequest request) {
+		User user = resolveLoggedInUser();
+		IncomeRecord incomeRecord = incomeRecordRepository
+			.findByIncomeIdAndUser_UserId(incomeId, user.getUserId())
+			.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Income record not found for this user."));
+
+		String sourceName = normalizeText(request.sourceName());
+		if (sourceName.isBlank()) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "sourceName is required.");
+		}
+		if (request.incomeDate() == null) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "incomeDate is required.");
+		}
+		validatePositiveAmount(request.amount());
+		validateAmountScale(request.amount());
+
+		incomeRecord.setSourceName(sourceName);
+		incomeRecord.setAmount(request.amount());
+		incomeRecord.setIncomeDate(request.incomeDate());
+		return toIncomeResponse(incomeRecordRepository.save(incomeRecord));
+	}
+
+	@Transactional
+	public void deleteIncome(Long incomeId) {
+		User user = resolveLoggedInUser();
+		IncomeRecord incomeRecord = incomeRecordRepository
+			.findByIncomeIdAndUser_UserId(incomeId, user.getUserId())
+			.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Income record not found for this user."));
+		incomeRecordRepository.delete(incomeRecord);
 	}
 
 	@Transactional(readOnly = true)
@@ -340,6 +408,12 @@ public class ExpenseService {
 		}
 		if (amount.scale() > 2) {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "amount can have at most 2 decimal places.");
+		}
+	}
+
+	private void validatePositiveAmount(BigDecimal amount) {
+		if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "amount must be greater than 0.");
 		}
 	}
 

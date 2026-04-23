@@ -19,8 +19,11 @@ import java.time.LocalDate;
 import java.util.List;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -80,6 +83,39 @@ public class ExpenseController {
 		return ResponseEntity.ok(expenseService.createExpense(request));
 	}
 
+	@PutMapping("/expenses/{expenseId}")
+	@Operation(
+		summary = "Update expense record",
+		description = "Updates an existing expense record for the authenticated user.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Expense record updated"),
+			@ApiResponse(responseCode = "400", description = "Validation failed"),
+			@ApiResponse(responseCode = "401", description = "Authentication required"),
+			@ApiResponse(responseCode = "404", description = "Expense record or category not found for this user")
+		}
+	)
+	public ResponseEntity<ExpenseRecordResponse> updateExpense(
+		@PathVariable Long expenseId,
+		@Valid @RequestBody CreateExpenseRecordRequest request
+	) {
+		return ResponseEntity.ok(expenseService.updateExpense(expenseId, request));
+	}
+
+	@DeleteMapping("/expenses/{expenseId}")
+	@Operation(
+		summary = "Delete expense record",
+		description = "Deletes an existing expense record for the authenticated user.",
+		responses = {
+			@ApiResponse(responseCode = "204", description = "Expense record deleted"),
+			@ApiResponse(responseCode = "401", description = "Authentication required"),
+			@ApiResponse(responseCode = "404", description = "Expense record not found for this user")
+		}
+	)
+	public ResponseEntity<Void> deleteExpense(@PathVariable Long expenseId) {
+		expenseService.deleteExpense(expenseId);
+		return ResponseEntity.noContent().build();
+	}
+
 	@GetMapping("/expenses")
 	@Operation(
 		summary = "Get expense records",
@@ -111,6 +147,39 @@ public class ExpenseController {
 	)
 	public ResponseEntity<IncomeRecordResponse> createIncome(@Valid @RequestBody CreateIncomeRecordRequest request) {
 		return ResponseEntity.ok(expenseService.createIncome(request));
+	}
+
+	@PutMapping("/incomes/{incomeId}")
+	@Operation(
+		summary = "Update income record",
+		description = "Updates an existing income record for the authenticated user.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Income record updated"),
+			@ApiResponse(responseCode = "400", description = "Validation failed"),
+			@ApiResponse(responseCode = "401", description = "Authentication required"),
+			@ApiResponse(responseCode = "404", description = "Income record not found for this user")
+		}
+	)
+	public ResponseEntity<IncomeRecordResponse> updateIncome(
+		@PathVariable Long incomeId,
+		@Valid @RequestBody CreateIncomeRecordRequest request
+	) {
+		return ResponseEntity.ok(expenseService.updateIncome(incomeId, request));
+	}
+
+	@DeleteMapping("/incomes/{incomeId}")
+	@Operation(
+		summary = "Delete income record",
+		description = "Deletes an existing income record for the authenticated user.",
+		responses = {
+			@ApiResponse(responseCode = "204", description = "Income record deleted"),
+			@ApiResponse(responseCode = "401", description = "Authentication required"),
+			@ApiResponse(responseCode = "404", description = "Income record not found for this user")
+		}
+	)
+	public ResponseEntity<Void> deleteIncome(@PathVariable Long incomeId) {
+		expenseService.deleteIncome(incomeId);
+		return ResponseEntity.noContent().build();
 	}
 
 	@GetMapping("/incomes")
