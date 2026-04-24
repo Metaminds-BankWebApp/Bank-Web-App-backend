@@ -213,13 +213,7 @@ Long branchId = request.branchId();
 if (branchId == null) {
 throw new IllegalArgumentException("Branch id is required for bank officer registration.");
 }
-String employeeCode = safeTrim(request.employeeCode());
-if (employeeCode.isBlank()) {
-employeeCode = formatCode("EMP", user.getUserId());
-}
-if (bankOfficerRepository.existsByEmployeeCode(employeeCode)) {
-throw new IllegalArgumentException("Employee code is already in use.");
-}
+String employeeCode = generateBankOfficerEmployeeCode();
 
 Branch branch = branchRepository
 .findById(branchId)
@@ -230,6 +224,18 @@ officer.setBranch(branch);
 officer.setEmployeeCode(employeeCode);
 officer.setCreatedByAdminUser(resolveOptionalAdmin(request.createdByAdminUserId()));
 bankOfficerRepository.save(officer);
+}
+
+private String generateBankOfficerEmployeeCode() {
+	long nextValue = bankOfficerRepository.count() + 1L;
+	String candidate = String.format("EMP-BO-%05d", nextValue);
+
+	while (bankOfficerRepository.existsByEmployeeCode(candidate)) {
+		nextValue++;
+		candidate = String.format("EMP-BO-%05d", nextValue);
+	}
+
+	return candidate;
 }
 
 private void createBankCustomerProfile(UserRegistrationStepOneRequest request, User user, String accessStatus) {
