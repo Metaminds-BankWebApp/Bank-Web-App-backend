@@ -165,7 +165,13 @@ public List<BankCustomerSummaryResponse> getBankOfficers() {
 return userRepository
 .findAllByRole_RoleNameOrderByUpdatedAtDesc(ROLE_BANK_OFFICER)
 .stream()
-.map(user -> toSummary(user, formatCode("BO", user.getUserId())))
+.map(user -> {
+String employeeCode = bankOfficerRepository
+.findByUser_UserId(user.getUserId())
+.map(BankOfficer::getEmployeeCode)
+.orElse(formatCode("BO", user.getUserId()));
+return toSummary(user, employeeCode);
+})
 .toList();
 }
 
