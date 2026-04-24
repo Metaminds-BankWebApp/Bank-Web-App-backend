@@ -25,8 +25,11 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -42,6 +45,16 @@ public class ExpenseService {
 	private static final String DEFAULT_TRANSFER_CATEGORY_NAME = "Bank Transfer";
 	private static final String DEFAULT_TRANSFER_CATEGORY_TYPE = "VARIABLE";
 	private static final PaymentMethod DEFAULT_TRANSFER_PAYMENT_TYPE = PaymentMethod.BANK_TRANSFER;
+	private static final List<DefaultCategorySeed> DEFAULT_SPENDIQ_CATEGORIES = List.of(
+		new DefaultCategorySeed("Food", "VARIABLE"),
+		new DefaultCategorySeed("Transport", "VARIABLE"),
+		new DefaultCategorySeed("Bills", "FIXED"),
+		new DefaultCategorySeed("Shopping", "VARIABLE"),
+		new DefaultCategorySeed("Health", "VARIABLE"),
+		new DefaultCategorySeed("Education", "FIXED"),
+		new DefaultCategorySeed("Entertainment", "VARIABLE"),
+		new DefaultCategorySeed("Savings", "FIXED")
+	);
 
 	private final ExpenseCategoryRepository expenseCategoryRepository;
 	private final ExpenseRepository expenseRepository;
@@ -126,9 +139,10 @@ public class ExpenseService {
 		expenseRepository.save(expense);
 	}
 
-	@Transactional(readOnly = true)
+	@Transactional
 	public List<ExpenseCategoryResponse> getCategories() {
 		User user = resolveLoggedInUser();
+		ensureDefaultCategories(user);
 		return expenseCategoryRepository
 			.findAllByUser_UserIdOrderByCreatedAtDesc(user.getUserId())
 			.stream()
@@ -439,6 +453,33 @@ public class ExpenseService {
 				return expenseCategoryRepository.save(created);
 			});
 	}
+
+	private void ensureDefaultCategories(User user) {
+		List<ExpenseCategory> existingCategories = expenseCategoryRepository.findAllByUser_UserIdOrderByCreatedAtDesc(user.getUserId());
+		Set<String> existingNames = new LinkedHashSet<>();
+		for (ExpenseCategory category : existingCategories) {
+			existingNames.add(normalizeText(category.getCategoryName()).toLowerCase(Locale.ROOT));
+		}
+
+		List<ExpenseCategory> categoriesToCreate = new ArrayList<>();
+		for (DefaultCategorySeed seed : DEFAULT_SPENDIQ_CATEGORIES) {
+			String normalizedName = seed.name().toLowerCase(Locale.ROOT);
+			if (existingNames.contains(normalizedName)) {
+				continue;
+			}
+			ExpenseCategory category = new ExpenseCategory();
+			category.setUser(user);
+			category.setCategoryName(seed.name());
+			category.setCategoryType(seed.type());
+			categoriesToCreate.add(category);
+		}
+
+		if (!categoriesToCreate.isEmpty()) {
+			expenseCategoryRepository.saveAll(categoriesToCreate);
+		}
+	}
+
+	private record DefaultCategorySeed(String name, String type) {}
 
 	private ExpenseCategoryResponse toCategoryResponse(ExpenseCategory category) {
 		return new ExpenseCategoryResponse(
