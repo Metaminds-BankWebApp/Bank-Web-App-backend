@@ -27,3 +27,15 @@ Important:
 | BANK_OFFICER | officer.demo@primecore.local | officer.demo | Demo@1234 |
 | BANK_CUSTOMER | bank.customer.demo@primecore.local | bank.customer.demo | Demo@1234 |
 | PUBLIC_CUSTOMER | public.customer.demo@primecore.local | public.customer.demo | Demo@1234 |
+
+## Transact OTP Email Notes (Brevo)
+
+- OTP is generated and saved in `transaction_otp_logs` first, then email delivery is attempted.
+- Demo user emails use `@primecore.local`, which is non-routable for real inbox delivery.
+- For local OTP testing with a real inbox, set:
+  - `APP_TRANSACT_OTP_OVERRIDE_RECIPIENT_EMAIL=<your-real-email>`
+- Ensure Brevo sender is verified:
+  - `APP_MAIL_FROM=<brevo-verified-sender-email>`
+- Ensure Brevo SMTP login and key are valid:
+  - `SPRING_MAIL_USERNAME`
+  - `SPRING_MAIL_PASSWORD`

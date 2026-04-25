@@ -29,6 +29,12 @@ public class BrevoSmtpEmailService implements EmailService {
 		if (toEmail == null || toEmail.isBlank()) {
 			throw new IllegalArgumentException("Email recipient is required.");
 		}
+		if (fromAddress == null || fromAddress.isBlank()) {
+			throw new EmailDeliveryException(
+				"Unable to deliver OTP email: APP_MAIL_FROM is required.",
+				new IllegalStateException("APP_MAIL_FROM is blank.")
+			);
+		}
 		if (subject == null || subject.isBlank()) {
 			throw new IllegalArgumentException("Email subject is required.");
 		}
@@ -37,7 +43,7 @@ public class BrevoSmtpEmailService implements EmailService {
 		}
 
 		SimpleMailMessage message = new SimpleMailMessage();
-		message.setFrom(fromAddress);
+		message.setFrom(fromAddress.trim());
 		message.setTo(toEmail.trim());
 		message.setSubject(subject.trim());
 		message.setText(body);
@@ -65,6 +71,22 @@ public class BrevoSmtpEmailService implements EmailService {
 			raw.contains("not verified")
 		) {
 			return "Unable to deliver OTP email: APP_MAIL_FROM must be a Brevo-verified sender email.";
+		}
+		if (
+			raw.contains("recipient address rejected") ||
+			raw.contains("invalid address") ||
+			raw.contains("mailbox unavailable") ||
+			raw.contains("user unknown") ||
+			raw.contains("unknown user")
+		) {
+			return "Unable to deliver OTP email: recipient email is invalid or unreachable.";
+		}
+		if (
+			raw.contains("domain not found") ||
+			raw.contains("name or service not known") ||
+			raw.contains("no such domain")
+		) {
+			return "Unable to deliver OTP email: recipient domain is not reachable.";
 		}
 		if (
 			raw.contains("could not connect to smtp host") ||
