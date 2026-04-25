@@ -29,6 +29,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 public class UserProfileServiceImpl implements UserProfileService {
@@ -44,19 +45,22 @@ public class UserProfileServiceImpl implements UserProfileService {
 	private final BankCustomerRepository bankCustomerRepository;
 	private final BankOfficerRepository bankOfficerRepository;
 	private final PasswordEncoder passwordEncoder;
+	private final ProfileImageStorageService profileImageStorageService;
 
 	public UserProfileServiceImpl(
 		UserRepository userRepository,
 		PublicCustomerProfileRepository publicCustomerProfileRepository,
 		BankCustomerRepository bankCustomerRepository,
 		BankOfficerRepository bankOfficerRepository,
-		PasswordEncoder passwordEncoder
+		PasswordEncoder passwordEncoder,
+		ProfileImageStorageService profileImageStorageService
 	) {
 		this.userRepository = userRepository;
 		this.publicCustomerProfileRepository = publicCustomerProfileRepository;
 		this.bankCustomerRepository = bankCustomerRepository;
 		this.bankOfficerRepository = bankOfficerRepository;
 		this.passwordEncoder = passwordEncoder;
+		this.profileImageStorageService = profileImageStorageService;
 	}
 
 	@Override
@@ -79,6 +83,26 @@ public class UserProfileServiceImpl implements UserProfileService {
 
 		User savedUser = userRepository.save(user);
 		return new UserProfileUpdateResponse("Profile updated successfully.", buildProfile(savedUser));
+	}
+
+	@Override
+	@Transactional
+	public UserProfileUpdateResponse updateMyProfileImage(MultipartFile file) {
+		User user = resolveLoggedInUser();
+		String storedImageUrl = profileImageStorageService.storeProfileImage(file, user.getProfilePictureUrl(), user.getUserId());
+		user.setProfilePictureUrl(storedImageUrl);
+		User savedUser = userRepository.save(user);
+		return new UserProfileUpdateResponse("Profile image updated successfully.", buildProfile(savedUser));
+	}
+
+	@Override
+	@Transactional
+	public UserProfileUpdateResponse removeMyProfileImage() {
+		User user = resolveLoggedInUser();
+		profileImageStorageService.deleteProfileImage(user.getProfilePictureUrl());
+		user.setProfilePictureUrl(null);
+		User savedUser = userRepository.save(user);
+		return new UserProfileUpdateResponse("Profile image removed successfully.", buildProfile(savedUser));
 	}
 
 	private void updatePersonalDetails(User user, UserProfileUpdateRequest request) {
@@ -245,7 +269,7 @@ public class UserProfileServiceImpl implements UserProfileService {
 			safe(user.getNic()),
 			user.getDob() == null ? null : user.getDob().toString(),
 			safe(user.getAddress()),
-			safe(user.getProfilePictureUrl()),
+			nullableTrim(user.getProfilePictureUrl()),
 			safe(user.getStatus()),
 			formatDate(user.getCreatedAt()),
 			customerCode,
@@ -400,6 +424,14 @@ public class UserProfileServiceImpl implements UserProfileService {
 
 	private String safe(String value) {
 		return value == null ? "" : value.trim();
+	}
+
+	private String nullableTrim(String value) {
+		if (value == null) {
+			return null;
+		}
+		String normalized = value.trim();
+		return normalized.isBlank() ? null : normalized;
 	}
 
 	private record NameParts(String firstName, String lastName) {}
