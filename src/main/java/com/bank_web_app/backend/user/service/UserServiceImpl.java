@@ -24,7 +24,9 @@ import java.time.format.DateTimeParseException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.function.Predicate;
+import java.util.regex.Pattern;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -44,6 +46,20 @@ private static final String STATUS_ACTIVE = "ACTIVE";
 private static final String STATE_DRAFT = "DRAFT";
 private static final String STATE_PENDING_STEP_2 = "PENDING_STEP_2";
 private static final String STATE_SUCCESS = "SUCCESS";
+private static final Pattern NIC_REGEX = Pattern.compile("^(?:\\d{9}[VvXx]|\\d{12})$");
+private static final Pattern BANK_OFFICER_MOBILE_REGEX = Pattern.compile("^(?:077|076|078|070|072|074|075|071)\\d{7}$");
+private static final Pattern BANK_OFFICER_EMAIL_REGEX = Pattern.compile("^[A-Za-z0-9._%+-]+@primecore\\.com$", Pattern.CASE_INSENSITIVE);
+private static final Set<String> SRI_LANKA_PROVINCES = Set.of(
+"western",
+"central",
+"southern",
+"northern",
+"eastern",
+"north western",
+"north central",
+"uva",
+"sabaragamuwa"
+);
 
 private final UserRepository userRepository;
 private final RoleRepository roleRepository;
@@ -177,6 +193,9 @@ return toSummary(user, employeeCode);
 
 private User createUserForRole(UserRegistrationStepOneRequest request, String roleName) {
 validateBaseRequest(request);
+if (ROLE_BANK_OFFICER.equals(roleName)) {
+validateBankOfficerConstraints(request);
+}
 Role role = roleRepository
 .findByRoleName(roleName)
 .orElseThrow(() -> new IllegalStateException("Role " + roleName + " not found."));
@@ -365,6 +384,28 @@ requireText(request.password(), "Password is required.");
 requireText(request.confirmPassword(), "Confirm password is required.");
 if (!request.password().equals(request.confirmPassword())) {
 throw new IllegalArgumentException("Password and confirm password must match.");
+}
+}
+
+private void validateBankOfficerConstraints(UserRegistrationStepOneRequest request) {
+String nic = safeTrim(request.nic());
+if (!NIC_REGEX.matcher(nic).matches()) {
+throw new IllegalArgumentException("Enter a valid NIC number.");
+}
+
+String mobile = safeTrim(request.mobile());
+if (!BANK_OFFICER_MOBILE_REGEX.matcher(mobile).matches()) {
+throw new IllegalArgumentException("Contact number must be 10 digits and start with 077, 076, 078, 070, 072, 074, 075, or 071.");
+}
+
+String email = safeTrim(request.email());
+if (!BANK_OFFICER_EMAIL_REGEX.matcher(email).matches()) {
+throw new IllegalArgumentException("Email must be in the format name@primecore.com.");
+}
+
+String province = safeTrim(request.province()).toLowerCase(Locale.ROOT);
+if (!SRI_LANKA_PROVINCES.contains(province)) {
+throw new IllegalArgumentException("Please select a valid Sri Lankan province.");
 }
 }
 
