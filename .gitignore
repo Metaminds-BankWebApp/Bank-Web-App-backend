@@ -41,3 +41,6 @@ build/
 src/main/resources/application.yaml
 .DS_Store
 src/.DS_Store
+
+### Local Uploads ###
+uploads/profile-images/
