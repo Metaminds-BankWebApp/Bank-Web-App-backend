@@ -1,5 +1,6 @@
 package com.bank_web_app.backend.common.exception;
 
+import com.bank_web_app.backend.common.email.EmailDeliveryException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -76,7 +77,11 @@ public class GlobalExceptionHandler {
 	) {
 		Map<String, String> fieldErrors = extractFieldErrorsFromDataIntegrity(ex);
 		if (!fieldErrors.isEmpty()) {
-			return build(HttpStatus.CONFLICT, "Some values are already in use.", request.getRequestURI(), fieldErrors);
+			String message = "Some values are already in use.";
+			if (fieldErrors.size() == 1 && fieldErrors.containsKey("beneficiaryAccountNo")) {
+				message = "Beneficiary already added";
+			}
+			return build(HttpStatus.CONFLICT, message, request.getRequestURI(), fieldErrors);
 		}
 		return build(HttpStatus.CONFLICT, "Request conflicts with existing data constraints.", request.getRequestURI());
 	}
@@ -102,6 +107,14 @@ public class GlobalExceptionHandler {
 			? status.getReasonPhrase()
 			: ex.getReason();
 		return build(status, message, request.getRequestURI());
+	}
+
+	@ExceptionHandler(EmailDeliveryException.class)
+	public ResponseEntity<ApiErrorResponse> handleEmailDelivery(
+		EmailDeliveryException ex,
+		HttpServletRequest request
+	) {
+		return build(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage(), request.getRequestURI());
 	}
 
 	@ExceptionHandler(Exception.class)
@@ -157,6 +170,14 @@ public class GlobalExceptionHandler {
 			normalized.contains("accounts_account_number_key")
 		) {
 			fieldErrors.put("bankAccount", "Bank account is already linked or already exists.");
+		}
+		if (
+			normalized.contains("uk_bank_customer_beneficiaries_customer_account") ||
+			(normalized.contains("bank_customer_beneficiaries") &&
+				normalized.contains("beneficiary_account_no") &&
+				normalized.contains("bank_customer_id"))
+		) {
+			fieldErrors.put("beneficiaryAccountNo", "Beneficiary already added");
 		}
 
 		return fieldErrors;
