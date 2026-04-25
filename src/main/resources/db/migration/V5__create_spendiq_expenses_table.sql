@@ -1,4 +1,6 @@
-CREATE TABLE IF NOT EXISTS spendiq_expenses (
+cd /path/to/Bank-Web-App-backend
+
+git show-ref | grep "auth-spendiq"CREATE TABLE IF NOT EXISTS spendiq_expenses (
     expense_id BIGSERIAL PRIMARY KEY,
     account_id BIGINT NOT NULL,
     title VARCHAR(120) NOT NULL,
