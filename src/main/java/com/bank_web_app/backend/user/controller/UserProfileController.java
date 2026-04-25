@@ -8,12 +8,17 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/users/profile")
@@ -54,5 +59,34 @@ public class UserProfileController {
 		@Valid @RequestBody UserProfileUpdateRequest request
 	) {
 		return ResponseEntity.ok(userProfileService.updateMyProfile(request));
+	}
+
+	@PostMapping(value = "/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+	@Operation(
+		summary = "Upload current profile image",
+		description = "Upload and save the authenticated user's profile image to local storage, then persist the image URL in the user table.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Profile image updated successfully"),
+			@ApiResponse(responseCode = "400", description = "Invalid or missing image file"),
+			@ApiResponse(responseCode = "401", description = "Authentication required")
+		}
+	)
+	public ResponseEntity<UserProfileUpdateResponse> uploadMyProfileImage(
+		@RequestParam("file") MultipartFile file
+	) {
+		return ResponseEntity.ok(userProfileService.updateMyProfileImage(file));
+	}
+
+	@DeleteMapping("/image")
+	@Operation(
+		summary = "Remove current profile image",
+		description = "Delete the authenticated user's profile image from local storage and clear the saved image URL in the user table.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Profile image removed successfully"),
+			@ApiResponse(responseCode = "401", description = "Authentication required")
+		}
+	)
+	public ResponseEntity<UserProfileUpdateResponse> deleteMyProfileImage() {
+		return ResponseEntity.ok(userProfileService.removeMyProfileImage());
 	}
 }
