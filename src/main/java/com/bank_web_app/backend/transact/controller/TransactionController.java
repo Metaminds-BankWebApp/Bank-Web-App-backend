@@ -85,9 +85,9 @@ public class TransactionController {
 	@GetMapping("/transactions/history")
 	@Operation(
 		summary = "Get transaction history",
-		description = "Returns all transactions for the logged-in BANK_CUSTOMER in reverse chronological order.",
+		description = "Returns transaction history for the logged-in BANK_CUSTOMER directly from the bank_customer_transactions table (reverse chronological by transaction_date).",
 		responses = {
-			@ApiResponse(responseCode = "200", description = "Transaction history returned successfully"),
+			@ApiResponse(responseCode = "200", description = "Transaction history returned successfully from transaction database"),
 			@ApiResponse(responseCode = "401", description = "Unauthorized: bank customer authentication is required"),
 			@ApiResponse(responseCode = "403", description = "Forbidden: logged-in user is not a bank customer")
 		}
