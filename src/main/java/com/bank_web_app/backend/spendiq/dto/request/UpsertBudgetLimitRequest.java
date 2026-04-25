@@ -13,7 +13,7 @@ public record UpsertBudgetLimitRequest(
 	@Schema(example = "10")
 	Long categoryId,
 	@NotNull
-	@DecimalMin(value = "0.01")
+	@DecimalMin(value = "0.00")
 	@Schema(example = "50000.00")
 	BigDecimal budgetAmount,
 	@NotNull

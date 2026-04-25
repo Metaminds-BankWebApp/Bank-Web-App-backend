@@ -1,6 +1,7 @@
 package com.bank_web_app.backend.common.config;
 
 import com.bank_web_app.backend.security.jwt.JwtAuthenticationFilter;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -10,6 +11,7 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
@@ -24,9 +26,15 @@ public class SecurityConfig {
 
 	@Bean
 	public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+		AuthenticationEntryPoint unauthorizedEntryPoint = (request, response, authException) -> response.sendError(
+			HttpServletResponse.SC_UNAUTHORIZED,
+			"Authentication is required."
+		);
+
 		http
 			.csrf(AbstractHttpConfigurer::disable)
 			.cors(Customizer.withDefaults())
+			.exceptionHandling(exception -> exception.authenticationEntryPoint(unauthorizedEntryPoint))
 			.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 			.authorizeHttpRequests(auth -> auth
 				.requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
@@ -53,6 +61,7 @@ public class SecurityConfig {
 				.requestMatchers("/api/bank-officers/**").hasRole("BANK_OFFICER")
 				.requestMatchers("/api/public-customers/**").hasRole("PUBLIC_CUSTOMER")
 				.requestMatchers("/api/bank-customers/**").hasRole("BANK_CUSTOMER")
+				.requestMatchers("/api/spendiq/**").hasAnyRole("PUBLIC_CUSTOMER", "BANK_CUSTOMER")
 				.requestMatchers("/api/**").authenticated()
 				.anyRequest().authenticated()
 			)
