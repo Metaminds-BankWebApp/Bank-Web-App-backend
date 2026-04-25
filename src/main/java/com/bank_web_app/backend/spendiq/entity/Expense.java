@@ -3,6 +3,8 @@ package com.bank_web_app.backend.spendiq.entity;
 import com.bank_web_app.backend.user.entity.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -45,7 +47,8 @@ public class Expense {
 	private LocalDate expenseDate;
 
 	@Column(name = "payment_type", nullable = false, length = 50)
-	private String paymentType;
+	@Enumerated(EnumType.STRING)
+	private PaymentMethod paymentType;
 
 	@Column(name = "tracking_source", length = 30)
 	private String trackingSource;

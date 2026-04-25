@@ -3,6 +3,7 @@ package com.bank_web_app.backend.spendiq.repository;
 import com.bank_web_app.backend.spendiq.entity.IncomeRecord;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface IncomeRecordRepository extends JpaRepository<IncomeRecord, Long> {
@@ -14,4 +15,6 @@ public interface IncomeRecordRepository extends JpaRepository<IncomeRecord, Long
 		LocalDate fromDate,
 		LocalDate toDate
 	);
+
+	Optional<IncomeRecord> findByIncomeIdAndUser_UserId(Long incomeId, Long userId);
 }
