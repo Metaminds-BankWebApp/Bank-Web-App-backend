@@ -47,6 +47,14 @@ public class SecurityConfig {
 					"/api/auth/verify-otp",
 					"/api/auth/reset-password"
 				).permitAll()
+				.requestMatchers(
+					HttpMethod.POST,
+					"/api/public-customers",
+					"/api/public-customers/",
+					"/api/public-customers/draft",
+					"/api/public-customers/draft/",
+					"/api/public-customers/**"
+				).permitAll()
 				.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 				.requestMatchers("/error").permitAll()
 				.requestMatchers("/api/admin/**").hasRole("ADMIN")

@@ -10,4 +10,12 @@ public interface BeneficiaryRepository extends JpaRepository<Beneficiary, Long> 
 	List<Beneficiary> findAllByBankCustomer_BankCustomerIdOrderByCreatedAtDesc(Long bankCustomerId);
 
 	Optional<Beneficiary> findByBeneficiaryIdAndBankCustomer_BankCustomerId(Long beneficiaryId, Long bankCustomerId);
+
+	boolean existsByBankCustomer_BankCustomerIdAndBeneficiaryAccountNo(Long bankCustomerId, String beneficiaryAccountNo);
+
+	boolean existsByBankCustomer_BankCustomerIdAndBeneficiaryAccountNoAndBeneficiaryIdNot(
+		Long bankCustomerId,
+		String beneficiaryAccountNo,
+		Long beneficiaryId
+	);
 }
