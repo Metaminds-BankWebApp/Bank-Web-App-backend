@@ -39,3 +39,5 @@ build/
 
 ### Local App Config ###
 src/main/resources/application.yaml
+.DS_Store
+src/.DS_Store

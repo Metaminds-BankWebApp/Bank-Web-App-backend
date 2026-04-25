@@ -14,6 +14,7 @@ import com.bank_web_app.backend.spendiq.entity.BudgetLimit;
 import com.bank_web_app.backend.spendiq.entity.Expense;
 import com.bank_web_app.backend.spendiq.entity.ExpenseCategory;
 import com.bank_web_app.backend.spendiq.entity.IncomeRecord;
+import com.bank_web_app.backend.spendiq.entity.PaymentMethod;
 import com.bank_web_app.backend.spendiq.repository.BudgetLimitRepository;
 import com.bank_web_app.backend.spendiq.repository.ExpenseCategoryRepository;
 import com.bank_web_app.backend.spendiq.repository.ExpenseRepository;
@@ -24,8 +25,11 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -40,7 +44,17 @@ public class ExpenseService {
 	private static final String SOURCE_TRANSACT = "TRANSACT";
 	private static final String DEFAULT_TRANSFER_CATEGORY_NAME = "Bank Transfer";
 	private static final String DEFAULT_TRANSFER_CATEGORY_TYPE = "VARIABLE";
-	private static final String DEFAULT_TRANSFER_PAYMENT_TYPE = "BANK_TRANSFER";
+	private static final PaymentMethod DEFAULT_TRANSFER_PAYMENT_TYPE = PaymentMethod.BANK_TRANSFER;
+	private static final List<DefaultCategorySeed> DEFAULT_SPENDIQ_CATEGORIES = List.of(
+		new DefaultCategorySeed("Food", "VARIABLE"),
+		new DefaultCategorySeed("Transport", "VARIABLE"),
+		new DefaultCategorySeed("Bills", "FIXED"),
+		new DefaultCategorySeed("Shopping", "VARIABLE"),
+		new DefaultCategorySeed("Health", "VARIABLE"),
+		new DefaultCategorySeed("Education", "FIXED"),
+		new DefaultCategorySeed("Entertainment", "VARIABLE"),
+		new DefaultCategorySeed("Savings", "FIXED")
+	);
 
 	private final ExpenseCategoryRepository expenseCategoryRepository;
 	private final ExpenseRepository expenseRepository;
@@ -69,7 +83,7 @@ public class ExpenseService {
 		String categoryType = normalizeCategoryType(request.categoryType());
 
 		if (expenseCategoryRepository.existsByUser_UserIdAndCategoryNameIgnoreCase(user.getUserId(), categoryName)) {
-			throw new IllegalArgumentException("Category already exists for this user.");
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "Category already exists for this user.");
 		}
 
 		ExpenseCategory category = new ExpenseCategory();
@@ -125,9 +139,10 @@ public class ExpenseService {
 		expenseRepository.save(expense);
 	}
 
-	@Transactional(readOnly = true)
+	@Transactional
 	public List<ExpenseCategoryResponse> getCategories() {
 		User user = resolveLoggedInUser();
+		ensureDefaultCategories(user);
 		return expenseCategoryRepository
 			.findAllByUser_UserIdOrderByCreatedAtDesc(user.getUserId())
 			.stream()
@@ -138,17 +153,64 @@ public class ExpenseService {
 	@Transactional
 	public ExpenseRecordResponse createExpense(CreateExpenseRecordRequest request) {
 		User user = resolveLoggedInUser();
-		ExpenseCategory category = expenseCategoryRepository
-			.findByCategoryIdAndUser_UserId(request.categoryId(), user.getUserId())
-			.orElseThrow(() -> new IllegalArgumentException("Expense category not found for this user."));
+		ExpenseCategory category = resolveExpenseCategoryForCreate(user, request);
+		BigDecimal amount = request.amount();
+		LocalDate expenseDate = request.expenseDate();
+		PaymentMethod paymentType = request.paymentType();
+
+		validatePositiveAmount(amount);
+		validateAmountScale(amount);
+		if (expenseDate == null) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "expenseDate is required.");
+		}
+		if (paymentType == null) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "paymentType is required.");
+		}
 
 		Expense expense = new Expense();
 		expense.setUser(user);
 		expense.setCategory(category);
-		expense.setAmount(request.amount());
-		expense.setExpenseDate(request.expenseDate());
-		expense.setPaymentType(normalizeText(request.paymentType()));
+		expense.setAmount(amount);
+		expense.setExpenseDate(expenseDate);
+		expense.setPaymentType(paymentType);
 		return toExpenseResponse(expenseRepository.save(expense));
+	}
+
+	@Transactional
+	public ExpenseRecordResponse updateExpense(Long expenseId, CreateExpenseRecordRequest request) {
+		User user = resolveLoggedInUser();
+		Expense expense = expenseRepository
+			.findByExpenseIdAndUser_UserId(expenseId, user.getUserId())
+			.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Expense record not found for this user."));
+		ExpenseCategory category = resolveExpenseCategoryForCreate(user, request);
+
+		BigDecimal amount = request.amount();
+		LocalDate expenseDate = request.expenseDate();
+		PaymentMethod paymentType = request.paymentType();
+
+		validatePositiveAmount(amount);
+		validateAmountScale(amount);
+		if (expenseDate == null) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "expenseDate is required.");
+		}
+		if (paymentType == null) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "paymentType is required.");
+		}
+
+		expense.setCategory(category);
+		expense.setAmount(amount);
+		expense.setExpenseDate(expenseDate);
+		expense.setPaymentType(paymentType);
+		return toExpenseResponse(expenseRepository.save(expense));
+	}
+
+	@Transactional
+	public void deleteExpense(Long expenseId) {
+		User user = resolveLoggedInUser();
+		Expense expense = expenseRepository
+			.findByExpenseIdAndUser_UserId(expenseId, user.getUserId())
+			.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Expense record not found for this user."));
+		expenseRepository.delete(expense);
 	}
 
 	@Transactional(readOnly = true)
@@ -178,9 +240,43 @@ public class ExpenseService {
 		IncomeRecord incomeRecord = new IncomeRecord();
 		incomeRecord.setUser(user);
 		incomeRecord.setSourceName(normalizeText(request.sourceName()));
+		validatePositiveAmount(request.amount());
+		validateAmountScale(request.amount());
 		incomeRecord.setAmount(request.amount());
 		incomeRecord.setIncomeDate(request.incomeDate());
 		return toIncomeResponse(incomeRecordRepository.save(incomeRecord));
+	}
+
+	@Transactional
+	public IncomeRecordResponse updateIncome(Long incomeId, CreateIncomeRecordRequest request) {
+		User user = resolveLoggedInUser();
+		IncomeRecord incomeRecord = incomeRecordRepository
+			.findByIncomeIdAndUser_UserId(incomeId, user.getUserId())
+			.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Income record not found for this user."));
+
+		String sourceName = normalizeText(request.sourceName());
+		if (sourceName.isBlank()) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "sourceName is required.");
+		}
+		if (request.incomeDate() == null) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "incomeDate is required.");
+		}
+		validatePositiveAmount(request.amount());
+		validateAmountScale(request.amount());
+
+		incomeRecord.setSourceName(sourceName);
+		incomeRecord.setAmount(request.amount());
+		incomeRecord.setIncomeDate(request.incomeDate());
+		return toIncomeResponse(incomeRecordRepository.save(incomeRecord));
+	}
+
+	@Transactional
+	public void deleteIncome(Long incomeId) {
+		User user = resolveLoggedInUser();
+		IncomeRecord incomeRecord = incomeRecordRepository
+			.findByIncomeIdAndUser_UserId(incomeId, user.getUserId())
+			.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Income record not found for this user."));
+		incomeRecordRepository.delete(incomeRecord);
 	}
 
 	@Transactional(readOnly = true)
@@ -209,7 +305,7 @@ public class ExpenseService {
 		User user = resolveLoggedInUser();
 		ExpenseCategory category = expenseCategoryRepository
 			.findByCategoryIdAndUser_UserId(request.categoryId(), user.getUserId())
-			.orElseThrow(() -> new IllegalArgumentException("Expense category not found for this user."));
+			.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Expense category not found for this user."));
 
 		BudgetLimit budgetLimit = budgetLimitRepository
 			.findByUser_UserIdAndCategory_CategoryIdAndMonthAndYear(
@@ -320,6 +416,71 @@ public class ExpenseService {
 		return normalized;
 	}
 
+	private void validateAmountScale(BigDecimal amount) {
+		if (amount == null) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "amount is required.");
+		}
+		if (amount.scale() > 2) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "amount can have at most 2 decimal places.");
+		}
+	}
+
+	private void validatePositiveAmount(BigDecimal amount) {
+		if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "amount must be greater than 0.");
+		}
+	}
+
+	private ExpenseCategory resolveExpenseCategoryForCreate(User user, CreateExpenseRecordRequest request) {
+		if (request.categoryId() != null) {
+			return expenseCategoryRepository
+				.findByCategoryIdAndUser_UserId(request.categoryId(), user.getUserId())
+				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Expense category not found for this user."));
+		}
+
+		String legacyCategory = normalizeText(request.category());
+		if (legacyCategory.isBlank()) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "categoryId or category is required.");
+		}
+
+		return expenseCategoryRepository
+			.findByUser_UserIdAndCategoryNameIgnoreCase(user.getUserId(), legacyCategory)
+			.orElseGet(() -> {
+				ExpenseCategory created = new ExpenseCategory();
+				created.setUser(user);
+				created.setCategoryName(legacyCategory);
+				created.setCategoryType("VARIABLE");
+				return expenseCategoryRepository.save(created);
+			});
+	}
+
+	private void ensureDefaultCategories(User user) {
+		List<ExpenseCategory> existingCategories = expenseCategoryRepository.findAllByUser_UserIdOrderByCreatedAtDesc(user.getUserId());
+		Set<String> existingNames = new LinkedHashSet<>();
+		for (ExpenseCategory category : existingCategories) {
+			existingNames.add(normalizeText(category.getCategoryName()).toLowerCase(Locale.ROOT));
+		}
+
+		List<ExpenseCategory> categoriesToCreate = new ArrayList<>();
+		for (DefaultCategorySeed seed : DEFAULT_SPENDIQ_CATEGORIES) {
+			String normalizedName = seed.name().toLowerCase(Locale.ROOT);
+			if (existingNames.contains(normalizedName)) {
+				continue;
+			}
+			ExpenseCategory category = new ExpenseCategory();
+			category.setUser(user);
+			category.setCategoryName(seed.name());
+			category.setCategoryType(seed.type());
+			categoriesToCreate.add(category);
+		}
+
+		if (!categoriesToCreate.isEmpty()) {
+			expenseCategoryRepository.saveAll(categoriesToCreate);
+		}
+	}
+
+	private record DefaultCategorySeed(String name, String type) {}
+
 	private ExpenseCategoryResponse toCategoryResponse(ExpenseCategory category) {
 		return new ExpenseCategoryResponse(
 			category.getCategoryId(),
@@ -338,7 +499,7 @@ public class ExpenseService {
 			expense.getCategory().getCategoryName(),
 			expense.getAmount(),
 			expense.getExpenseDate(),
-			expense.getPaymentType(),
+			expense.getPaymentType().name(),
 			expense.getCreatedAt()
 		);
 	}
