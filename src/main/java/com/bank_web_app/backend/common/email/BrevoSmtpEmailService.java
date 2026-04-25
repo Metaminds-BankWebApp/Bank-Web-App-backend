@@ -18,7 +18,7 @@ public class BrevoSmtpEmailService implements EmailService {
 
 	public BrevoSmtpEmailService(
 		JavaMailSender javaMailSender,
-		@Value("${app.mail.from}") String fromAddress
+		@Value("${app.mail.from:no-reply@primecore.local}") String fromAddress
 	) {
 		this.javaMailSender = javaMailSender;
 		this.fromAddress = fromAddress;
