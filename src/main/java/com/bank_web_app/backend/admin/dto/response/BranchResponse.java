@@ -4,9 +4,9 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 @Schema(name = "BranchResponse", description = "Branch details response")
 public record BranchResponse(
-	@Schema(example = "1")
+	@Schema(example = "1", description = "Internal database primary key. Frontend should not display this as Branch ID.")
 	Long branchId,
-	@Schema(example = "COL-001")
+	@Schema(example = "BR-001", description = "Visible branch code shown in the frontend as Branch ID")
 	String branchCode,
 	@Schema(example = "Colombo Main")
 	String branchName,

@@ -9,7 +9,7 @@ import com.bank_web_app.backend.publiccustomer.dto.response.PublicCustomerFinanc
 import com.bank_web_app.backend.publiccustomer.dto.response.PublicCustomerFinancialStepResponse;
 import com.bank_web_app.backend.publiccustomer.dto.response.PublicCustomerMeResponse;
 import com.bank_web_app.backend.publiccustomer.service.PublicCustomerService;
-import com.bank_web_app.backend.user.dto.request.BankCustomerStepOneRequest;
+import com.bank_web_app.backend.user.dto.request.UserRegistrationStepOneRequest;
 import com.bank_web_app.backend.user.dto.response.BankCustomerSummaryResponse;
 import com.bank_web_app.backend.user.dto.response.UserRegistrationStepResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -47,7 +47,7 @@ public class PublicCustomerController {
 			@ApiResponse(responseCode = "409", description = "Conflict: NIC, email, or username already in use")
 		}
 	)
-	public ResponseEntity<UserRegistrationStepResponse> saveDraft(@Valid @RequestBody BankCustomerStepOneRequest request) {
+	public ResponseEntity<UserRegistrationStepResponse> saveDraft(@Valid @RequestBody UserRegistrationStepOneRequest request) {
 		return ResponseEntity.ok(publicCustomerService.saveDraft(request));
 	}
 
@@ -61,7 +61,7 @@ public class PublicCustomerController {
 			@ApiResponse(responseCode = "409", description = "Conflict: NIC, email, or username already in use")
 		}
 	)
-	public ResponseEntity<UserRegistrationStepResponse> register(@Valid @RequestBody BankCustomerStepOneRequest request) {
+	public ResponseEntity<UserRegistrationStepResponse> register(@Valid @RequestBody UserRegistrationStepOneRequest request) {
 		return ResponseEntity.ok(publicCustomerService.register(request));
 	}
 

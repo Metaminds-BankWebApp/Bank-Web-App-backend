@@ -1,23 +1,23 @@
 package com.bank_web_app.backend.user.service;
 
-import com.bank_web_app.backend.user.dto.request.BankCustomerStepOneRequest;
+import com.bank_web_app.backend.user.dto.request.UserRegistrationStepOneRequest;
 import com.bank_web_app.backend.user.dto.response.BankCustomerSummaryResponse;
 import com.bank_web_app.backend.user.dto.response.UserRegistrationStepResponse;
 import java.util.List;
 
 public interface UserService {
 
-	UserRegistrationStepResponse saveBankCustomerStepOneDraft(BankCustomerStepOneRequest request);
+	UserRegistrationStepResponse saveBankCustomerStepOneDraft(UserRegistrationStepOneRequest request);
 
-	UserRegistrationStepResponse continueBankCustomerStepOne(BankCustomerStepOneRequest request);
+	UserRegistrationStepResponse continueBankCustomerStepOne(UserRegistrationStepOneRequest request);
 
-	UserRegistrationStepResponse savePublicCustomerStepOneDraft(BankCustomerStepOneRequest request);
+	UserRegistrationStepResponse savePublicCustomerStepOneDraft(UserRegistrationStepOneRequest request);
 
-	UserRegistrationStepResponse continuePublicCustomerStepOne(BankCustomerStepOneRequest request);
+	UserRegistrationStepResponse continuePublicCustomerStepOne(UserRegistrationStepOneRequest request);
 
-	UserRegistrationStepResponse saveBankOfficerStepOneDraft(BankCustomerStepOneRequest request);
+	UserRegistrationStepResponse saveBankOfficerStepOneDraft(UserRegistrationStepOneRequest request);
 
-	UserRegistrationStepResponse continueBankOfficerStepOne(BankCustomerStepOneRequest request);
+	UserRegistrationStepResponse continueBankOfficerStepOne(UserRegistrationStepOneRequest request);
 
 	List<BankCustomerSummaryResponse> getBankCustomersForOfficer();
 

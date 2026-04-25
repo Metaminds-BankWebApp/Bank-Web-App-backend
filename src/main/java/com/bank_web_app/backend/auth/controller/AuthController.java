@@ -5,6 +5,9 @@ import com.bank_web_app.backend.auth.dto.request.RefreshTokenRequest;
 import com.bank_web_app.backend.auth.dto.response.AuthMeResponse;
 import com.bank_web_app.backend.auth.dto.response.LoginResponse;
 import com.bank_web_app.backend.auth.service.AuthService;
+import com.bank_web_app.backend.publiccustomer.service.PublicCustomerService;
+import com.bank_web_app.backend.user.dto.request.UserRegistrationStepOneRequest;
+import com.bank_web_app.backend.user.dto.response.UserRegistrationStepResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -22,9 +25,25 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
 	private final AuthService authService;
+	private final PublicCustomerService publicCustomerService;
 
-	public AuthController(AuthService authService) {
+	public AuthController(AuthService authService, PublicCustomerService publicCustomerService) {
 		this.authService = authService;
+		this.publicCustomerService = publicCustomerService;
+	}
+
+	@PostMapping("/register")
+	@Operation(
+		summary = "Register public customer",
+		description = "Creates a public customer account without requiring authentication.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Public customer created successfully"),
+			@ApiResponse(responseCode = "400", description = "Validation failed"),
+			@ApiResponse(responseCode = "409", description = "Conflict: NIC, email, or username already in use")
+		}
+	)
+	public ResponseEntity<UserRegistrationStepResponse> register(@Valid @RequestBody UserRegistrationStepOneRequest request) {
+		return ResponseEntity.ok(publicCustomerService.register(request));
 	}
 
 	@PostMapping("/login")

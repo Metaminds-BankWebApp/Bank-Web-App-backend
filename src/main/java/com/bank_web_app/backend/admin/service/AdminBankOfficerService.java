@@ -1,6 +1,6 @@
 package com.bank_web_app.backend.admin.service;
 
-import com.bank_web_app.backend.user.dto.request.BankCustomerStepOneRequest;
+import com.bank_web_app.backend.user.dto.request.UserRegistrationStepOneRequest;
 import com.bank_web_app.backend.user.dto.response.BankCustomerSummaryResponse;
 import com.bank_web_app.backend.user.dto.response.UserRegistrationStepResponse;
 import com.bank_web_app.backend.user.service.UserService;
@@ -16,11 +16,11 @@ public class AdminBankOfficerService {
 		this.userService = userService;
 	}
 
-	public UserRegistrationStepResponse createDraft(BankCustomerStepOneRequest request) {
+	public UserRegistrationStepResponse createDraft(UserRegistrationStepOneRequest request) {
 		return userService.saveBankOfficerStepOneDraft(request);
 	}
 
-	public UserRegistrationStepResponse create(BankCustomerStepOneRequest request) {
+	public UserRegistrationStepResponse create(UserRegistrationStepOneRequest request) {
 		return userService.continueBankOfficerStepOne(request);
 	}
 
