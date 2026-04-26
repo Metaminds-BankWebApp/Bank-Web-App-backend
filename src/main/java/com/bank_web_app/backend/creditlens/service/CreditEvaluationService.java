@@ -1190,21 +1190,6 @@ public class CreditEvaluationService {
 			}
 		}
 
-		while (candidates.size() < 3) {
-			candidates.add(new InsightCandidate(
-				10 - candidates.size(),
-				new CreditInsightItemResponse(
-					"Latest credit profile is available",
-					"A current evaluation is on record and ready for monthly tracking.",
-					"More monthly evaluations will improve trend visibility and insight quality.",
-					"TRACKED",
-					"blue",
-					"activity",
-					null
-				)
-			));
-		}
-
 		return candidates.stream()
 			.sorted(Comparator.comparingInt(InsightCandidate::priority).reversed())
 			.limit(3)
@@ -1312,21 +1297,6 @@ public class CreditEvaluationService {
 					"UP TO -" + current.incomeStabilityPoints() + " PTS",
 					"blue",
 					"briefcase",
-					null
-				)
-			));
-		}
-
-		while (candidates.size() < 3) {
-			candidates.add(new InsightCandidate(
-				5 - candidates.size(),
-				new CreditInsightItemResponse(
-					"Keep monitoring your score monthly",
-					"Use each monthly evaluation to confirm whether recent actions reduced risk points.",
-					"Tracking changes month to month helps identify which factor is moving the score most.",
-					"MAINTAIN",
-					"blue",
-					"activity",
 					null
 				)
 			));
