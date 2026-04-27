@@ -9,7 +9,12 @@ public record TransactionInitiateResponse(
 	Long transactionId,
 	@Schema(description = "Transaction reference number", example = "TXN-20260420-9K4N2A")
 	String referenceNo,
-	@Schema(description = "Current transaction status", example = "PENDING_OTP")
+	@Schema(description = "Current transaction status", example = "PENDING_OTP", allowableValues = {
+		"PENDING_OTP",
+		"SUCCESS",
+		"FAILED",
+		"CANCELLED"
+	})
 	String status,
 	@Schema(description = "OTP delivery target email", example = "customer.demo@primecore.local")
 	String sentToEmail,

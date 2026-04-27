@@ -1,10 +1,13 @@
 package com.bank_web_app.backend.common.exception;
 
+import com.bank_web_app.backend.common.email.EmailDeliveryException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -13,9 +16,12 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+	private static final Logger LOGGER = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
 	@ExceptionHandler(IllegalArgumentException.class)
 	public ResponseEntity<ApiErrorResponse> handleIllegalArgument(
@@ -76,7 +82,11 @@ public class GlobalExceptionHandler {
 	) {
 		Map<String, String> fieldErrors = extractFieldErrorsFromDataIntegrity(ex);
 		if (!fieldErrors.isEmpty()) {
-			return build(HttpStatus.CONFLICT, "Some values are already in use.", request.getRequestURI(), fieldErrors);
+			String message = "Some values are already in use.";
+			if (fieldErrors.size() == 1 && fieldErrors.containsKey("beneficiaryAccountNo")) {
+				message = "Beneficiary already added";
+			}
+			return build(HttpStatus.CONFLICT, message, request.getRequestURI(), fieldErrors);
 		}
 		return build(HttpStatus.CONFLICT, "Request conflicts with existing data constraints.", request.getRequestURI());
 	}
@@ -104,11 +114,28 @@ public class GlobalExceptionHandler {
 		return build(status, message, request.getRequestURI());
 	}
 
+	@ExceptionHandler(EmailDeliveryException.class)
+	public ResponseEntity<ApiErrorResponse> handleEmailDelivery(
+		EmailDeliveryException ex,
+		HttpServletRequest request
+	) {
+		return build(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage(), request.getRequestURI());
+	}
+
+	@ExceptionHandler(NoResourceFoundException.class)
+	public ResponseEntity<ApiErrorResponse> handleNoResourceFound(
+		NoResourceFoundException ex,
+		HttpServletRequest request
+	) {
+		return build(HttpStatus.NOT_FOUND, "Resource not found.", request.getRequestURI());
+	}
+
 	@ExceptionHandler(Exception.class)
 	public ResponseEntity<ApiErrorResponse> handleGeneric(
 		Exception ex,
 		HttpServletRequest request
 	) {
+		LOGGER.error("Unhandled exception for path {}", request.getRequestURI(), ex);
 		return build(HttpStatus.INTERNAL_SERVER_ERROR, "Unexpected server error.", request.getRequestURI());
 	}
 
@@ -157,6 +184,14 @@ public class GlobalExceptionHandler {
 			normalized.contains("accounts_account_number_key")
 		) {
 			fieldErrors.put("bankAccount", "Bank account is already linked or already exists.");
+		}
+		if (
+			normalized.contains("uk_bank_customer_beneficiaries_customer_account") ||
+			(normalized.contains("bank_customer_beneficiaries") &&
+				normalized.contains("beneficiary_account_no") &&
+				normalized.contains("bank_customer_id"))
+		) {
+			fieldErrors.put("beneficiaryAccountNo", "Beneficiary already added");
 		}
 
 		return fieldErrors;

@@ -1,9 +1,10 @@
 package com.bank_web_app.backend.user.service;
 
+import java.util.List;
+
 import com.bank_web_app.backend.user.dto.request.UserRegistrationStepOneRequest;
 import com.bank_web_app.backend.user.dto.response.BankCustomerSummaryResponse;
 import com.bank_web_app.backend.user.dto.response.UserRegistrationStepResponse;
-import java.util.List;
 
 public interface UserService {
 

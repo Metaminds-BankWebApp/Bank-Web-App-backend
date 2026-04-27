@@ -12,13 +12,22 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import java.time.LocalDateTime;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "bank_customer_beneficiaries")
+@Table(
+	name = "bank_customer_beneficiaries",
+	uniqueConstraints = {
+		@UniqueConstraint(
+			name = "uk_bank_customer_beneficiaries_customer_account",
+			columnNames = { "bank_customer_id", "beneficiary_account_no" }
+		)
+	}
+)
 @Getter
 @Setter
 @NoArgsConstructor

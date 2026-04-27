@@ -17,7 +17,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "bank_customer_transaction_otp_logs")
+@Table(name = "transaction_otp_logs")
 @Getter
 @Setter
 @NoArgsConstructor

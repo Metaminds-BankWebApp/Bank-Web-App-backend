@@ -22,7 +22,12 @@ public record TransactionResponse(
 	String remark,
 	@Schema(description = "Reference number", example = "TXN-20260420-9K4N2A")
 	String referenceNo,
-	@Schema(description = "Transaction status", example = "SUCCESS")
+	@Schema(description = "Transaction status", example = "SUCCESS", allowableValues = {
+		"PENDING_OTP",
+		"SUCCESS",
+		"FAILED",
+		"CANCELLED"
+	})
 	String status,
 	@Schema(description = "Whether OTP was verified", example = "true")
 	Boolean otpVerified,

@@ -38,6 +38,7 @@ public class SecurityConfig {
 			.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 			.authorizeHttpRequests(auth -> auth
 				.requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
+				.requestMatchers("/profile-images/**").permitAll()
 				.requestMatchers(
 					"/api/auth/login",
 					"/api/auth/refresh",
@@ -46,6 +47,14 @@ public class SecurityConfig {
 					"/api/auth/forgot-password",
 					"/api/auth/verify-otp",
 					"/api/auth/reset-password"
+				).permitAll()
+				.requestMatchers(
+					HttpMethod.POST,
+					"/api/public-customers",
+					"/api/public-customers/",
+					"/api/public-customers/draft",
+					"/api/public-customers/draft/",
+					"/api/public-customers/**"
 				).permitAll()
 				.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 				.requestMatchers("/error").permitAll()
