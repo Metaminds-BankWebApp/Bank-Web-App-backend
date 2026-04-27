@@ -4,6 +4,8 @@ import com.bank_web_app.backend.publiccustomer.dto.request.PublicCustomerCardSte
 import com.bank_web_app.backend.publiccustomer.dto.request.PublicCustomerIncomeStepRequest;
 import com.bank_web_app.backend.publiccustomer.dto.request.PublicCustomerLiabilityStepRequest;
 import com.bank_web_app.backend.publiccustomer.dto.request.PublicCustomerLoanStepRequest;
+import com.bank_web_app.backend.bankcustomer.repository.BankCustomerCardRepository;
+import com.bank_web_app.backend.publiccustomer.dto.response.PublicCustomerCardProviderOptionResponse;
 import com.bank_web_app.backend.publiccustomer.dto.response.PublicCustomerMeResponse;
 import com.bank_web_app.backend.publiccustomer.dto.response.PublicCustomerFinancialRecordResponse;
 import com.bank_web_app.backend.publiccustomer.dto.response.PublicCustomerFinancialRecordSummaryResponse;
@@ -26,8 +28,10 @@ import com.bank_web_app.backend.publiccustomer.repository.PublicCustomerProfileR
 import com.bank_web_app.backend.user.entity.User;
 import com.bank_web_app.backend.user.repository.UserRepository;
 import java.time.LocalDateTime;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
@@ -45,6 +49,7 @@ public class PublicCustomerFinancialRecordService {
 	private final PublicCustomerIncomeRepository incomeRepository;
 	private final PublicCustomerLoanRepository loanRepository;
 	private final PublicCustomerCardRepository cardRepository;
+	private final BankCustomerCardRepository bankCustomerCardRepository;
 	private final PublicCustomerLiabilityRepository liabilityRepository;
 	private final PublicCustomerMissedPaymentRepository missedPaymentRepository;
 	private final PublicCustomerFinancialRecordMapper financialRecordMapper;
@@ -56,6 +61,7 @@ public class PublicCustomerFinancialRecordService {
 		PublicCustomerIncomeRepository incomeRepository,
 		PublicCustomerLoanRepository loanRepository,
 		PublicCustomerCardRepository cardRepository,
+		BankCustomerCardRepository bankCustomerCardRepository,
 		PublicCustomerLiabilityRepository liabilityRepository,
 		PublicCustomerMissedPaymentRepository missedPaymentRepository,
 		PublicCustomerFinancialRecordMapper financialRecordMapper,
@@ -66,11 +72,29 @@ public class PublicCustomerFinancialRecordService {
 		this.incomeRepository = incomeRepository;
 		this.loanRepository = loanRepository;
 		this.cardRepository = cardRepository;
+		this.bankCustomerCardRepository = bankCustomerCardRepository;
 		this.liabilityRepository = liabilityRepository;
 		this.missedPaymentRepository = missedPaymentRepository;
 		this.financialRecordMapper = financialRecordMapper;
 		this.userRepository = userRepository;
 	}
+
+	private static final List<String> DEFAULT_CARD_PROVIDER_BANK_NAMES = List.of(
+		"Bank of Ceylon",
+		"People's Bank",
+		"Commercial Bank",
+		"Sampath Bank",
+		"Hatton National Bank",
+		"Nations Trust Bank",
+		"DFCC Bank",
+		"NDB Bank",
+		"Seylan Bank",
+		"Union Bank",
+		"Pan Asia Bank",
+		"Cargills Bank",
+		"Standard Chartered Bank",
+		"HSBC"
+	);
 
 	@Transactional(readOnly = true)
 	public PublicCustomerMeResponse getLoggedInPublicCustomerProfile() {
@@ -80,6 +104,19 @@ public class PublicCustomerFinancialRecordService {
 			profile.getUser().getUserId(),
 			profile.getCustomerCode()
 		);
+	}
+
+	@Transactional(readOnly = true)
+	public List<PublicCustomerCardProviderOptionResponse> getCardProviderOptions() {
+		// Ensure only the logged-in PUBLIC_CUSTOMER can request step options for their flow.
+		resolveLoggedInPublicCustomerProfile();
+
+		Set<String> providerNames = new LinkedHashSet<>();
+		addNormalizedProviderNames(providerNames, DEFAULT_CARD_PROVIDER_BANK_NAMES);
+		addNormalizedProviderNames(providerNames, cardRepository.findDistinctProviders());
+		addNormalizedProviderNames(providerNames, bankCustomerCardRepository.findDistinctProviders());
+
+		return providerNames.stream().map(PublicCustomerCardProviderOptionResponse::new).toList();
 	}
 
 	@Transactional
@@ -238,6 +275,15 @@ public class PublicCustomerFinancialRecordService {
 			throw new IllegalArgumentException("Income category must be SALARY or BUSINESS.");
 		}
 		return normalized;
+	}
+
+	private void addNormalizedProviderNames(Set<String> sink, List<String> values) {
+		for (String value : values) {
+			String normalized = value == null ? "" : value.trim();
+			if (!normalized.isBlank()) {
+				sink.add(normalized);
+			}
+		}
 	}
 
 	private PublicCustomerFinancialRecord getOrCreateCurrentRecord(Long publicCustomerId) {

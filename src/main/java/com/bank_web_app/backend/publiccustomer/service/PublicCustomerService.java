@@ -7,6 +7,7 @@ import com.bank_web_app.backend.publiccustomer.dto.request.PublicCustomerLoanSte
 import com.bank_web_app.backend.publiccustomer.dto.response.PublicCustomerFinancialRecordResponse;
 import com.bank_web_app.backend.publiccustomer.dto.response.PublicCustomerFinancialRecordSummaryResponse;
 import com.bank_web_app.backend.publiccustomer.dto.response.PublicCustomerFinancialStepResponse;
+import com.bank_web_app.backend.publiccustomer.dto.response.PublicCustomerCardProviderOptionResponse;
 import com.bank_web_app.backend.publiccustomer.dto.response.PublicCustomerMeResponse;
 import com.bank_web_app.backend.user.dto.request.UserRegistrationStepOneRequest;
 import com.bank_web_app.backend.user.dto.response.BankCustomerSummaryResponse;
@@ -42,6 +43,10 @@ public class PublicCustomerService {
 
 	public PublicCustomerMeResponse getMe() {
 		return financialRecordService.getLoggedInPublicCustomerProfile();
+	}
+
+	public List<PublicCustomerCardProviderOptionResponse> getCardProviderOptions() {
+		return financialRecordService.getCardProviderOptions();
 	}
 
 	public PublicCustomerFinancialStepResponse saveIncomeStep(Long publicCustomerId, PublicCustomerIncomeStepRequest request) {
