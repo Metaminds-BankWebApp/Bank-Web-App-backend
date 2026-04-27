@@ -73,6 +73,7 @@ public class TransactionService {
 	private final SecureRandom secureRandom;
 	private final boolean otpEmailFailOpenEnabled;
 	private final boolean otpPlainLogEnabled;
+	private final String otpOverrideRecipientEmail;
 
 	public TransactionService(
 		TransactionRepository transactionRepository,
@@ -85,7 +86,8 @@ public class TransactionService {
 		EmailService emailService,
 		ExpenseService expenseService,
 		@Value("${app.transact.otp.fail-open-enabled:true}") boolean otpEmailFailOpenEnabled,
-		@Value("${app.transact.otp.log-plain-enabled:true}") boolean otpPlainLogEnabled
+		@Value("${app.transact.otp.log-plain-enabled:true}") boolean otpPlainLogEnabled,
+		@Value("${app.transact.otp.override-recipient-email:}") String otpOverrideRecipientEmail
 	) {
 		this.transactionRepository = transactionRepository;
 		this.otpRecordRepository = otpRecordRepository;
@@ -99,6 +101,7 @@ public class TransactionService {
 		this.secureRandom = new SecureRandom();
 		this.otpEmailFailOpenEnabled = otpEmailFailOpenEnabled;
 		this.otpPlainLogEnabled = otpPlainLogEnabled;
+		this.otpOverrideRecipientEmail = otpOverrideRecipientEmail == null ? "" : otpOverrideRecipientEmail.trim();
 	}
 
 	@Transactional
@@ -142,8 +145,16 @@ public class TransactionService {
 		transaction = transactionRepository.save(transaction);
 
 		String otpCode = generateOtp();
-		OtpRecord otpRecord = createOtpRecord(transaction, bankCustomer.getUser().getEmail(), otpCode, 0);
-		boolean otpEmailSent = sendTransferOtpEmail(bankCustomer, transaction, otpCode, otpRecord.getExpiresAt(), false);
+		String otpRecipientEmail = resolveOtpRecipientEmail(bankCustomer);
+		OtpRecord otpRecord = createOtpRecord(transaction, otpRecipientEmail, otpCode, 0);
+		boolean otpEmailSent = sendTransferOtpEmail(
+			bankCustomer,
+			transaction,
+			otpRecipientEmail,
+			otpCode,
+			otpRecord.getExpiresAt(),
+			false
+		);
 		String responseMessage = otpEmailSent
 			? "Transaction created. OTP has been issued for verification."
 			: "Transaction created. OTP email failed; use development OTP from backend logs.";
@@ -163,7 +174,12 @@ public class TransactionService {
 		BankCustomer bankCustomer = resolveLoggedInBankCustomer();
 		Transaction transaction = transactionRepository
 			.findByReferenceNoAndBankCustomer_BankCustomerId(request.referenceNo().trim(), bankCustomer.getBankCustomerId())
-			.orElseThrow(() -> new IllegalArgumentException("Transaction was not found for this bank customer."));
+			.orElseThrow(
+				() ->
+					new IllegalArgumentException(
+						"Transaction not found for logged-in bank customer. Use the referenceNo returned by /transactions/initiate."
+					)
+			);
 
 		if (!STATUS_PENDING_OTP.equals(transaction.getStatus())) {
 			throw new IllegalArgumentException("Only transactions in PENDING_OTP status can be verified.");
@@ -238,7 +254,12 @@ public class TransactionService {
 		BankCustomer bankCustomer = resolveLoggedInBankCustomer();
 		Transaction transaction = transactionRepository
 			.findByReferenceNoAndBankCustomer_BankCustomerId(request.referenceNo().trim(), bankCustomer.getBankCustomerId())
-			.orElseThrow(() -> new IllegalArgumentException("Transaction was not found for this bank customer."));
+			.orElseThrow(
+				() ->
+					new IllegalArgumentException(
+						"Transaction not found for logged-in bank customer. Use the referenceNo returned by /transactions/initiate."
+					)
+			);
 
 		if (!STATUS_PENDING_OTP.equals(transaction.getStatus())) {
 			throw new IllegalArgumentException("OTP can only be resent for PENDING_OTP transactions.");
@@ -254,13 +275,21 @@ public class TransactionService {
 		}
 
 		String otpCode = generateOtp();
+		String otpRecipientEmail = resolveOtpRecipientEmail(bankCustomer);
 		OtpRecord otpRecord = createOtpRecord(
 			transaction,
-			bankCustomer.getUser().getEmail(),
+			otpRecipientEmail,
 			otpCode,
 			(previousOtp.getResendCount() == null ? 0 : previousOtp.getResendCount()) + 1
 		);
-		boolean otpEmailSent = sendTransferOtpEmail(bankCustomer, transaction, otpCode, otpRecord.getExpiresAt(), true);
+		boolean otpEmailSent = sendTransferOtpEmail(
+			bankCustomer,
+			transaction,
+			otpRecipientEmail,
+			otpCode,
+			otpRecord.getExpiresAt(),
+			true
+		);
 		String responseMessage = otpEmailSent
 			? "OTP has been reissued for this transaction."
 			: "OTP reissued, but email failed; use development OTP from backend logs.";
@@ -290,7 +319,12 @@ public class TransactionService {
 		BankCustomer bankCustomer = resolveLoggedInBankCustomer();
 		Transaction transaction = transactionRepository
 			.findByReferenceNoAndBankCustomer_BankCustomerId(referenceNo.trim(), bankCustomer.getBankCustomerId())
-			.orElseThrow(() -> new IllegalArgumentException("Transaction was not found for this bank customer."));
+			.orElseThrow(
+				() ->
+					new IllegalArgumentException(
+						"Transaction not found for logged-in bank customer. Use the referenceNo returned by /transactions/initiate."
+					)
+			);
 		return toTransactionResponse(transaction);
 	}
 
@@ -378,11 +412,11 @@ public class TransactionService {
 	private boolean sendTransferOtpEmail(
 		BankCustomer bankCustomer,
 		Transaction transaction,
+		String toEmail,
 		String otpCode,
 		LocalDateTime expiresAt,
 		boolean resend
 	) {
-		String toEmail = bankCustomer.getUser().getEmail();
 		String subject = resend
 			? "Primecore transfer OTP (resent)"
 			: "Primecore transfer OTP";
@@ -407,6 +441,27 @@ public class TransactionService {
 			}
 			return false;
 		}
+	}
+
+	private String resolveOtpRecipientEmail(BankCustomer bankCustomer) {
+		if (!otpOverrideRecipientEmail.isBlank()) {
+			LOGGER.debug("Using APP_TRANSACT_OTP_OVERRIDE_RECIPIENT_EMAIL for OTP delivery.");
+			return otpOverrideRecipientEmail;
+		}
+		if (bankCustomer == null || bankCustomer.getUser() == null) {
+			throw new IllegalArgumentException("Logged-in bank customer email is required for OTP delivery.");
+		}
+		String customerEmail = bankCustomer.getUser().getEmail() == null ? "" : bankCustomer.getUser().getEmail().trim();
+		if (customerEmail.isBlank()) {
+			throw new IllegalArgumentException("Logged-in bank customer email is required for OTP delivery.");
+		}
+		if (customerEmail.toLowerCase(Locale.ROOT).endsWith(".local")) {
+			LOGGER.warn(
+				"OTP recipient email {} appears non-routable (.local). Configure APP_TRANSACT_OTP_OVERRIDE_RECIPIENT_EMAIL for local testing.",
+				customerEmail
+			);
+		}
+		return customerEmail;
 	}
 
 	private String buildOtpEmailBody(

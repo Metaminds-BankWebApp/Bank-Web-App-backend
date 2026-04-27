@@ -3,9 +3,13 @@ package com.bank_web_app.backend.publiccustomer.repository;
 import com.bank_web_app.backend.publiccustomer.entity.PublicCustomerCard;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 
 public interface PublicCustomerCardRepository extends JpaRepository<PublicCustomerCard, Long> {
 	List<PublicCustomerCard> findAllByFinancialRecord_RecordId(Long recordId);
 
 	void deleteByFinancialRecord_RecordId(Long recordId);
+
+	@Query("select distinct c.provider from PublicCustomerCard c where c.provider is not null and trim(c.provider) <> '' order by c.provider")
+	List<String> findDistinctProviders();
 }

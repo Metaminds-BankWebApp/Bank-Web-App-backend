@@ -7,6 +7,7 @@ import com.bank_web_app.backend.publiccustomer.dto.request.PublicCustomerLoanSte
 import com.bank_web_app.backend.publiccustomer.dto.response.PublicCustomerFinancialRecordResponse;
 import com.bank_web_app.backend.publiccustomer.dto.response.PublicCustomerFinancialRecordSummaryResponse;
 import com.bank_web_app.backend.publiccustomer.dto.response.PublicCustomerFinancialStepResponse;
+import com.bank_web_app.backend.publiccustomer.dto.response.PublicCustomerCardProviderOptionResponse;
 import com.bank_web_app.backend.publiccustomer.dto.response.PublicCustomerMeResponse;
 import com.bank_web_app.backend.publiccustomer.service.PublicCustomerService;
 import com.bank_web_app.backend.user.dto.request.UserRegistrationStepOneRequest;
@@ -91,6 +92,20 @@ public class PublicCustomerController {
 	)
 	public ResponseEntity<PublicCustomerMeResponse> getMe() {
 		return ResponseEntity.ok(publicCustomerService.getMe());
+	}
+
+	@GetMapping("/card-providers")
+	@Operation(
+		summary = "Get card provider dropdown options",
+		description = "Returns card provider / bank-name options for the Public Customer application card step dropdown.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Card providers returned successfully"),
+			@ApiResponse(responseCode = "401", description = "Unauthorized: public customer authentication is required"),
+			@ApiResponse(responseCode = "403", description = "Forbidden: logged-in user is not a public customer")
+		}
+	)
+	public ResponseEntity<List<PublicCustomerCardProviderOptionResponse>> getCardProviderOptions() {
+		return ResponseEntity.ok(publicCustomerService.getCardProviderOptions());
 	}
 
 	@PutMapping("/{publicCustomerId}/financial-records/steps/income")
