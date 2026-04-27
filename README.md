@@ -36,6 +36,5 @@ Important:
   - `APP_TRANSACT_OTP_OVERRIDE_RECIPIENT_EMAIL=<your-real-email>`
 - Ensure Brevo sender is verified:
   - `APP_MAIL_FROM=<brevo-verified-sender-email>`
-- Ensure Brevo SMTP login and key are valid:
-  - `SPRING_MAIL_USERNAME`
-  - `SPRING_MAIL_PASSWORD`
+- Ensure Brevo API key is valid:
+  - `BREVO_API_KEY`
