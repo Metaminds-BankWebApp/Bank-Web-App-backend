@@ -93,6 +93,7 @@ public class AdminBankOfficerService {
 			safe(user.getEmail()),
 			safe(user.getPhone()),
 			safe(user.getStatus()),
+			officer.getCreatedAt() == null ? null : officer.getCreatedAt().toString(),
 			user.getUpdatedAt() == null ? null : user.getUpdatedAt().toString(),
 			officer.getBranch() == null ? null : officer.getBranch().getBranchId(),
 			officer.getBranch() == null ? "" : safe(officer.getBranch().getBranchName())

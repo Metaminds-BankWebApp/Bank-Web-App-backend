@@ -16,6 +16,8 @@ public record AdminBankOfficerSummaryResponse(
 	String phone,
 	@Schema(example = "ACTIVE")
 	String status,
+	@Schema(example = "2026-04-24T08:30:00")
+	String createdAt,
 	@Schema(example = "2026-04-24T10:15:30")
 	String lastUpdated,
 	@Schema(example = "2")
