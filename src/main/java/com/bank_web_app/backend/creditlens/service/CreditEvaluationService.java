@@ -361,6 +361,35 @@ public class CreditEvaluationService {
 	}
 
 	@Transactional
+	public CreditTrendResponse getOfficerCustomerTrends(Long bankCustomerId, String range) {
+		BankOfficer officer = resolveLoggedInBankOfficer();
+		BankCustomer bankCustomer = resolveOwnedBankCustomer(bankCustomerId, officer);
+		getOrCreateLatestBankEvaluation(bankCustomer, officer);
+		return buildTrendResponse(getBankEvaluationViews(bankCustomer), normalizeTrendRange(range));
+	}
+
+	@Transactional
+	public CreditInsightsResponse getOfficerCustomerInsights(Long bankCustomerId) {
+		BankOfficer officer = resolveLoggedInBankOfficer();
+		BankCustomer bankCustomer = resolveOwnedBankCustomer(bankCustomerId, officer);
+		BankCreditEvaluation currentEvaluation = getOrCreateLatestBankEvaluation(bankCustomer, officer);
+		List<EvaluationView> views = getBankEvaluationViews(bankCustomer);
+		return buildInsightsResponse(
+			toView(currentEvaluation),
+			views,
+			loadRecordBreakdown(toView(currentEvaluation))
+		);
+	}
+
+	@Transactional
+	public CreditReportResponse getOfficerCustomerReport(Long bankCustomerId) {
+		BankOfficer officer = resolveLoggedInBankOfficer();
+		BankCustomer bankCustomer = resolveOwnedBankCustomer(bankCustomerId, officer);
+		getOrCreateLatestBankEvaluation(bankCustomer, officer);
+		return buildReportResponse("BANK_CUSTOMER", "Bank Assessment", getBankEvaluationViews(bankCustomer));
+	}
+
+	@Transactional
 	public BankCreditEvaluation getOrCreateLatestBankEvaluationForCustomer(BankCustomer bankCustomer) {
 		if (bankCustomer == null || bankCustomer.getBankCustomerId() == null) {
 			throw new IllegalArgumentException("Bank customer is required to generate a bank credit evaluation.");

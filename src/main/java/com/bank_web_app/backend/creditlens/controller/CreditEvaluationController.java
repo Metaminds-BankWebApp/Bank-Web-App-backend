@@ -153,6 +153,27 @@ public class CreditEvaluationController {
 		return ResponseEntity.ok(creditEvaluationService.getCurrentBankEvaluationForOfficer(bankCustomerId));
 	}
 
+	@GetMapping("/officer/customers/{bankCustomerId}/trends")
+	@Operation(summary = "Get CreditLens trend data for a bank customer owned by the logged-in bank officer.")
+	public ResponseEntity<CreditTrendResponse> getOfficerCustomerTrends(
+		@PathVariable Long bankCustomerId,
+		@RequestParam(defaultValue = "6m") String range
+	) {
+		return ResponseEntity.ok(creditEvaluationService.getOfficerCustomerTrends(bankCustomerId, range));
+	}
+
+	@GetMapping({"/officer/customers/{bankCustomerId}/insight", "/officer/customers/{bankCustomerId}/insights"})
+	@Operation(summary = "Get CreditLens insight cards for a bank customer owned by the logged-in bank officer.")
+	public ResponseEntity<CreditInsightsResponse> getOfficerCustomerInsights(@PathVariable Long bankCustomerId) {
+		return ResponseEntity.ok(creditEvaluationService.getOfficerCustomerInsights(bankCustomerId));
+	}
+
+	@GetMapping("/officer/customers/{bankCustomerId}/report")
+	@Operation(summary = "Get CreditLens monthly report data for a bank customer owned by the logged-in bank officer.")
+	public ResponseEntity<CreditReportResponse> getOfficerCustomerReport(@PathVariable Long bankCustomerId) {
+		return ResponseEntity.ok(creditEvaluationService.getOfficerCustomerReport(bankCustomerId));
+	}
+
 	@GetMapping("/officer/customers/{bankCustomerId}/history")
 	@Operation(summary = "Get bank credit evaluation history for a bank customer owned by the logged-in bank officer.")
 	public ResponseEntity<List<BankCreditEvaluationSummaryResponse>> getBankEvaluationHistoryForOfficer(@PathVariable Long bankCustomerId) {
