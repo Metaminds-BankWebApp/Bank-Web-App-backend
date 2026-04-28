@@ -3,7 +3,9 @@ package com.bank_web_app.backend.publiccustomer.dto.request;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.util.List;
 
@@ -17,6 +19,8 @@ public record PublicCustomerCardStepRequest(
 	@Schema(name = "PublicCustomerCardItem", description = "Single card row in the card step.")
 	public record CardItem(
 		@Schema(description = "Card provider name", example = "HSBK Platinum Visa")
+		@NotBlank(message = "Card provider is required.")
+		@Size(max = 100, message = "Card provider must not exceed 100 characters.")
 		String provider,
 		@Schema(description = "Credit card limit", example = "250000.00", requiredMode = Schema.RequiredMode.REQUIRED)
 		@NotNull(message = "Credit limit is required.")
