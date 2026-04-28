@@ -1,15 +1,20 @@
 package com.bank_web_app.backend.admin.controller;
 
+import com.bank_web_app.backend.admin.dto.request.AdminUserManagementUpdateRequest;
 import com.bank_web_app.backend.admin.dto.response.AdminUserManagementUserResponse;
 import com.bank_web_app.backend.admin.service.AdminUserManagementService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -56,5 +61,36 @@ public class AdminUserManagementController {
 		@RequestParam String status
 	) {
 		return ResponseEntity.ok(adminUserManagementService.updateUserStatus(userId, status));
+	}
+
+	@PutMapping("/{userId}")
+	@Operation(
+		summary = "Update managed user details",
+		description = "Updates editable details of a BANK or PUBLIC customer user.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "User details updated"),
+			@ApiResponse(responseCode = "400", description = "Validation failed"),
+			@ApiResponse(responseCode = "404", description = "User not found")
+		}
+	)
+	public ResponseEntity<AdminUserManagementUserResponse> updateUserDetails(
+		@PathVariable Long userId,
+		@Valid @RequestBody AdminUserManagementUpdateRequest request
+	) {
+		return ResponseEntity.ok(adminUserManagementService.updateUserDetails(userId, request));
+	}
+
+	@DeleteMapping("/{userId}")
+	@Operation(
+		summary = "Delete managed user permanently",
+		description = "Deletes a BANK or PUBLIC customer user and its linked profile data permanently.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "User deleted"),
+			@ApiResponse(responseCode = "400", description = "Invalid user role or request"),
+			@ApiResponse(responseCode = "404", description = "User not found")
+		}
+	)
+	public ResponseEntity<AdminUserManagementUserResponse> deleteUser(@PathVariable Long userId) {
+		return ResponseEntity.ok(adminUserManagementService.deleteUser(userId));
 	}
 }

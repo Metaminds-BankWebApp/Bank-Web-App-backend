@@ -14,4 +14,6 @@ public interface BankCreditEvaluationRepository extends JpaRepository<BankCredit
 	List<BankCreditEvaluation> findAllByBankCustomer_BankCustomerIdOrderByCreatedAtDesc(Long bankCustomerId);
 
 	Optional<BankCreditEvaluation> findByBankEvaluationIdAndBankCustomer_BankCustomerId(Long bankEvaluationId, Long bankCustomerId);
+
+	boolean existsByEvaluatedByOfficer_OfficerId(Long officerId);
 }

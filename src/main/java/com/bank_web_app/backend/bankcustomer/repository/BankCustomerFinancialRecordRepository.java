@@ -12,4 +12,6 @@ public interface BankCustomerFinancialRecordRepository extends JpaRepository<Ban
 	Optional<BankCustomerFinancialRecord> findTopByBankCustomer_BankCustomerIdOrderByCreatedAtDesc(Long bankCustomerId);
 
 	List<BankCustomerFinancialRecord> findAllByBankCustomer_BankCustomerIdOrderByCreatedAtDesc(Long bankCustomerId);
+
+	boolean existsByVerifiedByOfficer_OfficerId(Long officerId);
 }

@@ -15,4 +15,10 @@ public interface BranchRepository extends JpaRepository<Branch, Long> {
 
 	@Query(value = "select nextval('branch_code_seq')", nativeQuery = true)
 	Long getNextBranchCodeSequence();
+
+	@Query(
+		value = "select coalesce(max(cast(substring(branch_code from '[0-9]+$') as bigint)), 0) from branches where branch_code ~ '^[A-Za-z]+-[0-9]+$'",
+		nativeQuery = true
+	)
+	Long findMaxBranchCodeNumericValue();
 }

@@ -1,12 +1,18 @@
 package com.bank_web_app.backend.admin.service;
 
+import com.bank_web_app.backend.admin.dto.request.AdminBankOfficerUpdateRequest;
 import com.bank_web_app.backend.admin.dto.response.AdminBankOfficerSummaryResponse;
+import com.bank_web_app.backend.admin.entity.Branch;
+import com.bank_web_app.backend.admin.repository.BranchRepository;
+import com.bank_web_app.backend.bankcustomer.repository.BankCustomerFinancialRecordRepository;
+import com.bank_web_app.backend.bankcustomer.repository.BankCustomerRepository;
 import com.bank_web_app.backend.bankofficer.entity.BankOfficer;
 import com.bank_web_app.backend.bankofficer.repository.BankOfficerRepository;
+import com.bank_web_app.backend.creditlens.repository.BankCreditEvaluationRepository;
 import com.bank_web_app.backend.user.entity.User;
-import com.bank_web_app.backend.user.repository.UserRepository;
 import com.bank_web_app.backend.user.dto.request.UserRegistrationStepOneRequest;
 import com.bank_web_app.backend.user.dto.response.UserRegistrationStepResponse;
+import com.bank_web_app.backend.user.repository.UserRepository;
 import com.bank_web_app.backend.user.service.UserService;
 import java.util.List;
 import java.util.Locale;
@@ -21,16 +27,28 @@ public class AdminBankOfficerService {
 
 	private final UserService userService;
 	private final BankOfficerRepository bankOfficerRepository;
+	private final BranchRepository branchRepository;
 	private final UserRepository userRepository;
+	private final BankCustomerRepository bankCustomerRepository;
+	private final BankCustomerFinancialRecordRepository bankCustomerFinancialRecordRepository;
+	private final BankCreditEvaluationRepository bankCreditEvaluationRepository;
 
 	public AdminBankOfficerService(
 		UserService userService,
 		BankOfficerRepository bankOfficerRepository,
-		UserRepository userRepository
+		BranchRepository branchRepository,
+		UserRepository userRepository,
+		BankCustomerRepository bankCustomerRepository,
+		BankCustomerFinancialRecordRepository bankCustomerFinancialRecordRepository,
+		BankCreditEvaluationRepository bankCreditEvaluationRepository
 	) {
 		this.userService = userService;
 		this.bankOfficerRepository = bankOfficerRepository;
+		this.branchRepository = branchRepository;
 		this.userRepository = userRepository;
+		this.bankCustomerRepository = bankCustomerRepository;
+		this.bankCustomerFinancialRecordRepository = bankCustomerFinancialRecordRepository;
+		this.bankCreditEvaluationRepository = bankCreditEvaluationRepository;
 	}
 
 	public UserRegistrationStepResponse createDraft(UserRegistrationStepOneRequest request) {
@@ -56,8 +74,56 @@ public class AdminBankOfficerService {
 	}
 
 	@Transactional
-	public AdminBankOfficerSummaryResponse deactivate(Long userId) {
-		return updateStatus(userId, "INACTIVE");
+	public AdminBankOfficerSummaryResponse update(Long userId, AdminBankOfficerUpdateRequest request) {
+		BankOfficer officer = findByUserId(userId);
+		User user = officer.getUser();
+
+		String normalizedEmail = safe(request.email()).toLowerCase(Locale.ROOT);
+		if (normalizedEmail.isBlank()) {
+			throw new IllegalArgumentException("Email is required.");
+		}
+		if (userRepository.existsByEmailAndUserIdNot(normalizedEmail, user.getUserId())) {
+			throw new IllegalArgumentException("Email is already in use.");
+		}
+
+		Branch branch = branchRepository
+			.findById(request.branchId())
+			.orElseThrow(() -> new IllegalArgumentException("Branch not found."));
+
+		user.setFirstName(safe(request.firstName()));
+		user.setLastName(safe(request.lastName()));
+		user.setEmail(normalizedEmail);
+		user.setPhone(safe(request.contactNumber()));
+		officer.setBranch(branch);
+
+		userRepository.save(user);
+		bankOfficerRepository.save(officer);
+		return toResponse(officer);
+	}
+
+	@Transactional
+	public AdminBankOfficerSummaryResponse deletePermanently(Long userId) {
+		BankOfficer officer = findByUserId(userId);
+		Long officerId = officer.getOfficerId();
+		if (bankCustomerRepository.existsByOfficer_OfficerId(officerId)) {
+			throw new IllegalArgumentException(
+				"This officer cannot be deleted because bank customers are assigned to the officer."
+			);
+		}
+		if (
+			bankCustomerFinancialRecordRepository.existsByVerifiedByOfficer_OfficerId(officerId) ||
+			bankCreditEvaluationRepository.existsByEvaluatedByOfficer_OfficerId(officerId)
+		) {
+			throw new IllegalArgumentException(
+				"This officer cannot be deleted because financial or evaluation records are linked to the officer."
+			);
+		}
+
+		AdminBankOfficerSummaryResponse response = toResponse(officer);
+		User user = officer.getUser();
+		bankOfficerRepository.delete(officer);
+		userRepository.delete(user);
+		return response;
 	}
 
 	private BankOfficer findByUserId(Long userId) {
