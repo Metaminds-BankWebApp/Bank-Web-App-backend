@@ -38,6 +38,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -68,6 +70,7 @@ public class BankCustomerFinancialRecordService {
 	private final BankCustomerFinancialRecordMapper financialRecordMapper;
 	private final UserRepository userRepository;
 	private final BankOfficerRepository bankOfficerRepository;
+    private final com.bank_web_app.backend.creditlens.service.CreditEvaluationService creditEvaluationService;
 
 	public BankCustomerFinancialRecordService(
 		BankCustomerRepository bankCustomerRepository,
@@ -81,7 +84,8 @@ public class BankCustomerFinancialRecordService {
 		CribDatasetService cribDatasetService,
 		BankCustomerFinancialRecordMapper financialRecordMapper,
 		UserRepository userRepository,
-		BankOfficerRepository bankOfficerRepository
+		BankOfficerRepository bankOfficerRepository,
+        com.bank_web_app.backend.creditlens.service.CreditEvaluationService creditEvaluationService
 	) {
 		this.bankCustomerRepository = bankCustomerRepository;
 		this.financialRecordRepository = financialRecordRepository;
@@ -95,6 +99,7 @@ public class BankCustomerFinancialRecordService {
 		this.financialRecordMapper = financialRecordMapper;
 		this.userRepository = userRepository;
 		this.bankOfficerRepository = bankOfficerRepository;
+		this.creditEvaluationService = creditEvaluationService;
 	}
 
 	@Transactional(readOnly = true)
@@ -279,6 +284,8 @@ public class BankCustomerFinancialRecordService {
 			saved.getRequestStatus(),
 			saved.getReportStatus(),
 			responseMessage,
+			null,
+			null,
 			cribSnapshot
 		);
 	}
@@ -306,6 +313,8 @@ public class BankCustomerFinancialRecordService {
 			saved.getRequestStatus(),
 			saved.getReportStatus(),
 			"CRIB request step saved successfully.",
+			null,
+			null,
 			null
 		);
 	}
@@ -338,6 +347,8 @@ public class BankCustomerFinancialRecordService {
 			saved.getRequestStatus(),
 			saved.getReportStatus(),
 			"CRIB retrieval step saved successfully.",
+			null,
+			null,
 			null
 		);
 	}
@@ -351,6 +362,20 @@ public class BankCustomerFinancialRecordService {
 			.findTopByBankCustomer_BankCustomerIdOrderByRequestedAtDesc(bankCustomerId)
 			.orElse(null);
 
+		Long createdEvalId = null;
+		Integer createdEvalPoints = null;
+		// After onboarding completes, generate a Bank credit evaluation for this customer and capture its id/points
+		try {
+			var evalResp = creditEvaluationService.createBankEvaluationForOfficer(bankCustomerId, null);
+			if (evalResp != null) {
+				createdEvalId = evalResp.bankEvaluationId();
+				createdEvalPoints = evalResp.totalRiskPoints();
+			}
+		} catch (Exception ex) {
+			Logger logger = LoggerFactory.getLogger(BankCustomerFinancialRecordService.class);
+			logger.warn("Failed to create bank credit evaluation during onboarding for customer {}: {}", bankCustomerId, ex.getMessage());
+		}
+
 		return new BankCustomerCribStepResponse(
 			latest != null ? latest.getCribRequestId() : null,
 			bankCustomerId,
@@ -358,6 +383,8 @@ public class BankCustomerFinancialRecordService {
 			latest != null ? latest.getRequestStatus() : null,
 			latest != null ? latest.getReportStatus() : null,
 			"Bank customer onboarding completed successfully.",
+			createdEvalId,
+			createdEvalPoints,
 			null
 		);
 	}
