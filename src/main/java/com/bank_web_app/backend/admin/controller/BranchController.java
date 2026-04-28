@@ -3,6 +3,7 @@ package com.bank_web_app.backend.admin.controller;
 import java.util.List;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -68,5 +69,11 @@ public class BranchController {
 	@Operation(summary = "Update branch status", description = "Updates branch status to ACTIVE, INACTIVE, or MAINTENANCE.")
 	public ResponseEntity<BranchResponse> updateStatus(@PathVariable Long branchId, @RequestParam String status) {
 		return ResponseEntity.ok(branchService.updateStatus(branchId, status));
+	}
+
+	@DeleteMapping("/{branchId}")
+	@Operation(summary = "Delete branch permanently", description = "Deletes a branch permanently when no linked officers or customers exist.")
+	public ResponseEntity<BranchResponse> delete(@PathVariable Long branchId) {
+		return ResponseEntity.ok(branchService.delete(branchId));
 	}
 }
