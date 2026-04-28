@@ -39,6 +39,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.Sort;
 import org.springframework.web.server.ResponseStatusException;
 
 @Service
@@ -315,6 +316,15 @@ public class TransactionService {
 	}
 
 	@Transactional(readOnly = true)
+	public List<TransactionResponse> getAllTransactions() {
+		return transactionRepository
+			.findAll(Sort.by(Sort.Direction.DESC, "transactionDate"))
+			.stream()
+			.map(this::toTransactionResponse)
+			.toList();
+	}
+
+	@Transactional(readOnly = true)
 	public TransactionResponse getByReferenceNo(String referenceNo) {
 		BankCustomer bankCustomer = resolveLoggedInBankCustomer();
 		Transaction transaction = transactionRepository
@@ -423,7 +433,17 @@ public class TransactionService {
 		String customerName = resolveDisplayName(bankCustomer.getUser());
 		String body = buildOtpEmailBody(customerName, otpCode, transaction, expiresAt, resend);
 		try {
+			LOGGER.info(
+				"Sending OTP email for transaction reference {} to {}.",
+				transaction.getReferenceNo(),
+				toEmail
+			);
 			emailService.sendPlainText(toEmail, subject, body);
+			LOGGER.info(
+				"OTP email send completed for transaction reference {} to {}.",
+				transaction.getReferenceNo(),
+				toEmail
+			);
 			return true;
 		} catch (EmailDeliveryException ex) {
 			if (!otpEmailFailOpenEnabled) {

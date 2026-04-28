@@ -46,8 +46,8 @@ public class BankOfficerCustomerController {
 
 	@PostMapping("/step-1/draft")
 	@Operation(
-		summary = "Save BANK_CUSTOMER draft",
-		description = "Authenticated bank officer creates BANK_CUSTOMER draft. Officer and branch are resolved from the logged-in user; account must already exist for the provided account number.",
+		summary = "Save BANK_CUSTOMER step-1 draft (NIC check performed)",
+		description = "Authenticated bank officer creates BANK_CUSTOMER draft. The NIC provided is checked for duplicates — if an existing user with the same NIC/email/username exists a 409 Conflict is returned. Officer and branch are resolved from the logged-in user; account must already exist for the provided account number.",
 		responses = {
 			@ApiResponse(responseCode = "200", description = "Draft saved successfully"),
 			@ApiResponse(responseCode = "400", description = "Validation failed"),
@@ -62,8 +62,8 @@ public class BankOfficerCustomerController {
 
 	@PostMapping("/step-1/continue")
 	@Operation(
-		summary = "Save and continue BANK_CUSTOMER step-1",
-		description = "Authenticated bank officer creates BANK_CUSTOMER and marks as PENDING_STEP_2. Officer and branch are resolved from the logged-in user; account must already exist for the provided account number.",
+		summary = "Save and continue BANK_CUSTOMER step-1 (NIC check performed)",
+		description = "Authenticated bank officer creates BANK_CUSTOMER and marks as PENDING_STEP_2. The NIC is validated and checked for existing users; conflict responses (409) indicate duplicate NIC/email/username. Officer and branch are resolved from the logged-in user; account must already exist for the provided account number.",
 		responses = {
 			@ApiResponse(responseCode = "200", description = "Step saved successfully"),
 			@ApiResponse(responseCode = "400", description = "Validation failed"),
@@ -78,8 +78,8 @@ public class BankOfficerCustomerController {
 
 	@GetMapping("/step-1/by-nic")
 	@Operation(
-		summary = "Get existing BANK_CUSTOMER step-1 data by NIC",
-		description = "Returns step-1 details for an existing bank customer owned by the logged-in bank officer. Use this to prefill forms before updating instead of creating duplicate rows.",
+		summary = "Get existing BANK_CUSTOMER step-1 data by NIC (NIC ownership check)",
+		description = "Returns step-1 details for an existing bank customer owned by the logged-in bank officer. Use this to prefill forms before updating instead of creating duplicate rows. This endpoint verifies NIC ownership — it only returns data for customers assigned to the logged-in officer and responds 404 when NIC is not found or owned by another officer.",
 		responses = {
 			@ApiResponse(responseCode = "200", description = "Existing bank customer step-1 data retrieved successfully"),
 			@ApiResponse(responseCode = "400", description = "Validation failed"),
@@ -94,8 +94,8 @@ public class BankOfficerCustomerController {
 
 	@PutMapping("/{bankCustomerId}/step-1/draft")
 	@Operation(
-		summary = "Update BANK_CUSTOMER step-1 as draft",
-		description = "Updates an existing bank customer step-1 record in DRAFT state. This prevents duplicate insert conflicts when editing and re-saving.",
+		summary = "Update BANK_CUSTOMER step-1 draft (NIC uniqueness enforced)",
+		description = "Updates an existing bank customer step-1 record in DRAFT state. NIC, email and username uniqueness is enforced to avoid duplicates; a 409 Conflict is returned when conflicts are detected. This operation is used when editing an existing draft entry.",
 		responses = {
 			@ApiResponse(responseCode = "200", description = "Step-1 draft updated successfully"),
 			@ApiResponse(responseCode = "400", description = "Validation failed"),
@@ -114,8 +114,8 @@ public class BankOfficerCustomerController {
 
 	@PutMapping("/{bankCustomerId}/step-1/continue")
 	@Operation(
-		summary = "Update BANK_CUSTOMER step-1 and continue",
-		description = "Updates an existing bank customer step-1 record and sets onboarding state to PENDING_STEP_2, allowing the officer to continue without duplicate insert errors.",
+		summary = "Update BANK_CUSTOMER step-1 and continue (NIC uniqueness enforced)",
+		description = "Updates an existing bank customer step-1 record and sets onboarding state to PENDING_STEP_2. NIC/email/username uniqueness is validated and will return 409 on conflict. Use this when editing an existing step-1 and advancing the onboarding state.",
 		responses = {
 			@ApiResponse(responseCode = "200", description = "Step-1 updated successfully"),
 			@ApiResponse(responseCode = "400", description = "Validation failed"),

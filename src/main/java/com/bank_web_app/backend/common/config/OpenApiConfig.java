@@ -105,6 +105,15 @@ public class OpenApiConfig {
 	}
 
 	private static String resolveRequiredRole(String path) {
+		if (path.startsWith("/api/creditlens/officer")) {
+			return "BANK_OFFICER";
+		}
+		if (path.startsWith("/api/creditlens/bank")) {
+			return "BANK_CUSTOMER";
+		}
+		if (path.startsWith("/api/creditlens/public")) {
+			return "PUBLIC_CUSTOMER";
+		}
 		if (path.startsWith("/api/admin")) {
 			return "ADMIN";
 		}

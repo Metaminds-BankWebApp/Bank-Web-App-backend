@@ -284,13 +284,10 @@ public class CreditEvaluationService {
 		List<BankCreditAnalysisCustomerRowResponse> rows = bankCustomerRepository
 			.findAllByOfficer_OfficerIdOrderByUpdatedAtDesc(officer.getOfficerId())
 			.stream()
-			.map(customer -> {
-				try {
-					return getOrCreateLatestBankEvaluation(customer, officer);
-				} catch (IllegalArgumentException ex) {
-					return null;
-				}
-			})
+			.map(customer -> bankCreditEvaluationRepository
+				.findTopByBankCustomer_BankCustomerIdOrderByCreatedAtDesc(customer.getBankCustomerId())
+				.map(this::synchronizeBankEvaluation)
+				.orElse(null))
 			.filter(Objects::nonNull)
 			.map(creditEvaluationMapper::toDashboardRow)
 			.toList();

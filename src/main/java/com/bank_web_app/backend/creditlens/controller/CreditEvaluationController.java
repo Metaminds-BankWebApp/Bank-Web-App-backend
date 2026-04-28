@@ -13,6 +13,7 @@ import com.bank_web_app.backend.creditlens.dto.response.SelfCreditEvaluationResp
 import com.bank_web_app.backend.creditlens.dto.response.SelfCreditEvaluationSummaryResponse;
 import com.bank_web_app.backend.creditlens.service.CreditEvaluationService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -37,13 +38,27 @@ public class CreditEvaluationController {
 	}
 
 	@PostMapping("/public/evaluations")
-	@Operation(summary = "Generate a self credit evaluation for the logged-in public customer.")
+	@Operation(
+		summary = "Generate a self credit evaluation for the logged-in public customer.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Self credit evaluation generated successfully"),
+			@ApiResponse(responseCode = "401", description = "Unauthorized: public customer authentication is required"),
+			@ApiResponse(responseCode = "403", description = "Forbidden: logged-in user is not a public customer")
+		}
+	)
 	public ResponseEntity<SelfCreditEvaluationResponse> createSelfEvaluation() {
 		return ResponseEntity.ok(creditEvaluationService.createSelfEvaluation());
 	}
 
 	@GetMapping("/public/current")
-	@Operation(summary = "Get the latest self credit evaluation for the logged-in public customer.")
+	@Operation(
+		summary = "Get the latest self credit evaluation for the logged-in public customer.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Latest self credit evaluation returned successfully"),
+			@ApiResponse(responseCode = "401", description = "Unauthorized: public customer authentication is required"),
+			@ApiResponse(responseCode = "403", description = "Forbidden: logged-in user is not a public customer")
+		}
+	)
 	public ResponseEntity<SelfCreditEvaluationResponse> getCurrentSelfEvaluation() {
 		return ResponseEntity.ok(creditEvaluationService.getCurrentSelfEvaluation());
 	}
@@ -85,61 +100,136 @@ public class CreditEvaluationController {
 	}
 
 	@GetMapping("/bank/current")
-	@Operation(summary = "Get the latest bank credit evaluation for the logged-in bank customer.")
+	@Operation(
+		summary = "Get the latest bank credit evaluation for the logged-in bank customer.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Latest bank credit evaluation returned successfully"),
+			@ApiResponse(responseCode = "401", description = "Unauthorized: bank customer authentication is required"),
+			@ApiResponse(responseCode = "403", description = "Forbidden: logged-in user is not a bank customer"),
+			@ApiResponse(responseCode = "404", description = "Bank evaluation not found for this customer")
+		}
+	)
 	public ResponseEntity<BankCreditEvaluationResponse> getCurrentBankEvaluationForCustomer() {
 		return ResponseEntity.ok(creditEvaluationService.getCurrentBankEvaluationForCustomer());
 	}
 
 	@GetMapping("/bank/dashboard")
-	@Operation(summary = "Get the CreditLens dashboard data for the logged-in bank customer.")
+	@Operation(
+		summary = "Get the CreditLens dashboard data for the logged-in bank customer.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Bank dashboard returned successfully"),
+			@ApiResponse(responseCode = "401", description = "Unauthorized: bank customer authentication is required"),
+			@ApiResponse(responseCode = "403", description = "Forbidden: logged-in user is not a bank customer")
+		}
+	)
 	public ResponseEntity<CreditDashboardResponse> getBankDashboard() {
 		return ResponseEntity.ok(creditEvaluationService.getBankDashboard());
 	}
 
 	@GetMapping("/bank/trends")
-	@Operation(summary = "Get the CreditLens trend data for the logged-in bank customer.")
+	@Operation(
+		summary = "Get the CreditLens trend data for the logged-in bank customer.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Bank trend data returned successfully"),
+			@ApiResponse(responseCode = "401", description = "Unauthorized: bank customer authentication is required"),
+			@ApiResponse(responseCode = "403", description = "Forbidden: logged-in user is not a bank customer")
+		}
+	)
 	public ResponseEntity<CreditTrendResponse> getBankTrends(@RequestParam(defaultValue = "6m") String range) {
 		return ResponseEntity.ok(creditEvaluationService.getBankTrends(range));
 	}
 
 	@GetMapping({"/bank/insight", "/bank/insights"})
-	@Operation(summary = "Get the CreditLens insight cards for the logged-in bank customer.")
+	@Operation(
+		summary = "Get the CreditLens insight cards for the logged-in bank customer.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Bank insight cards returned successfully"),
+			@ApiResponse(responseCode = "401", description = "Unauthorized: bank customer authentication is required"),
+			@ApiResponse(responseCode = "403", description = "Forbidden: logged-in user is not a bank customer")
+		}
+	)
 	public ResponseEntity<CreditInsightsResponse> getBankInsights() {
 		return ResponseEntity.ok(creditEvaluationService.getBankInsights());
 	}
 
 	@GetMapping("/bank/report")
-	@Operation(summary = "Get the CreditLens monthly report data for the logged-in bank customer.")
+	@Operation(
+		summary = "Get the CreditLens monthly report data for the logged-in bank customer.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Bank monthly report returned successfully"),
+			@ApiResponse(responseCode = "401", description = "Unauthorized: bank customer authentication is required"),
+			@ApiResponse(responseCode = "403", description = "Forbidden: logged-in user is not a bank customer")
+		}
+	)
 	public ResponseEntity<CreditReportResponse> getBankReport() {
 		return ResponseEntity.ok(creditEvaluationService.getBankReport());
 	}
 
 	@GetMapping("/bank/history")
-	@Operation(summary = "Get bank credit evaluation history for the logged-in bank customer.")
+	@Operation(
+		summary = "Get bank credit evaluation history for the logged-in bank customer.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Bank evaluation history returned successfully"),
+			@ApiResponse(responseCode = "401", description = "Unauthorized: bank customer authentication is required"),
+			@ApiResponse(responseCode = "403", description = "Forbidden: logged-in user is not a bank customer")
+		}
+	)
 	public ResponseEntity<List<BankCreditEvaluationSummaryResponse>> getBankEvaluationHistoryForCustomer() {
 		return ResponseEntity.ok(creditEvaluationService.getBankEvaluationHistoryForCustomer());
 	}
 
 	@GetMapping("/bank/evaluations/{bankEvaluationId}")
-	@Operation(summary = "Get a specific bank credit evaluation for the logged-in bank customer.")
+	@Operation(
+		summary = "Get a specific bank credit evaluation for the logged-in bank customer.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Bank customer evaluation returned successfully"),
+			@ApiResponse(responseCode = "401", description = "Unauthorized: bank customer authentication is required"),
+			@ApiResponse(responseCode = "403", description = "Forbidden: logged-in user is not a bank customer"),
+			@ApiResponse(responseCode = "404", description = "Bank evaluation not found for this customer")
+		}
+	)
 	public ResponseEntity<BankCreditEvaluationResponse> getBankEvaluationByIdForCustomer(@PathVariable Long bankEvaluationId) {
 		return ResponseEntity.ok(creditEvaluationService.getBankEvaluationByIdForCustomer(bankEvaluationId));
 	}
 
 	@GetMapping("/officer/dashboard")
-	@Operation(summary = "Get the credit-analysis dashboard for the logged-in bank officer.")
+	@Operation(
+		summary = "Get the credit-analysis dashboard for the logged-in bank officer.",
+		description = "Returns the live officer dashboard with customer rows, risk counts, and totals for the assigned bank officer.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Officer dashboard returned successfully"),
+			@ApiResponse(responseCode = "401", description = "Unauthorized: bank officer authentication is required"),
+			@ApiResponse(responseCode = "403", description = "Forbidden: logged-in user is not a bank officer")
+		}
+	)
 	public ResponseEntity<BankCreditAnalysisDashboardResponse> getOfficerDashboard() {
 		return ResponseEntity.ok(creditEvaluationService.getOfficerDashboard());
 	}
 
 	@GetMapping("/officer/customers/{bankCustomerId}/profile")
-	@Operation(summary = "Get the credit-analysis customer profile for a bank customer owned by the logged-in bank officer.")
+	@Operation(
+		summary = "Get the credit-analysis customer profile for a bank customer owned by the logged-in bank officer.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Officer customer profile returned successfully"),
+			@ApiResponse(responseCode = "401", description = "Unauthorized: bank officer authentication is required"),
+			@ApiResponse(responseCode = "403", description = "Forbidden: customer is not assigned to this bank officer"),
+			@ApiResponse(responseCode = "404", description = "Customer profile not found for this officer")
+		}
+	)
 	public ResponseEntity<BankCreditAnalysisCustomerProfileResponse> getOfficerCustomerProfile(@PathVariable Long bankCustomerId) {
 		return ResponseEntity.ok(creditEvaluationService.getOfficerCustomerProfile(bankCustomerId));
 	}
 
 	@PostMapping("/officer/customers/{bankCustomerId}/evaluations")
-	@Operation(summary = "Create a bank credit evaluation for a bank customer owned by the logged-in bank officer.")
+	@Operation(
+		summary = "Create a bank credit evaluation for a bank customer owned by the logged-in bank officer.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Bank credit evaluation created successfully"),
+			@ApiResponse(responseCode = "400", description = "Validation failed or customer data is missing"),
+			@ApiResponse(responseCode = "401", description = "Unauthorized: bank officer authentication is required"),
+			@ApiResponse(responseCode = "403", description = "Forbidden: customer is not assigned to this bank officer")
+		}
+	)
 	public ResponseEntity<BankCreditEvaluationResponse> createBankEvaluationForOfficer(
 		@PathVariable Long bankCustomerId,
 		@Valid @RequestBody(required = false) CreateBankCreditEvaluationRequest request
@@ -148,7 +238,15 @@ public class CreditEvaluationController {
 	}
 
 	@GetMapping("/officer/customers/{bankCustomerId}/current")
-	@Operation(summary = "Get the latest bank credit evaluation for a bank customer owned by the logged-in bank officer.")
+	@Operation(
+		summary = "Get the latest bank credit evaluation for a bank customer owned by the logged-in bank officer.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Latest officer customer evaluation returned successfully"),
+			@ApiResponse(responseCode = "401", description = "Unauthorized: bank officer authentication is required"),
+			@ApiResponse(responseCode = "403", description = "Forbidden: customer is not assigned to this bank officer"),
+			@ApiResponse(responseCode = "404", description = "Customer evaluation not found for this officer")
+		}
+	)
 	public ResponseEntity<BankCreditEvaluationResponse> getCurrentBankEvaluationForOfficer(@PathVariable Long bankCustomerId) {
 		return ResponseEntity.ok(creditEvaluationService.getCurrentBankEvaluationForOfficer(bankCustomerId));
 	}
@@ -175,13 +273,28 @@ public class CreditEvaluationController {
 	}
 
 	@GetMapping("/officer/customers/{bankCustomerId}/history")
-	@Operation(summary = "Get bank credit evaluation history for a bank customer owned by the logged-in bank officer.")
+	@Operation(
+		summary = "Get bank credit evaluation history for a bank customer owned by the logged-in bank officer.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Officer customer history returned successfully"),
+			@ApiResponse(responseCode = "401", description = "Unauthorized: bank officer authentication is required"),
+			@ApiResponse(responseCode = "403", description = "Forbidden: customer is not assigned to this bank officer")
+		}
+	)
 	public ResponseEntity<List<BankCreditEvaluationSummaryResponse>> getBankEvaluationHistoryForOfficer(@PathVariable Long bankCustomerId) {
 		return ResponseEntity.ok(creditEvaluationService.getBankEvaluationHistoryForOfficer(bankCustomerId));
 	}
 
 	@GetMapping("/officer/customers/{bankCustomerId}/evaluations/{bankEvaluationId}")
-	@Operation(summary = "Get a specific bank credit evaluation for a bank customer owned by the logged-in bank officer.")
+	@Operation(
+		summary = "Get a specific bank credit evaluation for a bank customer owned by the logged-in bank officer.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Officer customer evaluation returned successfully"),
+			@ApiResponse(responseCode = "401", description = "Unauthorized: bank officer authentication is required"),
+			@ApiResponse(responseCode = "403", description = "Forbidden: customer is not assigned to this bank officer"),
+			@ApiResponse(responseCode = "404", description = "Evaluation not found for this officer")
+		}
+	)
 	public ResponseEntity<BankCreditEvaluationResponse> getBankEvaluationByIdForOfficer(
 		@PathVariable Long bankCustomerId,
 		@PathVariable Long bankEvaluationId

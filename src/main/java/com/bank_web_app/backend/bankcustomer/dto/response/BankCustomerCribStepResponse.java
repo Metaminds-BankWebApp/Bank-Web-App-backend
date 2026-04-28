@@ -17,6 +17,10 @@ public record BankCustomerCribStepResponse(
 	String reportStatus,
 	@Schema(description = "Operation result message", example = "CRIB request step saved successfully.")
 	String message,
+	@Schema(description = "Created bank credit evaluation id (if created)")
+	Long bankEvaluationId,
+	@Schema(description = "Created bank credit evaluation total risk points (if created)")
+	Integer bankEvaluationTotalRiskPoints,
 	@Schema(description = "Retrieved CRIB snapshot for the bank customer")
 	CribDatasetSnapshotResponse snapshot
 ) {
