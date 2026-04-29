@@ -1,7 +1,11 @@
 package com.bank_web_app.backend.auth.controller;
 
+import com.bank_web_app.backend.auth.dto.request.ForgotPasswordRequest;
 import com.bank_web_app.backend.auth.dto.request.LoginRequest;
 import com.bank_web_app.backend.auth.dto.request.RefreshTokenRequest;
+import com.bank_web_app.backend.auth.dto.request.ResetPasswordRequest;
+import com.bank_web_app.backend.auth.dto.request.VerifyOtpRequest;
+import com.bank_web_app.backend.auth.dto.response.AuthActionResponse;
 import com.bank_web_app.backend.auth.dto.response.AuthMeResponse;
 import com.bank_web_app.backend.auth.dto.response.LoginResponse;
 import com.bank_web_app.backend.auth.service.AuthService;
@@ -101,5 +105,32 @@ public class AuthController {
 	)
 	public ResponseEntity<AuthMeResponse> me() {
 		return ResponseEntity.ok(authService.me());
+	}
+
+	@PostMapping("/forgot-password")
+	@Operation(
+		summary = "Request password reset OTP",
+		description = "Sends a 6-digit OTP to the account email when the account exists."
+	)
+	public ResponseEntity<AuthActionResponse> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+		return ResponseEntity.ok(authService.forgotPassword(request));
+	}
+
+	@PostMapping("/verify-otp")
+	@Operation(
+		summary = "Verify password reset OTP",
+		description = "Verifies the emailed OTP and returns a short-lived reset token."
+	)
+	public ResponseEntity<AuthActionResponse> verifyOtp(@Valid @RequestBody VerifyOtpRequest request) {
+		return ResponseEntity.ok(authService.verifyOtp(request));
+	}
+
+	@PostMapping("/reset-password")
+	@Operation(
+		summary = "Reset password",
+		description = "Sets a new password using the reset token returned by OTP verification."
+	)
+	public ResponseEntity<AuthActionResponse> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+		return ResponseEntity.ok(authService.resetPassword(request));
 	}
 }
