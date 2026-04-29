@@ -106,7 +106,7 @@ public class AdminUserManagementService {
 			default -> List.of(ROLE_BANK_CUSTOMER, ROLE_PUBLIC_CUSTOMER);
 		};
 
-		List<User> users = userRepository.findAllByRole_RoleNameInOrderByUpdatedAtDesc(roleNames);
+		List<User> users = userRepository.findAllByRole_RoleNameInOrderByCreatedAtDesc(roleNames);
 		if (users.isEmpty()) {
 			return List.of();
 		}

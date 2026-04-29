@@ -50,7 +50,7 @@ public class BranchService {
 
 	@Transactional(readOnly = true)
 	public List<BranchResponse> getAll() {
-		return branchRepository.findAll().stream().map(this::toResponse).toList();
+		return branchRepository.findAllByOrderByCreatedAtDesc().stream().map(this::toResponse).toList();
 	}
 
 	@Transactional(readOnly = true)

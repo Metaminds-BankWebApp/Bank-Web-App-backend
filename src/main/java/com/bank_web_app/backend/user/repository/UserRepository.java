@@ -23,6 +23,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     List<User> findAllByRole_RoleNameInOrderByUpdatedAtDesc(List<String> roleNames);
 
+    List<User> findAllByRole_RoleNameInOrderByCreatedAtDesc(List<String> roleNames);
+
     boolean existsByEmail(String email);
 
     boolean existsByUsername(String username);
@@ -34,4 +36,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
     boolean existsByEmailAndUserIdNot(String email, Long userId);
 
     boolean existsByNicAndUserIdNot(String nic, Long userId);
+
+    long countByRole_RoleNameIn(List<String> roleNames);
 }
+

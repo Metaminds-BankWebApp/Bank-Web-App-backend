@@ -1,5 +1,6 @@
 package com.bank_web_app.backend.admin.repository;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -8,6 +9,8 @@ import org.springframework.data.jpa.repository.Query;
 import com.bank_web_app.backend.admin.entity.Branch;
 
 public interface BranchRepository extends JpaRepository<Branch, Long> {
+
+	List<Branch> findAllByOrderByCreatedAtDesc();
 
 	Optional<Branch> findByBranchCode(String branchCode);
 
