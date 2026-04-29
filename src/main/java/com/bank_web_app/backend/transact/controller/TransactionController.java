@@ -15,6 +15,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
+import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -95,7 +96,10 @@ public class TransactionController {
 		}
 	)
 	public ResponseEntity<CurrentBalanceResponse> getCurrentBalance() {
-		return ResponseEntity.ok(transactionService.getCurrentBalance());
+		return ResponseEntity
+			.ok()
+			.cacheControl(CacheControl.noStore().mustRevalidate())
+			.body(transactionService.getCurrentBalance());
 	}
 
 	@GetMapping("/transactions/history")
