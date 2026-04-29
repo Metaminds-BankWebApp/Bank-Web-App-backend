@@ -1,6 +1,9 @@
 package com.bank_web_app.backend.admin.controller;
 
 import com.bank_web_app.backend.admin.dto.request.AdminBankOfficerUpdateRequest;
+import com.bank_web_app.backend.admin.dto.request.AdminBankOfficerUsernameGenerationRequest;
+import com.bank_web_app.backend.admin.dto.response.AdminBankOfficerGeneratedPasswordResponse;
+import com.bank_web_app.backend.admin.dto.response.AdminBankOfficerGeneratedUsernameResponse;
 import com.bank_web_app.backend.admin.dto.response.AdminBankOfficerSummaryResponse;
 import com.bank_web_app.backend.admin.service.AdminBankOfficerService;
 import com.bank_web_app.backend.user.dto.request.UserRegistrationStepOneRequest;
@@ -60,6 +63,35 @@ public class AdminBankOfficerController {
 	)
 	public ResponseEntity<UserRegistrationStepResponse> create(@Valid @RequestBody UserRegistrationStepOneRequest request) {
 		return ResponseEntity.ok(adminBankOfficerService.create(request));
+	}
+
+	@PostMapping("/credentials/username")
+	@Operation(
+		summary = "Generate bank officer username",
+		description = "Generates a backend-owned suggested username for BANK_OFFICER onboarding.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Username generated successfully"),
+			@ApiResponse(responseCode = "400", description = "Validation failed")
+		}
+	)
+	public ResponseEntity<AdminBankOfficerGeneratedUsernameResponse> generateUsername(
+		@Valid @RequestBody AdminBankOfficerUsernameGenerationRequest request
+	) {
+		String username = adminBankOfficerService.generateSuggestedUsername(request.firstName(), request.lastName());
+		return ResponseEntity.ok(new AdminBankOfficerGeneratedUsernameResponse(username));
+	}
+
+	@GetMapping("/credentials/password")
+	@Operation(
+		summary = "Generate bank officer password",
+		description = "Generates a backend-owned suggested password for BANK_OFFICER onboarding.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Password generated successfully")
+		}
+	)
+	public ResponseEntity<AdminBankOfficerGeneratedPasswordResponse> generatePassword() {
+		String password = adminBankOfficerService.generateSuggestedPassword();
+		return ResponseEntity.ok(new AdminBankOfficerGeneratedPasswordResponse(password));
 	}
 
 	@GetMapping
