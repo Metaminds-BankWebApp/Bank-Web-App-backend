@@ -9,10 +9,12 @@ import com.bank_web_app.backend.bankcustomer.repository.BankCustomerRepository;
 import com.bank_web_app.backend.bankofficer.entity.BankOfficer;
 import com.bank_web_app.backend.bankofficer.repository.BankOfficerRepository;
 import com.bank_web_app.backend.common.exception.DuplicateFieldsException;
+import com.bank_web_app.backend.common.email.BankCustomerCredentialsEmailService;
 import com.bank_web_app.backend.publiccustomer.entity.PublicCustomerProfile;
 import com.bank_web_app.backend.publiccustomer.repository.PublicCustomerProfileRepository;
 import com.bank_web_app.backend.user.dto.request.UserRegistrationStepOneRequest;
 import com.bank_web_app.backend.user.dto.response.BankCustomerSummaryResponse;
+import com.bank_web_app.backend.user.dto.response.GeneratedBankCustomerCredentialsResponse;
 import com.bank_web_app.backend.user.dto.response.UserRegistrationStepResponse;
 import com.bank_web_app.backend.user.entity.Role;
 import com.bank_web_app.backend.user.entity.User;
@@ -69,6 +71,8 @@ private final BankCustomerRepository bankCustomerRepository;
 private final AccountRepository accountRepository;
 private final PublicCustomerProfileRepository publicCustomerProfileRepository;
 private final PasswordEncoder passwordEncoder;
+private final BankCustomerCredentialsEmailService credentialsEmailService;
+private static final java.security.SecureRandom SECURE_RANDOM = new java.security.SecureRandom();
 
 public UserServiceImpl(
 UserRepository userRepository,
@@ -78,7 +82,8 @@ BankOfficerRepository bankOfficerRepository,
 BankCustomerRepository bankCustomerRepository,
 AccountRepository accountRepository,
 PublicCustomerProfileRepository publicCustomerProfileRepository,
-PasswordEncoder passwordEncoder
+PasswordEncoder passwordEncoder,
+BankCustomerCredentialsEmailService credentialsEmailService
 ) {
 this.userRepository = userRepository;
 this.roleRepository = roleRepository;
@@ -88,6 +93,7 @@ this.bankCustomerRepository = bankCustomerRepository;
 this.accountRepository = accountRepository;
 this.publicCustomerProfileRepository = publicCustomerProfileRepository;
 this.passwordEncoder = passwordEncoder;
+this.credentialsEmailService = credentialsEmailService;
 }
 
 @Override
@@ -103,12 +109,23 @@ return new UserRegistrationStepResponse(user.getUserId(), ROLE_BANK_CUSTOMER, ST
 public UserRegistrationStepResponse continueBankCustomerStepOne(UserRegistrationStepOneRequest request) {
 User user = createUserForRole(request, ROLE_BANK_CUSTOMER);
 createBankCustomerProfile(request, user, STATE_PENDING_STEP_2);
+
+credentialsEmailService.sendCredentialsEmail(user.getEmail(), user.getFirstName(), user.getUsername(), request.password());
+
 return new UserRegistrationStepResponse(
 user.getUserId(),
 ROLE_BANK_CUSTOMER,
 STATE_PENDING_STEP_2,
 "Bank customer step one saved. Continue to step two."
 );
+}
+
+@Override
+@Transactional(readOnly = true)
+public GeneratedBankCustomerCredentialsResponse generateBankCustomerCredentials(String firstName, String lastName) {
+	String username = generateUniqueBankCustomerUsername(firstName, lastName);
+	String password = generateTemporaryPassword(12);
+	return new GeneratedBankCustomerCredentialsResponse(username, password);
 }
 
 @Override
@@ -261,6 +278,79 @@ private String generateBankOfficerEmployeeCode() {
 	}
 
 	return candidate;
+}
+
+private String generateUniqueBankCustomerUsername(String firstName, String lastName) {
+	String normalized = normalizeForUsername(firstName) + normalizeForUsername(lastName);
+	if (normalized.isBlank()) {
+		normalized = "bankcustomer";
+	}
+
+	for (int attempt = 0; attempt < 30; attempt++) {
+		String candidate = normalized + generateThreeDigitSuffix();
+		if (candidate.length() > 20) {
+			candidate = candidate.substring(0, 20);
+		}
+		if (!userRepository.existsByUsername(candidate)) {
+			return candidate;
+		}
+	}
+
+	String fallback = normalized;
+	if (fallback.length() > 17) {
+		fallback = fallback.substring(0, 17);
+	}
+	int suffix = 100;
+	String candidate = fallback + suffix;
+	while (userRepository.existsByUsername(candidate)) {
+		suffix++;
+		candidate = fallback + suffix;
+		if (candidate.length() > 20) {
+			candidate = candidate.substring(0, 20);
+		}
+	}
+	return candidate;
+}
+
+private String normalizeForUsername(String value) {
+	if (value == null) {
+		return "";
+	}
+	String cleaned = value.trim().toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
+	return cleaned;
+}
+
+private String generateThreeDigitSuffix() {
+	int value = 100 + SECURE_RANDOM.nextInt(900);
+	return String.valueOf(value);
+}
+
+private String generateTemporaryPassword(int length) {
+	String upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+	String lower = "abcdefghijkmnopqrstuvwxyz";
+	String digits = "23456789";
+	String symbols = "!@#$%&*?";
+	String charset = upper + lower + digits + symbols;
+	StringBuilder builder = new StringBuilder();
+	builder.append(randomChar(upper));
+	builder.append(randomChar(lower));
+	builder.append(randomChar(digits));
+	builder.append(randomChar(symbols));
+	while (builder.length() < length) {
+		builder.append(randomChar(charset));
+	}
+	char[] chars = builder.toString().toCharArray();
+	for (int i = chars.length - 1; i > 0; i--) {
+		int swapIndex = SECURE_RANDOM.nextInt(i + 1);
+		char temp = chars[i];
+		chars[i] = chars[swapIndex];
+		chars[swapIndex] = temp;
+	}
+	return new String(chars);
+}
+
+private char randomChar(String source) {
+	return source.charAt(SECURE_RANDOM.nextInt(source.length()));
 }
 
 private void createBankCustomerProfile(UserRegistrationStepOneRequest request, User user, String accessStatus) {

@@ -4,6 +4,7 @@ import java.util.List;
 
 import com.bank_web_app.backend.user.dto.request.UserRegistrationStepOneRequest;
 import com.bank_web_app.backend.user.dto.response.BankCustomerSummaryResponse;
+import com.bank_web_app.backend.user.dto.response.GeneratedBankCustomerCredentialsResponse;
 import com.bank_web_app.backend.user.dto.response.UserRegistrationStepResponse;
 
 public interface UserService {
@@ -11,6 +12,8 @@ public interface UserService {
 	UserRegistrationStepResponse saveBankCustomerStepOneDraft(UserRegistrationStepOneRequest request);
 
 	UserRegistrationStepResponse continueBankCustomerStepOne(UserRegistrationStepOneRequest request);
+
+	GeneratedBankCustomerCredentialsResponse generateBankCustomerCredentials(String firstName, String lastName);
 
 	UserRegistrationStepResponse savePublicCustomerStepOneDraft(UserRegistrationStepOneRequest request);
 
