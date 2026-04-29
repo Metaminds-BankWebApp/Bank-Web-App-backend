@@ -2,23 +2,34 @@ package com.bank_web_app.backend.admin.service;
 
 import com.bank_web_app.backend.admin.dto.request.AdminUserManagementUpdateRequest;
 import com.bank_web_app.backend.admin.dto.response.AdminUserManagementUserResponse;
+import com.bank_web_app.backend.bankcustomer.entity.BankCustomer;
 import com.bank_web_app.backend.bankcustomer.repository.AccountRepository;
+import com.bank_web_app.backend.bankcustomer.repository.BankCustomerCardRepository;
 import com.bank_web_app.backend.bankcustomer.repository.BankCustomerCribRequestRepository;
 import com.bank_web_app.backend.bankcustomer.repository.BankCustomerFinancialRecordRepository;
-import com.bank_web_app.backend.bankcustomer.entity.BankCustomer;
+import com.bank_web_app.backend.bankcustomer.repository.BankCustomerIncomeRepository;
+import com.bank_web_app.backend.bankcustomer.repository.BankCustomerLiabilityRepository;
+import com.bank_web_app.backend.bankcustomer.repository.BankCustomerLoanRepository;
+import com.bank_web_app.backend.bankcustomer.repository.BankCustomerMissedPaymentRepository;
 import com.bank_web_app.backend.bankcustomer.repository.BankCustomerRepository;
 import com.bank_web_app.backend.creditlens.repository.BankCreditEvaluationRepository;
 import com.bank_web_app.backend.creditlens.repository.SelfCreditEvaluationRepository;
 import com.bank_web_app.backend.loansense.repository.LoanEligibilityRepository;
 import com.bank_web_app.backend.loansense.repository.LoanEligibilityResultRepository;
 import com.bank_web_app.backend.publiccustomer.entity.PublicCustomerProfile;
+import com.bank_web_app.backend.publiccustomer.repository.PublicCustomerCardRepository;
 import com.bank_web_app.backend.publiccustomer.repository.PublicCustomerFinancialRecordRepository;
+import com.bank_web_app.backend.publiccustomer.repository.PublicCustomerIncomeRepository;
+import com.bank_web_app.backend.publiccustomer.repository.PublicCustomerLiabilityRepository;
+import com.bank_web_app.backend.publiccustomer.repository.PublicCustomerLoanRepository;
+import com.bank_web_app.backend.publiccustomer.repository.PublicCustomerMissedPaymentRepository;
 import com.bank_web_app.backend.publiccustomer.repository.PublicCustomerProfileRepository;
 import com.bank_web_app.backend.spendiq.repository.BudgetLimitRepository;
 import com.bank_web_app.backend.spendiq.repository.ExpenseCategoryRepository;
 import com.bank_web_app.backend.spendiq.repository.ExpenseRepository;
 import com.bank_web_app.backend.spendiq.repository.IncomeRecordRepository;
 import com.bank_web_app.backend.transact.repository.BeneficiaryRepository;
+import com.bank_web_app.backend.transact.repository.OtpRecordRepository;
 import com.bank_web_app.backend.transact.repository.TransactionRepository;
 import com.bank_web_app.backend.user.entity.User;
 import com.bank_web_app.backend.user.repository.UserRepository;
@@ -45,16 +56,27 @@ public class AdminUserManagementService {
 	private final AccountRepository accountRepository;
 	private final BankCustomerCribRequestRepository bankCustomerCribRequestRepository;
 	private final BankCustomerFinancialRecordRepository bankCustomerFinancialRecordRepository;
+	private final BankCustomerIncomeRepository bankCustomerIncomeRepository;
+	private final BankCustomerLoanRepository bankCustomerLoanRepository;
+	private final BankCustomerCardRepository bankCustomerCardRepository;
+	private final BankCustomerLiabilityRepository bankCustomerLiabilityRepository;
+	private final BankCustomerMissedPaymentRepository bankCustomerMissedPaymentRepository;
 	private final BankCreditEvaluationRepository bankCreditEvaluationRepository;
 	private final LoanEligibilityRepository loanEligibilityRepository;
 	private final LoanEligibilityResultRepository loanEligibilityResultRepository;
 	private final SelfCreditEvaluationRepository selfCreditEvaluationRepository;
 	private final PublicCustomerFinancialRecordRepository publicCustomerFinancialRecordRepository;
+	private final PublicCustomerIncomeRepository publicCustomerIncomeRepository;
+	private final PublicCustomerLoanRepository publicCustomerLoanRepository;
+	private final PublicCustomerCardRepository publicCustomerCardRepository;
+	private final PublicCustomerLiabilityRepository publicCustomerLiabilityRepository;
+	private final PublicCustomerMissedPaymentRepository publicCustomerMissedPaymentRepository;
 	private final BudgetLimitRepository budgetLimitRepository;
 	private final ExpenseRepository expenseRepository;
 	private final ExpenseCategoryRepository expenseCategoryRepository;
 	private final IncomeRecordRepository incomeRecordRepository;
 	private final BeneficiaryRepository beneficiaryRepository;
+	private final OtpRecordRepository otpRecordRepository;
 	private final TransactionRepository transactionRepository;
 
 	public AdminUserManagementService(
@@ -64,16 +86,27 @@ public class AdminUserManagementService {
 		AccountRepository accountRepository,
 		BankCustomerCribRequestRepository bankCustomerCribRequestRepository,
 		BankCustomerFinancialRecordRepository bankCustomerFinancialRecordRepository,
+		BankCustomerIncomeRepository bankCustomerIncomeRepository,
+		BankCustomerLoanRepository bankCustomerLoanRepository,
+		BankCustomerCardRepository bankCustomerCardRepository,
+		BankCustomerLiabilityRepository bankCustomerLiabilityRepository,
+		BankCustomerMissedPaymentRepository bankCustomerMissedPaymentRepository,
 		BankCreditEvaluationRepository bankCreditEvaluationRepository,
 		LoanEligibilityRepository loanEligibilityRepository,
 		LoanEligibilityResultRepository loanEligibilityResultRepository,
 		SelfCreditEvaluationRepository selfCreditEvaluationRepository,
 		PublicCustomerFinancialRecordRepository publicCustomerFinancialRecordRepository,
+		PublicCustomerIncomeRepository publicCustomerIncomeRepository,
+		PublicCustomerLoanRepository publicCustomerLoanRepository,
+		PublicCustomerCardRepository publicCustomerCardRepository,
+		PublicCustomerLiabilityRepository publicCustomerLiabilityRepository,
+		PublicCustomerMissedPaymentRepository publicCustomerMissedPaymentRepository,
 		BudgetLimitRepository budgetLimitRepository,
 		ExpenseRepository expenseRepository,
 		ExpenseCategoryRepository expenseCategoryRepository,
 		IncomeRecordRepository incomeRecordRepository,
 		BeneficiaryRepository beneficiaryRepository,
+		OtpRecordRepository otpRecordRepository,
 		TransactionRepository transactionRepository
 	) {
 		this.userRepository = userRepository;
@@ -82,16 +115,27 @@ public class AdminUserManagementService {
 		this.accountRepository = accountRepository;
 		this.bankCustomerCribRequestRepository = bankCustomerCribRequestRepository;
 		this.bankCustomerFinancialRecordRepository = bankCustomerFinancialRecordRepository;
+		this.bankCustomerIncomeRepository = bankCustomerIncomeRepository;
+		this.bankCustomerLoanRepository = bankCustomerLoanRepository;
+		this.bankCustomerCardRepository = bankCustomerCardRepository;
+		this.bankCustomerLiabilityRepository = bankCustomerLiabilityRepository;
+		this.bankCustomerMissedPaymentRepository = bankCustomerMissedPaymentRepository;
 		this.bankCreditEvaluationRepository = bankCreditEvaluationRepository;
 		this.loanEligibilityRepository = loanEligibilityRepository;
 		this.loanEligibilityResultRepository = loanEligibilityResultRepository;
 		this.selfCreditEvaluationRepository = selfCreditEvaluationRepository;
 		this.publicCustomerFinancialRecordRepository = publicCustomerFinancialRecordRepository;
+		this.publicCustomerIncomeRepository = publicCustomerIncomeRepository;
+		this.publicCustomerLoanRepository = publicCustomerLoanRepository;
+		this.publicCustomerCardRepository = publicCustomerCardRepository;
+		this.publicCustomerLiabilityRepository = publicCustomerLiabilityRepository;
+		this.publicCustomerMissedPaymentRepository = publicCustomerMissedPaymentRepository;
 		this.budgetLimitRepository = budgetLimitRepository;
 		this.expenseRepository = expenseRepository;
 		this.expenseCategoryRepository = expenseCategoryRepository;
 		this.incomeRecordRepository = incomeRecordRepository;
 		this.beneficiaryRepository = beneficiaryRepository;
+		this.otpRecordRepository = otpRecordRepository;
 		this.transactionRepository = transactionRepository;
 	}
 
@@ -375,11 +419,14 @@ public class AdminUserManagementService {
 					bankCustomerId
 				)
 			);
-			bankCustomerFinancialRecordRepository.deleteAll(
-				bankCustomerFinancialRecordRepository.findAllByBankCustomer_BankCustomerIdOrderByCreatedAtDesc(
-					bankCustomerId
-				)
-			);
+
+			var bankFinancialRecords = bankCustomerFinancialRecordRepository
+				.findAllByBankCustomer_BankCustomerIdOrderByCreatedAtDesc(bankCustomerId);
+			for (var financialRecord : bankFinancialRecords) {
+				deleteBankCustomerFinancialRecordDetails(financialRecord.getBankRecordId());
+			}
+			bankCustomerFinancialRecordRepository.deleteAll(bankFinancialRecords);
+
 			bankCustomerCribRequestRepository.deleteAll(
 				bankCustomerCribRequestRepository.findAllByBankCustomer_BankCustomerIdOrderByRequestedAtDesc(
 					bankCustomerId
@@ -388,11 +435,18 @@ public class AdminUserManagementService {
 			beneficiaryRepository.deleteAll(
 				beneficiaryRepository.findAllByBankCustomer_BankCustomerIdOrderByCreatedAtDesc(bankCustomerId)
 			);
-			transactionRepository.deleteAll(
-				transactionRepository.findAllByBankCustomer_BankCustomerIdOrderByTransactionDateDesc(
-					bankCustomerId
-				)
+
+			var transactions = transactionRepository.findAllByBankCustomer_BankCustomerIdOrderByTransactionDateDesc(
+				bankCustomerId
 			);
+			for (var transaction : transactions) {
+				otpRecordRepository.deleteAll(
+					otpRecordRepository.findAllByTransaction_TransactionIdOrderByCreatedAtDesc(
+						transaction.getTransactionId()
+					)
+				);
+			}
+			transactionRepository.deleteAll(transactions);
 
 			var account = bankCustomer.getAccount();
 			bankCustomerRepository.delete(bankCustomer);
@@ -410,12 +464,40 @@ public class AdminUserManagementService {
 					publicCustomerId
 				)
 			);
-			publicCustomerFinancialRecordRepository.deleteAll(
-				publicCustomerFinancialRecordRepository.findAllByPublicCustomer_PublicCustomerIdOrderByCreatedAtDesc(
-					publicCustomerId
-				)
-			);
+
+			var publicFinancialRecords = publicCustomerFinancialRecordRepository
+				.findAllByPublicCustomer_PublicCustomerIdOrderByCreatedAtDesc(publicCustomerId);
+			for (var financialRecord : publicFinancialRecords) {
+				deletePublicCustomerFinancialRecordDetails(financialRecord.getRecordId());
+			}
+			publicCustomerFinancialRecordRepository.deleteAll(publicFinancialRecords);
 			publicCustomerProfileRepository.delete(profile);
 		});
+	}
+
+	private void deleteBankCustomerFinancialRecordDetails(Long bankRecordId) {
+		if (bankRecordId == null) {
+			return;
+		}
+		bankCustomerIncomeRepository.deleteByFinancialRecord_BankRecordId(bankRecordId);
+		bankCustomerLoanRepository.deleteByFinancialRecord_BankRecordId(bankRecordId);
+		bankCustomerCardRepository.deleteByFinancialRecord_BankRecordId(bankRecordId);
+		bankCustomerLiabilityRepository.deleteByFinancialRecord_BankRecordId(bankRecordId);
+		bankCustomerMissedPaymentRepository
+			.findByFinancialRecord_BankRecordId(bankRecordId)
+			.ifPresent(bankCustomerMissedPaymentRepository::delete);
+	}
+
+	private void deletePublicCustomerFinancialRecordDetails(Long recordId) {
+		if (recordId == null) {
+			return;
+		}
+		publicCustomerIncomeRepository.deleteByFinancialRecord_RecordId(recordId);
+		publicCustomerLoanRepository.deleteByFinancialRecord_RecordId(recordId);
+		publicCustomerCardRepository.deleteByFinancialRecord_RecordId(recordId);
+		publicCustomerLiabilityRepository.deleteByFinancialRecord_RecordId(recordId);
+		publicCustomerMissedPaymentRepository
+			.findByFinancialRecord_RecordId(recordId)
+			.ifPresent(publicCustomerMissedPaymentRepository::delete);
 	}
 }
