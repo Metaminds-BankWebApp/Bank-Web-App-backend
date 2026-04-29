@@ -114,6 +114,7 @@ public class LoanPolicyService {
 			policy.getMaxFinancePercentage(),
 			policy.getMinIncomeRequired(),
 			policy.getStatus(),
+			policy.getCreatedAt() == null ? null : policy.getCreatedAt().toString(),
 			policy.getUpdatedAt() == null ? null : policy.getUpdatedAt().toString()
 		);
 	}
