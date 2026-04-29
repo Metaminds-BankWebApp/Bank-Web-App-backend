@@ -13,6 +13,7 @@ import com.bank_web_app.backend.transact.dto.request.ResendTransactionOtpRequest
 import com.bank_web_app.backend.transact.dto.request.UpdateBeneficiaryRequest;
 import com.bank_web_app.backend.transact.dto.request.VerifyTransactionOtpRequest;
 import com.bank_web_app.backend.transact.dto.response.BeneficiaryResponse;
+import com.bank_web_app.backend.transact.dto.response.CurrentBalanceResponse;
 import com.bank_web_app.backend.transact.dto.response.TransactionInitiateResponse;
 import com.bank_web_app.backend.transact.dto.response.TransactionResponse;
 import com.bank_web_app.backend.transact.entity.Beneficiary;
@@ -302,6 +303,21 @@ public class TransactionService {
 			otpRecord.getSentToEmail(),
 			otpRecord.getExpiresAt(),
 			responseMessage
+		);
+	}
+
+	@Transactional(readOnly = true)
+	public CurrentBalanceResponse getCurrentBalance() {
+		BankCustomer bankCustomer = resolveLoggedInBankCustomer();
+		Account account = resolveOwnedAccountForBankCustomer(bankCustomer);
+		String accountNumber = normalizeAccountNumber(account.getAccountNumber());
+		if (accountNumber.isBlank()) {
+			throw new IllegalStateException("Account number is invalid for logged-in bank customer.");
+		}
+
+		return new CurrentBalanceResponse(
+			accountNumber,
+			account.getBalance() == null ? BigDecimal.ZERO : account.getBalance()
 		);
 	}
 
@@ -612,6 +628,20 @@ public class TransactionService {
 		if (senderAccountNo.isBlank()) {
 			throw new IllegalStateException("Sender account number is invalid for logged-in bank customer.");
 		}
+		return senderAccount;
+	}
+
+	private Account resolveOwnedAccountForBankCustomer(BankCustomer bankCustomer) {
+		if (bankCustomer == null || bankCustomer.getAccount() == null) {
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Account was not found for logged-in bank customer.");
+		}
+		Long senderAccountId = bankCustomer.getAccount().getAccountId();
+		if (senderAccountId == null) {
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Account was not found for logged-in bank customer.");
+		}
+		Account senderAccount = accountRepository
+			.findById(senderAccountId)
+			.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Account was not found for logged-in bank customer."));
 		return senderAccount;
 	}
 

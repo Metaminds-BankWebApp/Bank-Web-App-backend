@@ -6,6 +6,7 @@ import com.bank_web_app.backend.transact.dto.request.ResendTransactionOtpRequest
 import com.bank_web_app.backend.transact.dto.request.UpdateBeneficiaryRequest;
 import com.bank_web_app.backend.transact.dto.request.VerifyTransactionOtpRequest;
 import com.bank_web_app.backend.transact.dto.response.BeneficiaryResponse;
+import com.bank_web_app.backend.transact.dto.response.CurrentBalanceResponse;
 import com.bank_web_app.backend.transact.dto.response.TransactionInitiateResponse;
 import com.bank_web_app.backend.transact.dto.response.TransactionResponse;
 import com.bank_web_app.backend.transact.service.TransactionService;
@@ -80,6 +81,21 @@ public class TransactionController {
 	)
 	public ResponseEntity<TransactionInitiateResponse> resendOtp(@Valid @RequestBody ResendTransactionOtpRequest request) {
 		return ResponseEntity.ok(transactionService.resendOtp(request));
+	}
+
+	@GetMapping("/dashboard/current-balance")
+	@Operation(
+		summary = "Get current balance card data",
+		description = "Returns account number and current balance for the logged-in BANK_CUSTOMER only, using the same ownership context as /api/auth/me bankCustomerId.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Current balance returned successfully"),
+			@ApiResponse(responseCode = "401", description = "Unauthorized: bank customer authentication is required"),
+			@ApiResponse(responseCode = "403", description = "Forbidden: logged-in user is not a bank customer"),
+			@ApiResponse(responseCode = "404", description = "Account not found for logged-in bank customer")
+		}
+	)
+	public ResponseEntity<CurrentBalanceResponse> getCurrentBalance() {
+		return ResponseEntity.ok(transactionService.getCurrentBalance());
 	}
 
 	@GetMapping("/transactions/history")
