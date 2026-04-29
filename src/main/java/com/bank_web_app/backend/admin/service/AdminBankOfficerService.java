@@ -61,7 +61,7 @@ public class AdminBankOfficerService {
 
 	@Transactional(readOnly = true)
 	public List<AdminBankOfficerSummaryResponse> getAll() {
-		return bankOfficerRepository.findAllByOrderByUpdatedAtDesc().stream().map(this::toResponse).toList();
+		return bankOfficerRepository.findAllByOrderByCreatedAtDesc().stream().map(this::toResponse).toList();
 	}
 
 	@Transactional
