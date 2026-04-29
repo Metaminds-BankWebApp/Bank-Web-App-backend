@@ -16,6 +16,7 @@ import com.bank_web_app.backend.bankcustomer.dto.response.BankCustomerFinancialR
 import com.bank_web_app.backend.bankcustomer.dto.response.BankCustomerFinancialStepResponse;
 import com.bank_web_app.backend.bankofficer.service.BankOfficerCustomerOnboardingService;
 import com.bank_web_app.backend.user.dto.request.UserRegistrationStepOneRequest;
+import com.bank_web_app.backend.user.dto.response.GeneratedBankCustomerCredentialsResponse;
 import com.bank_web_app.backend.user.dto.response.BankCustomerSummaryResponse;
 import com.bank_web_app.backend.user.dto.response.UserRegistrationStepResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -74,6 +75,24 @@ public class BankOfficerCustomerController {
 	)
 	public ResponseEntity<UserRegistrationStepResponse> saveAndContinue(@Valid @RequestBody UserRegistrationStepOneRequest request) {
 		return ResponseEntity.ok(onboardingService.saveAndContinue(request));
+	}
+
+	@GetMapping("/credentials/generate")
+	@Operation(
+		summary = "Generate BANK_CUSTOMER username and temporary password",
+		description = "Creates a unique username using first name and last name, then returns a temporary password suggestion for officer onboarding.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Generated credentials returned successfully"),
+			@ApiResponse(responseCode = "400", description = "Validation failed"),
+			@ApiResponse(responseCode = "401", description = "Unauthorized: bank officer authentication is required"),
+			@ApiResponse(responseCode = "403", description = "Forbidden: authenticated user is not a bank officer")
+		}
+	)
+	public ResponseEntity<GeneratedBankCustomerCredentialsResponse> generateCredentials(
+		@RequestParam String firstName,
+		@RequestParam String lastName
+	) {
+		return ResponseEntity.ok(onboardingService.generateBankCustomerCredentials(firstName, lastName));
 	}
 
 	@GetMapping("/step-1/by-nic")

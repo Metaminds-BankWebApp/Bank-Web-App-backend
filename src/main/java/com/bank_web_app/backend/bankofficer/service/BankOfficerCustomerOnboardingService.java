@@ -22,12 +22,15 @@ import com.bank_web_app.backend.bankofficer.dto.response.BankOfficerCustomerStep
 import com.bank_web_app.backend.bankofficer.entity.BankOfficer;
 import com.bank_web_app.backend.bankofficer.repository.BankOfficerRepository;
 import com.bank_web_app.backend.common.exception.DuplicateFieldsException;
+import com.bank_web_app.backend.common.email.BankCustomerCredentialsEmailService;
 import com.bank_web_app.backend.user.dto.request.UserRegistrationStepOneRequest;
+import com.bank_web_app.backend.user.dto.response.GeneratedBankCustomerCredentialsResponse;
 import com.bank_web_app.backend.user.dto.response.BankCustomerSummaryResponse;
 import com.bank_web_app.backend.user.dto.response.UserRegistrationStepResponse;
 import com.bank_web_app.backend.user.entity.User;
 import com.bank_web_app.backend.user.repository.UserRepository;
 import com.bank_web_app.backend.user.service.UserService;
+import java.security.SecureRandom;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.LinkedHashMap;
@@ -45,6 +48,8 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class BankOfficerCustomerOnboardingService {
 
+	private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+
 	private static final String ROLE_BANK_CUSTOMER = "BANK_CUSTOMER";
 	private static final String STATE_DRAFT = "DRAFT";
 	private static final String STATE_PENDING_STEP_2 = "PENDING_STEP_2";
@@ -56,6 +61,7 @@ public class BankOfficerCustomerOnboardingService {
 	private final BankOfficerRepository bankOfficerRepository;
 	private final BankCustomerRepository bankCustomerRepository;
 	private final PasswordEncoder passwordEncoder;
+	private final BankCustomerCredentialsEmailService credentialsEmailService;
 
 	public BankOfficerCustomerOnboardingService(
 		UserService userService,
@@ -64,7 +70,8 @@ public class BankOfficerCustomerOnboardingService {
 		UserRepository userRepository,
 		BankOfficerRepository bankOfficerRepository,
 		BankCustomerRepository bankCustomerRepository,
-		PasswordEncoder passwordEncoder
+		PasswordEncoder passwordEncoder,
+		BankCustomerCredentialsEmailService credentialsEmailService
 	) {
 		this.userService = userService;
 		this.accountRepository = accountRepository;
@@ -73,6 +80,7 @@ public class BankOfficerCustomerOnboardingService {
 		this.bankOfficerRepository = bankOfficerRepository;
 		this.bankCustomerRepository = bankCustomerRepository;
 		this.passwordEncoder = passwordEncoder;
+		this.credentialsEmailService = credentialsEmailService;
 	}
 
 	public UserRegistrationStepResponse saveDraft(UserRegistrationStepOneRequest request) {
@@ -81,6 +89,16 @@ public class BankOfficerCustomerOnboardingService {
 
 	public UserRegistrationStepResponse saveAndContinue(UserRegistrationStepOneRequest request) {
 		return userService.continueBankCustomerStepOne(request);
+	}
+
+	@Transactional(readOnly = true)
+	public GeneratedBankCustomerCredentialsResponse generateCredentials(String firstName, String lastName) {
+		return userService.generateBankCustomerCredentials(firstName, lastName);
+	}
+
+	@Transactional(readOnly = true)
+	public GeneratedBankCustomerCredentialsResponse generateBankCustomerCredentials(String firstName, String lastName) {
+		return generateCredentials(firstName, lastName);
 	}
 
 	@Transactional(readOnly = true)
@@ -273,9 +291,10 @@ public class BankOfficerCustomerOnboardingService {
 		user.setUsername(username);
 
 		String password = safeTrim(request.password());
-		if (!password.isBlank()) {
-			user.setPasswordHash(passwordEncoder.encode(password));
+		if (password.isBlank()) {
+			password = generateTemporaryPassword(12);
 		}
+		user.setPasswordHash(passwordEncoder.encode(password));
 		userRepository.save(user);
 
 		customer.setOfficer(loggedOfficer);
@@ -283,6 +302,8 @@ public class BankOfficerCustomerOnboardingService {
 		customer.setAccount(account);
 		customer.setAccessStatus(targetState);
 		bankCustomerRepository.save(customer);
+
+		credentialsEmailService.sendCredentialsEmail(user.getEmail(), user.getFirstName(), user.getUsername(), password);
 
 		return new UserRegistrationStepResponse(
 			user.getUserId(),
@@ -327,6 +348,34 @@ public class BankOfficerCustomerOnboardingService {
 			return String.valueOf(request.bankAccount());
 		}
 		throw new IllegalArgumentException("Account number is required for bank customer registration.");
+	}
+
+	private String generateTemporaryPassword(int length) {
+		String upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+		String lower = "abcdefghijkmnopqrstuvwxyz";
+		String digits = "23456789";
+		String symbols = "!@#$%&*?";
+		String charset = upper + lower + digits + symbols;
+		StringBuilder builder = new StringBuilder();
+		builder.append(randomChar(upper));
+		builder.append(randomChar(lower));
+		builder.append(randomChar(digits));
+		builder.append(randomChar(symbols));
+		while (builder.length() < length) {
+			builder.append(randomChar(charset));
+		}
+		char[] chars = builder.toString().toCharArray();
+		for (int i = chars.length - 1; i > 0; i--) {
+			int swapIndex = SECURE_RANDOM.nextInt(i + 1);
+			char temp = chars[i];
+			chars[i] = chars[swapIndex];
+			chars[swapIndex] = temp;
+		}
+		return new String(chars);
+	}
+
+	private char randomChar(String source) {
+		return source.charAt(SECURE_RANDOM.nextInt(source.length()));
 	}
 
 	private BankOfficer resolveLoggedInBankOfficer() {
