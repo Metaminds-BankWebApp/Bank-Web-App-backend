@@ -19,6 +19,10 @@ public record BranchResponse(
 	@Schema(example = "ACTIVE")
 	String status,
 	@Schema(example = "2026-04-19T12:00:00")
-	String updatedAt
+	String updatedAt,
+	@Schema(example = "12")
+	Long officerCount,
+	@Schema(example = "245")
+	Long customerCount
 ) {
 }

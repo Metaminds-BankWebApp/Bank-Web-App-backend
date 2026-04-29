@@ -1,5 +1,6 @@
 package com.bank_web_app.backend.admin.repository;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -9,10 +10,18 @@ import com.bank_web_app.backend.admin.entity.Branch;
 
 public interface BranchRepository extends JpaRepository<Branch, Long> {
 
+	List<Branch> findAllByOrderByCreatedAtDesc();
+
 	Optional<Branch> findByBranchCode(String branchCode);
 
 	boolean existsByBranchCode(String branchCode);
 
 	@Query(value = "select nextval('branch_code_seq')", nativeQuery = true)
 	Long getNextBranchCodeSequence();
+
+	@Query(
+		value = "select coalesce(max(cast(substring(branch_code from '[0-9]+$') as bigint)), 0) from branches where branch_code ~ '^[A-Za-z]+-[0-9]+$'",
+		nativeQuery = true
+	)
+	Long findMaxBranchCodeNumericValue();
 }

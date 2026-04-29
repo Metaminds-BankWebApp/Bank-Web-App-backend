@@ -1,5 +1,9 @@
 package com.bank_web_app.backend.admin.controller;
 
+import com.bank_web_app.backend.admin.dto.request.AdminBankOfficerUpdateRequest;
+import com.bank_web_app.backend.admin.dto.request.AdminBankOfficerUsernameGenerationRequest;
+import com.bank_web_app.backend.admin.dto.response.AdminBankOfficerGeneratedPasswordResponse;
+import com.bank_web_app.backend.admin.dto.response.AdminBankOfficerGeneratedUsernameResponse;
 import com.bank_web_app.backend.admin.dto.response.AdminBankOfficerSummaryResponse;
 import com.bank_web_app.backend.admin.service.AdminBankOfficerService;
 import com.bank_web_app.backend.user.dto.request.UserRegistrationStepOneRequest;
@@ -16,6 +20,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -60,6 +65,35 @@ public class AdminBankOfficerController {
 		return ResponseEntity.ok(adminBankOfficerService.create(request));
 	}
 
+	@PostMapping("/credentials/username")
+	@Operation(
+		summary = "Generate bank officer username",
+		description = "Generates a backend-owned suggested username for BANK_OFFICER onboarding.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Username generated successfully"),
+			@ApiResponse(responseCode = "400", description = "Validation failed")
+		}
+	)
+	public ResponseEntity<AdminBankOfficerGeneratedUsernameResponse> generateUsername(
+		@Valid @RequestBody AdminBankOfficerUsernameGenerationRequest request
+	) {
+		String username = adminBankOfficerService.generateSuggestedUsername(request.firstName(), request.lastName());
+		return ResponseEntity.ok(new AdminBankOfficerGeneratedUsernameResponse(username));
+	}
+
+	@GetMapping("/credentials/password")
+	@Operation(
+		summary = "Generate bank officer password",
+		description = "Generates a backend-owned suggested password for BANK_OFFICER onboarding.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Password generated successfully")
+		}
+	)
+	public ResponseEntity<AdminBankOfficerGeneratedPasswordResponse> generatePassword() {
+		String password = adminBankOfficerService.generateSuggestedPassword();
+		return ResponseEntity.ok(new AdminBankOfficerGeneratedPasswordResponse(password));
+	}
+
 	@GetMapping
 	@Operation(summary = "Get all bank officers", description = "Returns all bank officers.")
 	public ResponseEntity<List<AdminBankOfficerSummaryResponse>> getAll() {
@@ -78,12 +112,21 @@ public class AdminBankOfficerController {
 		return ResponseEntity.ok(adminBankOfficerService.updateStatus(userId, status));
 	}
 
+	@PutMapping("/{userId}")
+	@Operation(summary = "Update bank officer details", description = "Updates editable profile details of a bank officer.")
+	public ResponseEntity<AdminBankOfficerSummaryResponse> update(
+		@PathVariable Long userId,
+		@Valid @RequestBody AdminBankOfficerUpdateRequest request
+	) {
+		return ResponseEntity.ok(adminBankOfficerService.update(userId, request));
+	}
+
 	@DeleteMapping("/{userId}")
 	@Operation(
-		summary = "Deactivate bank officer",
-		description = "Soft-deactivates a bank officer by setting user status to INACTIVE."
+		summary = "Delete bank officer permanently",
+		description = "Permanently deletes a bank officer and linked user account when no dependent records exist."
 	)
-	public ResponseEntity<AdminBankOfficerSummaryResponse> deactivate(@PathVariable Long userId) {
-		return ResponseEntity.status(HttpStatus.OK).body(adminBankOfficerService.deactivate(userId));
+	public ResponseEntity<AdminBankOfficerSummaryResponse> delete(@PathVariable Long userId) {
+		return ResponseEntity.status(HttpStatus.OK).body(adminBankOfficerService.deletePermanently(userId));
 	}
 }

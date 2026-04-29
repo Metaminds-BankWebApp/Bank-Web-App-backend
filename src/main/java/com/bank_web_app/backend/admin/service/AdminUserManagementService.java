@@ -1,10 +1,25 @@
 package com.bank_web_app.backend.admin.service;
 
+import com.bank_web_app.backend.admin.dto.request.AdminUserManagementUpdateRequest;
 import com.bank_web_app.backend.admin.dto.response.AdminUserManagementUserResponse;
+import com.bank_web_app.backend.bankcustomer.repository.AccountRepository;
+import com.bank_web_app.backend.bankcustomer.repository.BankCustomerCribRequestRepository;
+import com.bank_web_app.backend.bankcustomer.repository.BankCustomerFinancialRecordRepository;
 import com.bank_web_app.backend.bankcustomer.entity.BankCustomer;
 import com.bank_web_app.backend.bankcustomer.repository.BankCustomerRepository;
+import com.bank_web_app.backend.creditlens.repository.BankCreditEvaluationRepository;
+import com.bank_web_app.backend.creditlens.repository.SelfCreditEvaluationRepository;
+import com.bank_web_app.backend.loansense.repository.LoanEligibilityRepository;
+import com.bank_web_app.backend.loansense.repository.LoanEligibilityResultRepository;
 import com.bank_web_app.backend.publiccustomer.entity.PublicCustomerProfile;
+import com.bank_web_app.backend.publiccustomer.repository.PublicCustomerFinancialRecordRepository;
 import com.bank_web_app.backend.publiccustomer.repository.PublicCustomerProfileRepository;
+import com.bank_web_app.backend.spendiq.repository.BudgetLimitRepository;
+import com.bank_web_app.backend.spendiq.repository.ExpenseCategoryRepository;
+import com.bank_web_app.backend.spendiq.repository.ExpenseRepository;
+import com.bank_web_app.backend.spendiq.repository.IncomeRecordRepository;
+import com.bank_web_app.backend.transact.repository.BeneficiaryRepository;
+import com.bank_web_app.backend.transact.repository.TransactionRepository;
 import com.bank_web_app.backend.user.entity.User;
 import com.bank_web_app.backend.user.repository.UserRepository;
 import java.util.List;
@@ -27,15 +42,57 @@ public class AdminUserManagementService {
 	private final UserRepository userRepository;
 	private final BankCustomerRepository bankCustomerRepository;
 	private final PublicCustomerProfileRepository publicCustomerProfileRepository;
+	private final AccountRepository accountRepository;
+	private final BankCustomerCribRequestRepository bankCustomerCribRequestRepository;
+	private final BankCustomerFinancialRecordRepository bankCustomerFinancialRecordRepository;
+	private final BankCreditEvaluationRepository bankCreditEvaluationRepository;
+	private final LoanEligibilityRepository loanEligibilityRepository;
+	private final LoanEligibilityResultRepository loanEligibilityResultRepository;
+	private final SelfCreditEvaluationRepository selfCreditEvaluationRepository;
+	private final PublicCustomerFinancialRecordRepository publicCustomerFinancialRecordRepository;
+	private final BudgetLimitRepository budgetLimitRepository;
+	private final ExpenseRepository expenseRepository;
+	private final ExpenseCategoryRepository expenseCategoryRepository;
+	private final IncomeRecordRepository incomeRecordRepository;
+	private final BeneficiaryRepository beneficiaryRepository;
+	private final TransactionRepository transactionRepository;
 
 	public AdminUserManagementService(
 		UserRepository userRepository,
 		BankCustomerRepository bankCustomerRepository,
-		PublicCustomerProfileRepository publicCustomerProfileRepository
+		PublicCustomerProfileRepository publicCustomerProfileRepository,
+		AccountRepository accountRepository,
+		BankCustomerCribRequestRepository bankCustomerCribRequestRepository,
+		BankCustomerFinancialRecordRepository bankCustomerFinancialRecordRepository,
+		BankCreditEvaluationRepository bankCreditEvaluationRepository,
+		LoanEligibilityRepository loanEligibilityRepository,
+		LoanEligibilityResultRepository loanEligibilityResultRepository,
+		SelfCreditEvaluationRepository selfCreditEvaluationRepository,
+		PublicCustomerFinancialRecordRepository publicCustomerFinancialRecordRepository,
+		BudgetLimitRepository budgetLimitRepository,
+		ExpenseRepository expenseRepository,
+		ExpenseCategoryRepository expenseCategoryRepository,
+		IncomeRecordRepository incomeRecordRepository,
+		BeneficiaryRepository beneficiaryRepository,
+		TransactionRepository transactionRepository
 	) {
 		this.userRepository = userRepository;
 		this.bankCustomerRepository = bankCustomerRepository;
 		this.publicCustomerProfileRepository = publicCustomerProfileRepository;
+		this.accountRepository = accountRepository;
+		this.bankCustomerCribRequestRepository = bankCustomerCribRequestRepository;
+		this.bankCustomerFinancialRecordRepository = bankCustomerFinancialRecordRepository;
+		this.bankCreditEvaluationRepository = bankCreditEvaluationRepository;
+		this.loanEligibilityRepository = loanEligibilityRepository;
+		this.loanEligibilityResultRepository = loanEligibilityResultRepository;
+		this.selfCreditEvaluationRepository = selfCreditEvaluationRepository;
+		this.publicCustomerFinancialRecordRepository = publicCustomerFinancialRecordRepository;
+		this.budgetLimitRepository = budgetLimitRepository;
+		this.expenseRepository = expenseRepository;
+		this.expenseCategoryRepository = expenseCategoryRepository;
+		this.incomeRecordRepository = incomeRecordRepository;
+		this.beneficiaryRepository = beneficiaryRepository;
+		this.transactionRepository = transactionRepository;
 	}
 
 	@Transactional(readOnly = true)
@@ -49,7 +106,7 @@ public class AdminUserManagementService {
 			default -> List.of(ROLE_BANK_CUSTOMER, ROLE_PUBLIC_CUSTOMER);
 		};
 
-		List<User> users = userRepository.findAllByRole_RoleNameInOrderByUpdatedAtDesc(roleNames);
+		List<User> users = userRepository.findAllByRole_RoleNameInOrderByCreatedAtDesc(roleNames);
 		if (users.isEmpty()) {
 			return List.of();
 		}
@@ -109,6 +166,81 @@ public class AdminUserManagementService {
 		Map<Long, String> bankCodesByUserId = bankCode == null ? Map.of() : Map.of(saved.getUserId(), bankCode);
 		Map<Long, String> publicCodesByUserId = publicCode == null ? Map.of() : Map.of(saved.getUserId(), publicCode);
 		return toResponse(saved, bankCodesByUserId, publicCodesByUserId);
+	}
+
+	@Transactional
+	public AdminUserManagementUserResponse updateUserDetails(Long userId, AdminUserManagementUpdateRequest request) {
+		if (userId == null || userId <= 0) {
+			throw new IllegalArgumentException("User id must be a positive number.");
+		}
+
+		User user = userRepository.findById(userId).orElseThrow(() -> new IllegalArgumentException("User not found."));
+		String roleName = safe(user.getRole() == null ? null : user.getRole().getRoleName());
+		if (!ROLE_BANK_CUSTOMER.equals(roleName) && !ROLE_PUBLIC_CUSTOMER.equals(roleName)) {
+			throw new IllegalArgumentException("Only BANK and PUBLIC customers can be managed in this module.");
+		}
+
+		String normalizedEmail = safe(request.email()).toLowerCase(Locale.ROOT);
+		if (normalizedEmail.isBlank()) {
+			throw new IllegalArgumentException("Email is required.");
+		}
+		if (userRepository.existsByEmailAndUserIdNot(normalizedEmail, user.getUserId())) {
+			throw new IllegalArgumentException("Email is already in use.");
+		}
+
+		user.setFirstName(safe(request.firstName()));
+		user.setLastName(safe(request.lastName()));
+		user.setEmail(normalizedEmail);
+		user.setPhone(safe(request.contactNumber()));
+		User saved = userRepository.save(user);
+
+		String bankCode = bankCustomerRepository
+			.findByUser_UserId(saved.getUserId())
+			.map(BankCustomer::getCustomerCode)
+			.orElse(null);
+		String publicCode = publicCustomerProfileRepository
+			.findByUser_UserId(saved.getUserId())
+			.map(PublicCustomerProfile::getCustomerCode)
+			.orElse(null);
+
+		Map<Long, String> bankCodesByUserId = bankCode == null ? Map.of() : Map.of(saved.getUserId(), bankCode);
+		Map<Long, String> publicCodesByUserId = publicCode == null ? Map.of() : Map.of(saved.getUserId(), publicCode);
+		return toResponse(saved, bankCodesByUserId, publicCodesByUserId);
+	}
+
+	@Transactional
+	public AdminUserManagementUserResponse deleteUser(Long userId) {
+		if (userId == null || userId <= 0) {
+			throw new IllegalArgumentException("User id must be a positive number.");
+		}
+
+		User user = userRepository.findById(userId).orElseThrow(() -> new IllegalArgumentException("User not found."));
+		String roleName = safe(user.getRole() == null ? null : user.getRole().getRoleName());
+		if (!ROLE_BANK_CUSTOMER.equals(roleName) && !ROLE_PUBLIC_CUSTOMER.equals(roleName)) {
+			throw new IllegalArgumentException("Only BANK and PUBLIC customers can be managed in this module.");
+		}
+
+		String bankCode = bankCustomerRepository
+			.findByUser_UserId(userId)
+			.map(BankCustomer::getCustomerCode)
+			.orElse(null);
+		String publicCode = publicCustomerProfileRepository
+			.findByUser_UserId(userId)
+			.map(PublicCustomerProfile::getCustomerCode)
+			.orElse(null);
+		Map<Long, String> bankCodesByUserId = bankCode == null ? Map.of() : Map.of(userId, bankCode);
+		Map<Long, String> publicCodesByUserId = publicCode == null ? Map.of() : Map.of(userId, publicCode);
+		AdminUserManagementUserResponse response = toResponse(user, bankCodesByUserId, publicCodesByUserId);
+
+		deleteSpendiqData(userId);
+		if (ROLE_BANK_CUSTOMER.equals(roleName)) {
+			deleteBankCustomerData(userId);
+		} else {
+			deletePublicCustomerData(userId);
+		}
+
+		userRepository.delete(user);
+		return response;
 	}
 
 	private AdminUserManagementUserResponse toResponse(
@@ -206,5 +338,84 @@ public class AdminUserManagementService {
 
 	private String safe(String value) {
 		return value == null ? "" : value.trim();
+	}
+
+	private void deleteSpendiqData(Long userId) {
+		budgetLimitRepository.deleteAll(
+			budgetLimitRepository.findAllByUser_UserIdOrderByYearDescMonthDescCreatedAtDesc(userId)
+		);
+		expenseRepository.deleteAll(
+			expenseRepository.findAllByUser_UserIdOrderByExpenseDateDescCreatedAtDesc(userId)
+		);
+		expenseCategoryRepository.deleteAll(
+			expenseCategoryRepository.findAllByUser_UserIdOrderByCreatedAtDesc(userId)
+		);
+		incomeRecordRepository.deleteAll(
+			incomeRecordRepository.findAllByUser_UserIdOrderByIncomeDateDescCreatedAtDesc(userId)
+		);
+	}
+
+	private void deleteBankCustomerData(Long userId) {
+		bankCustomerRepository.findByUser_UserId(userId).ifPresent(bankCustomer -> {
+			Long bankCustomerId = bankCustomer.getBankCustomerId();
+			loanEligibilityRepository
+				.findAllByBankCustomer_BankCustomerIdOrderByCreatedAtDesc(bankCustomerId)
+				.forEach(evaluation ->
+					loanEligibilityResultRepository.deleteAll(
+						loanEligibilityResultRepository.findAllByLoanSenseEvaluation_LoansenseEvaluationIdOrderByCreatedAtAsc(
+							evaluation.getLoansenseEvaluationId()
+						)
+					)
+				);
+			loanEligibilityRepository.deleteAll(
+				loanEligibilityRepository.findAllByBankCustomer_BankCustomerIdOrderByCreatedAtDesc(bankCustomerId)
+			);
+			bankCreditEvaluationRepository.deleteAll(
+				bankCreditEvaluationRepository.findAllByBankCustomer_BankCustomerIdOrderByCreatedAtDesc(
+					bankCustomerId
+				)
+			);
+			bankCustomerFinancialRecordRepository.deleteAll(
+				bankCustomerFinancialRecordRepository.findAllByBankCustomer_BankCustomerIdOrderByCreatedAtDesc(
+					bankCustomerId
+				)
+			);
+			bankCustomerCribRequestRepository.deleteAll(
+				bankCustomerCribRequestRepository.findAllByBankCustomer_BankCustomerIdOrderByRequestedAtDesc(
+					bankCustomerId
+				)
+			);
+			beneficiaryRepository.deleteAll(
+				beneficiaryRepository.findAllByBankCustomer_BankCustomerIdOrderByCreatedAtDesc(bankCustomerId)
+			);
+			transactionRepository.deleteAll(
+				transactionRepository.findAllByBankCustomer_BankCustomerIdOrderByTransactionDateDesc(
+					bankCustomerId
+				)
+			);
+
+			var account = bankCustomer.getAccount();
+			bankCustomerRepository.delete(bankCustomer);
+			if (account != null) {
+				accountRepository.delete(account);
+			}
+		});
+	}
+
+	private void deletePublicCustomerData(Long userId) {
+		publicCustomerProfileRepository.findByUser_UserId(userId).ifPresent(profile -> {
+			Long publicCustomerId = profile.getPublicCustomerId();
+			selfCreditEvaluationRepository.deleteAll(
+				selfCreditEvaluationRepository.findAllByPublicCustomer_PublicCustomerIdOrderByCreatedAtDesc(
+					publicCustomerId
+				)
+			);
+			publicCustomerFinancialRecordRepository.deleteAll(
+				publicCustomerFinancialRecordRepository.findAllByPublicCustomer_PublicCustomerIdOrderByCreatedAtDesc(
+					publicCustomerId
+				)
+			);
+			publicCustomerProfileRepository.delete(profile);
+		});
 	}
 }

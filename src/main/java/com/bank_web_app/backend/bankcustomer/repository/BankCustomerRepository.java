@@ -19,6 +19,12 @@ public interface BankCustomerRepository extends JpaRepository<BankCustomer, Long
 
 	boolean existsByCustomerCode(String customerCode);
 
+	boolean existsByOfficer_OfficerId(Long officerId);
+
+	boolean existsByBranch_BranchId(Long branchId);
+
+	long countByBranch_BranchId(Long branchId);
+
 	boolean existsByAccount_AccountId(Long accountId);
 
 	boolean existsByAccount_AccountIdAndBankCustomerIdNot(Long accountId, Long bankCustomerId);
