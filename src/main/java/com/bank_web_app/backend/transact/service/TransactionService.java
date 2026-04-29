@@ -14,6 +14,7 @@ import com.bank_web_app.backend.transact.dto.request.UpdateBeneficiaryRequest;
 import com.bank_web_app.backend.transact.dto.request.VerifyTransactionOtpRequest;
 import com.bank_web_app.backend.transact.dto.response.BeneficiaryResponse;
 import com.bank_web_app.backend.transact.dto.response.CurrentBalanceResponse;
+import com.bank_web_app.backend.transact.dto.response.TransactDashboardSummaryResponse;
 import com.bank_web_app.backend.transact.dto.response.TransactionInitiateResponse;
 import com.bank_web_app.backend.transact.dto.response.TransactionResponse;
 import com.bank_web_app.backend.transact.entity.Beneficiary;
@@ -27,12 +28,17 @@ import com.bank_web_app.backend.user.repository.UserRepository;
 import java.math.BigDecimal;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -40,7 +46,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.data.domain.Sort;
 import org.springframework.web.server.ResponseStatusException;
 
 @Service
@@ -52,6 +57,7 @@ public class TransactionService {
 	private static final String STATUS_PENDING_OTP = "PENDING_OTP";
 	private static final String STATUS_SUCCESS = "SUCCESS";
 	private static final String STATUS_FAILED = "FAILED";
+	private static final String STATUS_CANCELLED = "CANCELLED";
 	private static final String OTP_STATUS_SENT = "SENT";
 	private static final String OTP_STATUS_VERIFIED = "VERIFIED";
 	private static final String OTP_STATUS_EXPIRED = "EXPIRED";
@@ -61,6 +67,7 @@ public class TransactionService {
 	private static final BigDecimal MAX_TRANSFER_AMOUNT = new BigDecimal("100000.00");
 	private static final BigDecimal MINIMUM_REMAINING_BALANCE = new BigDecimal("1000.00");
 	private static final DateTimeFormatter REFERENCE_TIME_FORMAT = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+	private static final DateTimeFormatter TIMELINE_LABEL_FORMAT = DateTimeFormatter.ofPattern("MMM", Locale.ENGLISH);
 	private static final String ALPHA_NUM = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 	private final TransactionRepository transactionRepository;
@@ -303,6 +310,40 @@ public class TransactionService {
 			otpRecord.getSentToEmail(),
 			otpRecord.getExpiresAt(),
 			responseMessage
+		);
+	}
+
+	@Transactional(readOnly = true)
+	public TransactDashboardSummaryResponse getDashboardSummary() {
+		BankCustomer bankCustomer = resolveLoggedInBankCustomer();
+		Account account = resolveOwnedAccountForBankCustomer(bankCustomer);
+		Long bankCustomerId = bankCustomer.getBankCustomerId();
+		String accountNumber = normalizeAccountNumber(account.getAccountNumber());
+		if (accountNumber.isBlank()) {
+			throw new IllegalStateException("Account number is invalid for logged-in bank customer.");
+		}
+
+		BigDecimal currentBalance = account.getBalance() == null ? BigDecimal.ZERO : account.getBalance();
+		long totalTransactions = transactionRepository.countAllByAccountNo(accountNumber);
+		BigDecimal totalSent = safeAmount(transactionRepository.sumSentAmountByAccountNoAndStatus(accountNumber, STATUS_SUCCESS));
+		BigDecimal totalReceived = safeAmount(transactionRepository.sumReceivedAmountByAccountNoAndStatus(accountNumber, STATUS_SUCCESS));
+		TransactDashboardSummaryResponse.TransactionTimeline timeline = buildTransactionTimeline(accountNumber);
+		TransactDashboardSummaryResponse.TransactionStatusSummary transactionStatus = buildTransactionStatusSummary(accountNumber);
+		TransactDashboardSummaryResponse.OtpStatusSummary otpStatus = buildOtpStatusSummary(bankCustomerId);
+		long savedBeneficiaries = beneficiaryRepository.countByBankCustomer_BankCustomerId(bankCustomerId);
+		List<TransactDashboardSummaryResponse.RecentTransactionItem> recentTransactions = buildRecentTransactions(accountNumber);
+
+		return new TransactDashboardSummaryResponse(
+			accountNumber,
+			currentBalance,
+			totalTransactions,
+			totalSent,
+			totalReceived,
+			timeline,
+			transactionStatus,
+			otpStatus,
+			savedBeneficiaries,
+			recentTransactions
 		);
 	}
 
@@ -607,6 +648,119 @@ public class TransactionService {
 		}
 		String trimmed = message.trim();
 		return trimmed.length() > 255 ? trimmed.substring(0, 255) : trimmed;
+	}
+
+	private BigDecimal safeAmount(BigDecimal amount) {
+		return amount == null ? BigDecimal.ZERO : amount;
+	}
+
+	private TransactDashboardSummaryResponse.TransactionTimeline buildTransactionTimeline(String accountNumber) {
+		YearMonth currentMonth = YearMonth.now();
+		YearMonth firstMonth = currentMonth.minusMonths(11);
+		LocalDateTime fromDate = firstMonth.atDay(1).atStartOfDay();
+
+		Map<YearMonth, BigDecimal> monthlyTotals = new LinkedHashMap<>();
+		for (int i = 0; i < 12; i += 1) {
+			monthlyTotals.put(firstMonth.plusMonths(i), BigDecimal.ZERO);
+		}
+
+		List<Transaction> timelineTransactions = transactionRepository.findAllByAccountNoAndStatusFromDate(
+			accountNumber,
+			STATUS_SUCCESS,
+			fromDate
+		);
+
+		for (Transaction transaction : timelineTransactions) {
+			if (transaction == null || transaction.getTransactionDate() == null) {
+				continue;
+			}
+			YearMonth yearMonth = YearMonth.from(transaction.getTransactionDate());
+			if (!monthlyTotals.containsKey(yearMonth)) {
+				continue;
+			}
+			BigDecimal currentAmount = monthlyTotals.get(yearMonth);
+			monthlyTotals.put(yearMonth, currentAmount.add(safeAmount(transaction.getAmount())));
+		}
+
+		List<String> labels = monthlyTotals
+			.keySet()
+			.stream()
+			.map(month -> month.format(TIMELINE_LABEL_FORMAT).toUpperCase(Locale.ENGLISH))
+			.toList();
+		List<BigDecimal> values = monthlyTotals.values().stream().toList();
+
+		return new TransactDashboardSummaryResponse.TransactionTimeline(labels, values);
+	}
+
+	private TransactDashboardSummaryResponse.TransactionStatusSummary buildTransactionStatusSummary(String accountNumber) {
+		long successCount = transactionRepository.countAllByAccountNoAndStatus(accountNumber, STATUS_SUCCESS);
+		long failedCount = transactionRepository.countAllByAccountNoAndStatus(accountNumber, STATUS_FAILED);
+		long pendingOtpCount = transactionRepository.countAllByAccountNoAndStatus(accountNumber, STATUS_PENDING_OTP);
+		long cancelledCount = transactionRepository.countAllByAccountNoAndStatus(accountNumber, STATUS_CANCELLED);
+
+		return new TransactDashboardSummaryResponse.TransactionStatusSummary(
+			successCount,
+			failedCount,
+			pendingOtpCount,
+			cancelledCount
+		);
+	}
+
+	private TransactDashboardSummaryResponse.OtpStatusSummary buildOtpStatusSummary(Long bankCustomerId) {
+		long sentCount = otpRecordRepository.countByBankCustomerIdAndOtpStatus(bankCustomerId, OTP_STATUS_SENT);
+		long verifiedCount = otpRecordRepository.countByBankCustomerIdAndOtpStatus(bankCustomerId, OTP_STATUS_VERIFIED);
+		long expiredCount = otpRecordRepository.countByBankCustomerIdAndOtpStatus(bankCustomerId, OTP_STATUS_EXPIRED);
+		long failedCount = otpRecordRepository.countByBankCustomerIdAndOtpStatus(bankCustomerId, OTP_STATUS_FAILED);
+
+		return new TransactDashboardSummaryResponse.OtpStatusSummary(
+			sentCount,
+			verifiedCount,
+			expiredCount,
+			failedCount
+		);
+	}
+
+	private List<TransactDashboardSummaryResponse.RecentTransactionItem> buildRecentTransactions(String accountNumber) {
+		return transactionRepository
+			.findRecentByAccountNo(accountNumber, PageRequest.of(0, 8))
+			.stream()
+			.map(transaction -> toRecentTransactionItem(transaction, accountNumber))
+			.toList();
+	}
+
+	private TransactDashboardSummaryResponse.RecentTransactionItem toRecentTransactionItem(
+		Transaction transaction,
+		String accountNumber
+	) {
+		String senderAccountNo = normalizeAccountNumber(transaction.getSenderAccountNo());
+		boolean isSent = senderAccountNo.equals(accountNumber);
+
+		String counterpartyAccountNo = isSent
+			? normalizeAccountNumber(transaction.getReceiverAccountNo())
+			: normalizeAccountNumber(transaction.getSenderAccountNo());
+		String counterpartyName = isSent
+			? safeText(transaction.getReceiverName())
+			: resolveDisplayName(transaction.getBankCustomer() == null ? null : transaction.getBankCustomer().getUser());
+
+		if (counterpartyName.isBlank()) {
+			counterpartyName = "Bank customer";
+		}
+
+		return new TransactDashboardSummaryResponse.RecentTransactionItem(
+			transaction.getTransactionId(),
+			safeText(transaction.getReferenceNo()),
+			transaction.getTransactionDate(),
+			isSent ? "SENT" : "RECEIVED",
+			counterpartyAccountNo,
+			counterpartyName,
+			safeAmount(transaction.getAmount()),
+			safeText(transaction.getStatus()),
+			safeText(transaction.getRemark())
+		);
+	}
+
+	private String safeText(String value) {
+		return value == null ? "" : value.trim();
 	}
 
 	private String normalizeAccountNumber(String accountNo) {

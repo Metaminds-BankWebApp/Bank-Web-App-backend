@@ -7,6 +7,7 @@ import com.bank_web_app.backend.transact.dto.request.UpdateBeneficiaryRequest;
 import com.bank_web_app.backend.transact.dto.request.VerifyTransactionOtpRequest;
 import com.bank_web_app.backend.transact.dto.response.BeneficiaryResponse;
 import com.bank_web_app.backend.transact.dto.response.CurrentBalanceResponse;
+import com.bank_web_app.backend.transact.dto.response.TransactDashboardSummaryResponse;
 import com.bank_web_app.backend.transact.dto.response.TransactionInitiateResponse;
 import com.bank_web_app.backend.transact.dto.response.TransactionResponse;
 import com.bank_web_app.backend.transact.service.TransactionService;
@@ -100,6 +101,24 @@ public class TransactionController {
 			.ok()
 			.cacheControl(CacheControl.noStore().mustRevalidate())
 			.body(transactionService.getCurrentBalance());
+	}
+
+	@GetMapping("/dashboard/summary")
+	@Operation(
+		summary = "Get transact dashboard summary cards",
+		description = "Returns current-balance and transaction summary cards for the logged-in BANK_CUSTOMER only, using the same ownership context as /api/auth/me bankCustomerId. Reads account data from accounts table and totals from bank_customer_transactions table.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Dashboard summary returned successfully"),
+			@ApiResponse(responseCode = "401", description = "Unauthorized: bank customer authentication is required"),
+			@ApiResponse(responseCode = "403", description = "Forbidden: logged-in user is not a bank customer"),
+			@ApiResponse(responseCode = "404", description = "Account not found for logged-in bank customer")
+		}
+	)
+	public ResponseEntity<TransactDashboardSummaryResponse> getDashboardSummary() {
+		return ResponseEntity
+			.ok()
+			.cacheControl(CacheControl.noStore().mustRevalidate())
+			.body(transactionService.getDashboardSummary());
 	}
 
 	@GetMapping("/transactions/history")
