@@ -112,19 +112,16 @@ public class BranchService {
 
 	private long resolveNextBranchCodeValue() {
 		try {
-			Long nextFromSequence = branchRepository.getNextBranchCodeSequence();
-			if (nextFromSequence != null && nextFromSequence > 0) {
-				return nextFromSequence;
+			Long maxValue = branchRepository.findMaxBranchCodeNumericValue();
+			if (maxValue != null && maxValue > 0) {
+				return maxValue + 1L;
 			}
 		} catch (Exception ex) {
-			LOGGER.warn(
-				"branch_code_seq is not available. Falling back to max branch code strategy.",
-				ex
-			);
+			LOGGER.warn("Failed to resolve max branch code from DB. Falling back to count strategy.", ex);
 		}
 
-		Long maxValue = branchRepository.findMaxBranchCodeNumericValue();
-		return (maxValue == null ? 0L : maxValue) + 1L;
+		long count = branchRepository.count();
+		return count + 1L;
 	}
 
 	private BranchResponse toResponse(Branch branch) {
