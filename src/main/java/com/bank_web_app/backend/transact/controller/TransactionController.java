@@ -6,6 +6,8 @@ import com.bank_web_app.backend.transact.dto.request.ResendTransactionOtpRequest
 import com.bank_web_app.backend.transact.dto.request.UpdateBeneficiaryRequest;
 import com.bank_web_app.backend.transact.dto.request.VerifyTransactionOtpRequest;
 import com.bank_web_app.backend.transact.dto.response.BeneficiaryResponse;
+import com.bank_web_app.backend.transact.dto.response.CurrentBalanceResponse;
+import com.bank_web_app.backend.transact.dto.response.TransactDashboardSummaryResponse;
 import com.bank_web_app.backend.transact.dto.response.TransactionInitiateResponse;
 import com.bank_web_app.backend.transact.dto.response.TransactionResponse;
 import com.bank_web_app.backend.transact.service.TransactionService;
@@ -14,6 +16,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
+import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -80,6 +83,42 @@ public class TransactionController {
 	)
 	public ResponseEntity<TransactionInitiateResponse> resendOtp(@Valid @RequestBody ResendTransactionOtpRequest request) {
 		return ResponseEntity.ok(transactionService.resendOtp(request));
+	}
+
+	@GetMapping("/dashboard/current-balance")
+	@Operation(
+		summary = "Get current balance card data",
+		description = "Returns account number and current balance for the logged-in BANK_CUSTOMER only, using the same ownership context as /api/auth/me bankCustomerId.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Current balance returned successfully"),
+			@ApiResponse(responseCode = "401", description = "Unauthorized: bank customer authentication is required"),
+			@ApiResponse(responseCode = "403", description = "Forbidden: logged-in user is not a bank customer"),
+			@ApiResponse(responseCode = "404", description = "Account not found for logged-in bank customer")
+		}
+	)
+	public ResponseEntity<CurrentBalanceResponse> getCurrentBalance() {
+		return ResponseEntity
+			.ok()
+			.cacheControl(CacheControl.noStore().mustRevalidate())
+			.body(transactionService.getCurrentBalance());
+	}
+
+	@GetMapping("/dashboard/summary")
+	@Operation(
+		summary = "Get transact dashboard summary cards",
+		description = "Returns current-balance and transaction summary cards for the logged-in BANK_CUSTOMER only, using the same ownership context as /api/auth/me bankCustomerId. Reads account data from accounts table and totals from bank_customer_transactions table.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Dashboard summary returned successfully"),
+			@ApiResponse(responseCode = "401", description = "Unauthorized: bank customer authentication is required"),
+			@ApiResponse(responseCode = "403", description = "Forbidden: logged-in user is not a bank customer"),
+			@ApiResponse(responseCode = "404", description = "Account not found for logged-in bank customer")
+		}
+	)
+	public ResponseEntity<TransactDashboardSummaryResponse> getDashboardSummary() {
+		return ResponseEntity
+			.ok()
+			.cacheControl(CacheControl.noStore().mustRevalidate())
+			.body(transactionService.getDashboardSummary());
 	}
 
 	@GetMapping("/transactions/history")

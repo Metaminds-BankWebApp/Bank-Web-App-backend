@@ -18,4 +18,6 @@ public interface BeneficiaryRepository extends JpaRepository<Beneficiary, Long> 
 		String beneficiaryAccountNo,
 		Long beneficiaryId
 	);
+
+	long countByBankCustomer_BankCustomerId(Long bankCustomerId);
 }
