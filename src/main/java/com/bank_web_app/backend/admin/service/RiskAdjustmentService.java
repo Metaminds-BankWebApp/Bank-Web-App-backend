@@ -17,9 +17,14 @@ public class RiskAdjustmentService {
 	private static final Set<String> SUPPORTED_RISK_LEVELS = Set.of("LOW", "MEDIUM", "HIGH");
 
 	private final RiskAdjustmentRepository riskAdjustmentRepository;
+	private final AuditLogService auditLogService;
 
-	public RiskAdjustmentService(RiskAdjustmentRepository riskAdjustmentRepository) {
+	public RiskAdjustmentService(
+		RiskAdjustmentRepository riskAdjustmentRepository,
+		AuditLogService auditLogService
+	) {
 		this.riskAdjustmentRepository = riskAdjustmentRepository;
+		this.auditLogService = auditLogService;
 	}
 
 	@Transactional(readOnly = true)
@@ -46,7 +51,17 @@ public class RiskAdjustmentService {
 		adjustment.setRiskLevel(riskLevel);
 		adjustment.setMultiplier(normalizeMultiplier(request.multiplier()));
 		adjustment.setDescription(normalizeOptionalText(request.description()));
-		return toResponse(riskAdjustmentRepository.save(adjustment));
+		RiskAdjustment saved = riskAdjustmentRepository.save(adjustment);
+		RiskAdjustmentResponse response = toResponse(saved);
+		auditLogService.logAction(
+			"RISK_ADJUSTMENT_UPDATED",
+			"Updated Risk Adjustment: " + response.riskLabel(),
+			"RISK_ADJUSTMENT",
+			String.valueOf(response.adjustmentId()),
+			"Updated risk multiplier configuration for " + response.riskLevel() + ".",
+			"INFO"
+		);
+		return response;
 	}
 
 	private RiskAdjustment findAdjustment(Long adjustmentId) {

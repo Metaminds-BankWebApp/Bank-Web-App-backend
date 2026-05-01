@@ -39,6 +39,7 @@ public class AdminBankOfficerService {
 	private final BankCustomerRepository bankCustomerRepository;
 	private final BankCustomerFinancialRecordRepository bankCustomerFinancialRecordRepository;
 	private final BankCreditEvaluationRepository bankCreditEvaluationRepository;
+	private final AuditLogService auditLogService;
 
 	public AdminBankOfficerService(
 		UserService userService,
@@ -47,7 +48,8 @@ public class AdminBankOfficerService {
 		UserRepository userRepository,
 		BankCustomerRepository bankCustomerRepository,
 		BankCustomerFinancialRecordRepository bankCustomerFinancialRecordRepository,
-		BankCreditEvaluationRepository bankCreditEvaluationRepository
+		BankCreditEvaluationRepository bankCreditEvaluationRepository,
+		AuditLogService auditLogService
 	) {
 		this.userService = userService;
 		this.bankOfficerRepository = bankOfficerRepository;
@@ -56,14 +58,33 @@ public class AdminBankOfficerService {
 		this.bankCustomerRepository = bankCustomerRepository;
 		this.bankCustomerFinancialRecordRepository = bankCustomerFinancialRecordRepository;
 		this.bankCreditEvaluationRepository = bankCreditEvaluationRepository;
+		this.auditLogService = auditLogService;
 	}
 
 	public UserRegistrationStepResponse createDraft(UserRegistrationStepOneRequest request) {
-		return userService.saveBankOfficerStepOneDraft(request);
+		UserRegistrationStepResponse response = userService.saveBankOfficerStepOneDraft(request);
+		auditLogService.logAction(
+			"BANK_OFFICER_DRAFT_CREATED",
+			"Created Officer Draft: \"" + safe(request.firstName()) + " " + safe(request.lastName()) + "\"",
+			"BANK_OFFICER",
+			response.userId() == null ? null : String.valueOf(response.userId()),
+			"Saved bank officer onboarding draft.",
+			"INFO"
+		);
+		return response;
 	}
 
 	public UserRegistrationStepResponse create(UserRegistrationStepOneRequest request) {
-		return userService.continueBankOfficerStepOne(request);
+		UserRegistrationStepResponse response = userService.continueBankOfficerStepOne(request);
+		auditLogService.logAction(
+			"BANK_OFFICER_CREATED",
+			"Created Bank Officer: \"" + safe(request.firstName()) + " " + safe(request.lastName()) + "\"",
+			"BANK_OFFICER",
+			response.userId() == null ? null : String.valueOf(response.userId()),
+			"Bank officer account was created successfully.",
+			"SUCCESS"
+		);
+		return response;
 	}
 
 	@Transactional(readOnly = true)
@@ -119,9 +140,19 @@ public class AdminBankOfficerService {
 	public AdminBankOfficerSummaryResponse updateStatus(Long userId, String status) {
 		BankOfficer officer = findByUserId(userId);
 		User user = officer.getUser();
-		user.setStatus(normalizeStatus(status));
+		String normalizedStatus = normalizeStatus(status);
+		user.setStatus(normalizedStatus);
 		userRepository.save(user);
-		return toResponse(officer);
+		AdminBankOfficerSummaryResponse response = toResponse(officer);
+		auditLogService.logAction(
+			"BANK_OFFICER_STATUS_CHANGED",
+			"Changed Officer Status: \"" + safe(response.fullName()) + "\" -> " + normalizedStatus,
+			"BANK_OFFICER",
+			safe(response.employeeCode()),
+			"Updated officer user status.",
+			"ACTIVE".equals(normalizedStatus) ? "SUCCESS" : "WARNING"
+		);
+		return response;
 	}
 
 	@Transactional
@@ -149,7 +180,16 @@ public class AdminBankOfficerService {
 
 		userRepository.save(user);
 		bankOfficerRepository.save(officer);
-		return toResponse(officer);
+		AdminBankOfficerSummaryResponse response = toResponse(officer);
+		auditLogService.logAction(
+			"BANK_OFFICER_UPDATED",
+			"Updated Officer Details: \"" + safe(response.fullName()) + "\"",
+			"BANK_OFFICER",
+			safe(response.employeeCode()),
+			"Updated officer profile details and branch assignment.",
+			"INFO"
+		);
+		return response;
 	}
 
 	@Transactional
@@ -174,6 +214,14 @@ public class AdminBankOfficerService {
 		User user = officer.getUser();
 		bankOfficerRepository.delete(officer);
 		userRepository.delete(user);
+		auditLogService.logAction(
+			"BANK_OFFICER_DELETED",
+			"Deleted Officer Permanently: \"" + safe(response.fullName()) + "\"",
+			"BANK_OFFICER",
+			safe(response.employeeCode()),
+			"Officer and linked user account were deleted permanently.",
+			"WARNING"
+		);
 		return response;
 	}
 

@@ -1,5 +1,6 @@
 package com.bank_web_app.backend.common.config;
 
+import com.bank_web_app.backend.admin.audit.SystemAuditLoggingInterceptor;
 import java.util.List;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -7,6 +8,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 @Configuration
@@ -14,6 +16,11 @@ public class CorsConfig implements WebMvcConfigurer {
 
 	private static final List<String> ALLOWED_ORIGINS = List.of("http://localhost:3000", "http://127.0.0.1:3000");
 	private static final List<String> ALLOWED_METHODS = List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS");
+	private final SystemAuditLoggingInterceptor systemAuditLoggingInterceptor;
+
+	public CorsConfig(SystemAuditLoggingInterceptor systemAuditLoggingInterceptor) {
+		this.systemAuditLoggingInterceptor = systemAuditLoggingInterceptor;
+	}
 
 	@Override
 	public void addCorsMappings(CorsRegistry registry) {
@@ -24,6 +31,11 @@ public class CorsConfig implements WebMvcConfigurer {
 			.allowedHeaders("*")
 			.allowCredentials(true)
 			.maxAge(3600);
+	}
+
+	@Override
+	public void addInterceptors(InterceptorRegistry registry) {
+		registry.addInterceptor(systemAuditLoggingInterceptor).addPathPatterns("/api/**");
 	}
 
 	@Bean

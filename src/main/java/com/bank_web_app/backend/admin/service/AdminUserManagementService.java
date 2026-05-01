@@ -78,6 +78,7 @@ public class AdminUserManagementService {
 	private final BeneficiaryRepository beneficiaryRepository;
 	private final OtpRecordRepository otpRecordRepository;
 	private final TransactionRepository transactionRepository;
+	private final AuditLogService auditLogService;
 
 	public AdminUserManagementService(
 		UserRepository userRepository,
@@ -107,7 +108,8 @@ public class AdminUserManagementService {
 		IncomeRecordRepository incomeRecordRepository,
 		BeneficiaryRepository beneficiaryRepository,
 		OtpRecordRepository otpRecordRepository,
-		TransactionRepository transactionRepository
+		TransactionRepository transactionRepository,
+		AuditLogService auditLogService
 	) {
 		this.userRepository = userRepository;
 		this.bankCustomerRepository = bankCustomerRepository;
@@ -137,6 +139,7 @@ public class AdminUserManagementService {
 		this.beneficiaryRepository = beneficiaryRepository;
 		this.otpRecordRepository = otpRecordRepository;
 		this.transactionRepository = transactionRepository;
+		this.auditLogService = auditLogService;
 	}
 
 	@Transactional(readOnly = true)
@@ -209,7 +212,16 @@ public class AdminUserManagementService {
 
 		Map<Long, String> bankCodesByUserId = bankCode == null ? Map.of() : Map.of(saved.getUserId(), bankCode);
 		Map<Long, String> publicCodesByUserId = publicCode == null ? Map.of() : Map.of(saved.getUserId(), publicCode);
-		return toResponse(saved, bankCodesByUserId, publicCodesByUserId);
+		AdminUserManagementUserResponse response = toResponse(saved, bankCodesByUserId, publicCodesByUserId);
+		auditLogService.logAction(
+			"MANAGED_USER_STATUS_CHANGED",
+			"Changed Managed User Status: \"" + safe(response.fullName()) + "\" -> " + normalizedStatus,
+			"MANAGED_USER",
+			safe(response.customerId()),
+			"Updated user status in admin user-management module.",
+			"ACTIVE".equals(normalizedStatus) ? "SUCCESS" : "WARNING"
+		);
+		return response;
 	}
 
 	@Transactional
@@ -249,7 +261,16 @@ public class AdminUserManagementService {
 
 		Map<Long, String> bankCodesByUserId = bankCode == null ? Map.of() : Map.of(saved.getUserId(), bankCode);
 		Map<Long, String> publicCodesByUserId = publicCode == null ? Map.of() : Map.of(saved.getUserId(), publicCode);
-		return toResponse(saved, bankCodesByUserId, publicCodesByUserId);
+		AdminUserManagementUserResponse response = toResponse(saved, bankCodesByUserId, publicCodesByUserId);
+		auditLogService.logAction(
+			"MANAGED_USER_UPDATED",
+			"Updated Managed User Details: \"" + safe(response.fullName()) + "\"",
+			"MANAGED_USER",
+			safe(response.customerId()),
+			"Updated managed user profile details.",
+			"INFO"
+		);
+		return response;
 	}
 
 	@Transactional
@@ -284,6 +305,14 @@ public class AdminUserManagementService {
 		}
 
 		userRepository.delete(user);
+		auditLogService.logAction(
+			"MANAGED_USER_DELETED",
+			"Deleted Managed User Permanently: \"" + safe(response.fullName()) + "\"",
+			"MANAGED_USER",
+			safe(response.customerId()),
+			"Deleted managed user and linked dependent records.",
+			"WARNING"
+		);
 		return response;
 	}
 
