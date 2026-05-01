@@ -1,6 +1,7 @@
 package com.bank_web_app.backend.admin.service;
 
 import com.bank_web_app.backend.admin.dto.response.AdminDashboardSummaryResponse;
+import com.bank_web_app.backend.admin.dto.response.AdminRecentActionResponse;
 import com.bank_web_app.backend.admin.repository.BranchRepository;
 import com.bank_web_app.backend.bankofficer.repository.BankOfficerRepository;
 import com.bank_web_app.backend.transact.repository.TransactionRepository;
@@ -19,17 +20,20 @@ public class AdminDashboardService {
 	private final BranchRepository branchRepository;
 	private final BankOfficerRepository bankOfficerRepository;
 	private final TransactionRepository transactionRepository;
+	private final AuditLogService auditLogService;
 
 	public AdminDashboardService(
 		UserRepository userRepository,
 		BranchRepository branchRepository,
 		BankOfficerRepository bankOfficerRepository,
-		TransactionRepository transactionRepository
+		TransactionRepository transactionRepository,
+		AuditLogService auditLogService
 	) {
 		this.userRepository = userRepository;
 		this.branchRepository = branchRepository;
 		this.bankOfficerRepository = bankOfficerRepository;
 		this.transactionRepository = transactionRepository;
+		this.auditLogService = auditLogService;
 	}
 
 	@Transactional(readOnly = true)
@@ -40,5 +44,10 @@ public class AdminDashboardService {
 		long totalTransactions = transactionRepository.count();
 
 		return new AdminDashboardSummaryResponse(totalUsers, totalBranches, totalOfficers, totalTransactions);
+	}
+
+	@Transactional(readOnly = true)
+	public List<AdminRecentActionResponse> getRecentActions(Integer hours, Integer limit) {
+		return auditLogService.getRecentActions(hours, limit);
 	}
 }
