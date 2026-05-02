@@ -37,7 +37,7 @@ public class CreditReportPdfExportService {
 	private static final Color HIGH_RISK = new Color(239, 68, 68);
 	private static final DateTimeFormatter FOOTER_TIME_FORMATTER = DateTimeFormatter.ofPattern("dd MMM uuuu, hh:mm a", Locale.ENGLISH);
 
-	public byte[] exportPublicCustomerReport(PublicCreditReportPdfModel model) {
+	public byte[] exportReport(CreditReportPdfModel model) {
 		try (PDDocument document = new PDDocument(); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
 			PDPage page = new PDPage(PAGE_SIZE);
 			document.addPage(page);
@@ -58,7 +58,7 @@ public class CreditReportPdfExportService {
 		}
 	}
 
-	private void drawHeader(PDPageContentStream stream, PublicCreditReportPdfModel model) throws IOException {
+	private void drawHeader(PDPageContentStream stream, CreditReportPdfModel model) throws IOException {
 		float x = PAGE_MARGIN;
 		float y = 712f;
 		float height = 94f;
@@ -94,7 +94,7 @@ public class CreditReportPdfExportService {
 		);
 	}
 
-	private void drawScorePanel(PDPageContentStream stream, PublicCreditReportPdfModel model) throws IOException {
+	private void drawScorePanel(PDPageContentStream stream, CreditReportPdfModel model) throws IOException {
 		float x = PAGE_MARGIN;
 		float y = 598f;
 		float width = 178f;
@@ -107,7 +107,7 @@ public class CreditReportPdfExportService {
 		writeText(stream, "Evaluation: " + safe(model.evaluationType()), PDType1Font.HELVETICA, 10f, x + 16f, y + 12f, TEXT_MUTED);
 	}
 
-	private void drawBehaviorPanel(PDPageContentStream stream, PublicCreditReportPdfModel model) throws IOException {
+	private void drawBehaviorPanel(PDPageContentStream stream, CreditReportPdfModel model) throws IOException {
 		float x = PAGE_MARGIN + 190f;
 		float y = 598f;
 		float width = CONTENT_WIDTH - 190f;
@@ -124,7 +124,7 @@ public class CreditReportPdfExportService {
 		writeText(stream, "Active Facilities: " + safe(model.activeFacilities()), PDType1Font.HELVETICA, 11f, x + 210f, y + 12f, TEXT_PRIMARY);
 	}
 
-	private void drawFinancialCards(PDPageContentStream stream, PublicCreditReportPdfModel model) throws IOException {
+	private void drawFinancialCards(PDPageContentStream stream, CreditReportPdfModel model) throws IOException {
 		float cardWidth = (CONTENT_WIDTH - CARD_GAP) / 2f;
 		float topRowY = 488f;
 		float bottomRowY = 404f;
@@ -155,7 +155,7 @@ public class CreditReportPdfExportService {
 		}
 	}
 
-	private void drawRiskFactorTable(PDPageContentStream stream, PublicCreditReportPdfModel model) throws IOException {
+	private void drawRiskFactorTable(PDPageContentStream stream, CreditReportPdfModel model) throws IOException {
 		float x = PAGE_MARGIN;
 		float y = 156f;
 		float width = CONTENT_WIDTH;
@@ -190,7 +190,7 @@ public class CreditReportPdfExportService {
 		drawBadge(stream, x + width - 84f, y + 4f, 66f, 16f, band, resolveBandColor(band), Color.WHITE);
 	}
 
-	private void drawFooter(PDPageContentStream stream, PublicCreditReportPdfModel model) throws IOException {
+	private void drawFooter(PDPageContentStream stream, CreditReportPdfModel model) throws IOException {
 		float x = PAGE_MARGIN;
 		float y = 56f;
 		float height = 76f;
@@ -354,7 +354,7 @@ public class CreditReportPdfExportService {
 		return value == null ? "0" : value.toString();
 	}
 
-	public record PublicCreditReportPdfModel(
+	public record CreditReportPdfModel(
 		String customerName,
 		String customerCode,
 		String monthLabel,
