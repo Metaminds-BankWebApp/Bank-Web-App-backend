@@ -85,6 +85,7 @@ public class CreditEvaluationService {
 	private static final DateTimeFormatter REPORT_DATE_FORMATTER = DateTimeFormatter.ofPattern("dd MMM uuuu", Locale.ENGLISH);
 	private static final DateTimeFormatter MONTH_LABEL_FORMATTER = DateTimeFormatter.ofPattern("MMMM uuuu", Locale.ENGLISH);
 	private static final DateTimeFormatter SHORT_MONTH_LABEL_FORMATTER = DateTimeFormatter.ofPattern("MMM", Locale.ENGLISH);
+	private static final DateTimeFormatter EXPORT_TIMESTAMP_FORMATTER = DateTimeFormatter.ofPattern("dd MMM uuuu, hh:mm a", Locale.ENGLISH);
 
 	private final SelfCreditEvaluationRepository selfCreditEvaluationRepository;
 	private final BankCreditEvaluationRepository bankCreditEvaluationRepository;
@@ -105,6 +106,7 @@ public class CreditEvaluationService {
 	private final BankOfficerRepository bankOfficerRepository;
 	private final UserRepository userRepository;
 	private final CreditEvaluationMapper creditEvaluationMapper;
+	private final CreditReportPdfExportService creditReportPdfExportService;
 
 	public CreditEvaluationService(
 		SelfCreditEvaluationRepository selfCreditEvaluationRepository,
@@ -125,7 +127,8 @@ public class CreditEvaluationService {
 		BankCustomerMissedPaymentRepository bankCustomerMissedPaymentRepository,
 		BankOfficerRepository bankOfficerRepository,
 		UserRepository userRepository,
-		CreditEvaluationMapper creditEvaluationMapper
+		CreditEvaluationMapper creditEvaluationMapper,
+		CreditReportPdfExportService creditReportPdfExportService
 	) {
 		this.selfCreditEvaluationRepository = selfCreditEvaluationRepository;
 		this.bankCreditEvaluationRepository = bankCreditEvaluationRepository;
@@ -146,6 +149,7 @@ public class CreditEvaluationService {
 		this.bankOfficerRepository = bankOfficerRepository;
 		this.userRepository = userRepository;
 		this.creditEvaluationMapper = creditEvaluationMapper;
+		this.creditReportPdfExportService = creditReportPdfExportService;
 	}
 
 	@Transactional
@@ -272,10 +276,59 @@ public class CreditEvaluationService {
 	}
 
 	@Transactional
+	public byte[] getPublicReportPdf(Long selfEvaluationId) {
+		PublicCustomerProfile profile = resolveLoggedInPublicCustomerProfile();
+		SelfCreditEvaluation evaluation = selfCreditEvaluationRepository
+			.findBySelfEvaluationIdAndPublicCustomer_PublicCustomerId(selfEvaluationId, profile.getPublicCustomerId())
+			.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Credit report was not found for this evaluation."));
+		SelfCreditEvaluation synchronizedEvaluation = synchronizeSelfEvaluation(evaluation);
+		EvaluationView view = toView(synchronizedEvaluation);
+		RecordBreakdown breakdown = loadRecordBreakdown(view);
+		byte[] file = creditReportPdfExportService.exportReport(
+			new CreditReportPdfExportService.CreditReportPdfModel(
+				resolvePublicCustomerDisplayName(profile),
+				resolvePublicCustomerCode(profile),
+				view.createdAt().format(MONTH_LABEL_FORMATTER),
+				view.evaluationType(),
+				view.totalRiskPoints(),
+				toRiskDisplayLabel(view.riskLevel()),
+				LocalDateTime.now().format(EXPORT_TIMESTAMP_FORMATTER),
+				view.createdAt().format(EXPORT_TIMESTAMP_FORMATTER),
+				breakdown.income(),
+				breakdown.loanEmi(),
+				loadPublicLoanRemainingBalance(view.recordId()),
+				breakdown.creditCardBalance(),
+				breakdown.creditCardLimit(),
+				breakdown.otherLiabilities(),
+				view.missedPaymentsCount(),
+				view.activeFacilitiesCount(),
+				toPercentage(view.dtiRatio()),
+				toPercentage(view.creditUtilizationRatio()),
+				resolveDtiBand(view.dtiRatio()),
+				buildRiskFactors(view)
+			)
+		);
+		if (!Boolean.TRUE.equals(synchronizedEvaluation.getReportGenerated())) {
+			synchronizedEvaluation.setReportGenerated(Boolean.TRUE);
+			selfCreditEvaluationRepository.save(synchronizedEvaluation);
+		}
+		return file;
+	}
+
+	@Transactional
 	public CreditReportResponse getBankReport() {
 		BankCustomer bankCustomer = resolveLoggedInBankCustomer();
 		getOrCreateLatestBankEvaluationForCustomer(bankCustomer);
 		return buildReportResponse("BANK_CUSTOMER", "Bank Assessment", getBankEvaluationViews(bankCustomer));
+	}
+
+	@Transactional
+	public byte[] getBankReportPdf(Long bankEvaluationId) {
+		BankCustomer bankCustomer = resolveLoggedInBankCustomer();
+		BankCreditEvaluation evaluation = bankCreditEvaluationRepository
+			.findByBankEvaluationIdAndBankCustomer_BankCustomerId(bankEvaluationId, bankCustomer.getBankCustomerId())
+			.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Credit report was not found for this evaluation."));
+		return exportBankCreditReportPdf(bankCustomer, synchronizeBankEvaluation(evaluation));
 	}
 
 	@Transactional
@@ -384,6 +437,52 @@ public class CreditEvaluationService {
 		BankCustomer bankCustomer = resolveOwnedBankCustomer(bankCustomerId, officer);
 		getOrCreateLatestBankEvaluation(bankCustomer, officer);
 		return buildReportResponse("BANK_CUSTOMER", "Bank Assessment", getBankEvaluationViews(bankCustomer));
+	}
+
+	@Transactional
+	public byte[] getOfficerCustomerReportPdf(Long bankCustomerId, Long bankEvaluationId) {
+		BankOfficer officer = resolveLoggedInBankOfficer();
+		BankCustomer bankCustomer = resolveOwnedBankCustomer(bankCustomerId, officer);
+		BankCreditEvaluation evaluation = bankCreditEvaluationRepository
+			.findByBankEvaluationIdAndBankCustomer_BankCustomerId(bankEvaluationId, bankCustomerId)
+			.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Credit report was not found for this evaluation."));
+		return exportBankCreditReportPdf(bankCustomer, synchronizeBankEvaluation(evaluation));
+	}
+
+	private byte[] exportBankCreditReportPdf(BankCustomer bankCustomer, BankCreditEvaluation evaluation) {
+		EvaluationView view = toView(evaluation);
+		RecordBreakdown breakdown = loadRecordBreakdown(view);
+		byte[] file = creditReportPdfExportService.exportReport(
+			new CreditReportPdfExportService.CreditReportPdfModel(
+				resolveBankCustomerDisplayName(bankCustomer),
+				resolveBankCustomerCode(bankCustomer),
+				view.createdAt().format(MONTH_LABEL_FORMATTER),
+				view.evaluationType(),
+				view.totalRiskPoints(),
+				toRiskDisplayLabel(view.riskLevel()),
+				LocalDateTime.now().format(EXPORT_TIMESTAMP_FORMATTER),
+				view.createdAt().format(EXPORT_TIMESTAMP_FORMATTER),
+				breakdown.income(),
+				breakdown.loanEmi(),
+				loadBankLoanRemainingBalance(view.recordId()),
+				breakdown.creditCardBalance(),
+				breakdown.creditCardLimit(),
+				breakdown.otherLiabilities(),
+				view.missedPaymentsCount(),
+				view.activeFacilitiesCount(),
+				toPercentage(view.dtiRatio()),
+				toPercentage(view.creditUtilizationRatio()),
+				resolveDtiBand(view.dtiRatio()),
+				buildRiskFactors(view)
+			)
+		);
+
+		if (!Boolean.TRUE.equals(evaluation.getReportGenerated())) {
+			evaluation.setReportGenerated(Boolean.TRUE);
+			bankCreditEvaluationRepository.save(evaluation);
+		}
+
+		return file;
 	}
 
 	@Transactional
@@ -1813,6 +1912,54 @@ public class CreditEvaluationService {
 		return Character.toUpperCase(normalized.charAt(0)) + normalized.substring(1);
 	}
 
+	private BigDecimal loadPublicLoanRemainingBalance(Long recordId) {
+		return publicCustomerLoanRepository.findAllByFinancialRecord_RecordId(recordId)
+			.stream()
+			.map(PublicCustomerLoan::getRemainingBalance)
+			.map(this::safeAmount)
+			.reduce(BigDecimal.ZERO, BigDecimal::add)
+			.setScale(2, RoundingMode.HALF_UP);
+	}
+
+	private BigDecimal loadBankLoanRemainingBalance(Long bankRecordId) {
+		return bankCustomerLoanRepository.findAllByFinancialRecord_BankRecordId(bankRecordId)
+			.stream()
+			.map(BankCustomerLoan::getRemainingBalance)
+			.map(this::safeAmount)
+			.reduce(BigDecimal.ZERO, BigDecimal::add)
+			.setScale(2, RoundingMode.HALF_UP);
+	}
+
+	private String resolvePublicCustomerDisplayName(PublicCustomerProfile profile) {
+		User user = profile.getUser();
+		String fullName = (safe(user.getFirstName()) + " " + safe(user.getLastName())).trim();
+		if (!fullName.isBlank()) {
+			return fullName;
+		}
+		String username = safe(user.getUsername());
+		return username.isBlank() ? "Public Customer" : username;
+	}
+
+	private String resolvePublicCustomerCode(PublicCustomerProfile profile) {
+		String customerCode = safe(profile.getCustomerCode());
+		return customerCode.isBlank() ? "N/A" : customerCode;
+	}
+
+	private String resolveBankCustomerDisplayName(BankCustomer bankCustomer) {
+		User user = bankCustomer.getUser();
+		String fullName = buildFullName(user);
+		if (!fullName.isBlank()) {
+			return fullName;
+		}
+		String username = safe(user.getUsername());
+		return username.isBlank() ? "Bank Customer" : username;
+	}
+
+	private String resolveBankCustomerCode(BankCustomer bankCustomer) {
+		String customerCode = safe(bankCustomer.getCustomerCode());
+		return customerCode.isBlank() ? "N/A" : customerCode;
+	}
+
 	private String normalizeText(String value) {
 		return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
 	}
@@ -1895,3 +2042,6 @@ public class CreditEvaluationService {
 	) {
 	}
 }
+
+
+

@@ -17,6 +17,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -85,6 +86,16 @@ public class CreditEvaluationController {
 	@Operation(summary = "Get the CreditLens monthly report data for the logged-in public customer.")
 	public ResponseEntity<CreditReportResponse> getPublicReport() {
 		return ResponseEntity.ok(creditEvaluationService.getPublicReport());
+	}
+
+	@GetMapping(value = "/public/report/{selfEvaluationId}/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
+	@Operation(summary = "Download a CreditLens PDF report for a specific public customer evaluation.")
+	public ResponseEntity<byte[]> downloadPublicReportPdf(@PathVariable Long selfEvaluationId) {
+		byte[] file = creditEvaluationService.getPublicReportPdf(selfEvaluationId);
+		return ResponseEntity.ok()
+			.contentType(MediaType.APPLICATION_PDF)
+			.header("Content-Disposition", "attachment; filename=\"creditlens-report.pdf\"")
+			.body(file);
 	}
 
 	@GetMapping("/public/history")
@@ -163,6 +174,16 @@ public class CreditEvaluationController {
 	)
 	public ResponseEntity<CreditReportResponse> getBankReport() {
 		return ResponseEntity.ok(creditEvaluationService.getBankReport());
+	}
+
+	@GetMapping(value = "/bank/report/{bankEvaluationId}/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
+	@Operation(summary = "Download a CreditLens PDF report for a specific bank customer evaluation.")
+	public ResponseEntity<byte[]> downloadBankReportPdf(@PathVariable Long bankEvaluationId) {
+		byte[] file = creditEvaluationService.getBankReportPdf(bankEvaluationId);
+		return ResponseEntity.ok()
+			.contentType(MediaType.APPLICATION_PDF)
+			.header("Content-Disposition", "attachment; filename=\"creditlens-report.pdf\"")
+			.body(file);
 	}
 
 	@GetMapping("/bank/history")
@@ -272,6 +293,19 @@ public class CreditEvaluationController {
 		return ResponseEntity.ok(creditEvaluationService.getOfficerCustomerReport(bankCustomerId));
 	}
 
+	@GetMapping(value = "/officer/customers/{bankCustomerId}/report/{bankEvaluationId}/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
+	@Operation(summary = "Download a CreditLens PDF report for a bank customer evaluation owned by the logged-in bank officer.")
+	public ResponseEntity<byte[]> downloadOfficerCustomerReportPdf(
+		@PathVariable Long bankCustomerId,
+		@PathVariable Long bankEvaluationId
+	) {
+		byte[] file = creditEvaluationService.getOfficerCustomerReportPdf(bankCustomerId, bankEvaluationId);
+		return ResponseEntity.ok()
+			.contentType(MediaType.APPLICATION_PDF)
+			.header("Content-Disposition", "attachment; filename=\"creditlens-report.pdf\"")
+			.body(file);
+	}
+
 	@GetMapping("/officer/customers/{bankCustomerId}/history")
 	@Operation(
 		summary = "Get bank credit evaluation history for a bank customer owned by the logged-in bank officer.",
@@ -302,3 +336,4 @@ public class CreditEvaluationController {
 		return ResponseEntity.ok(creditEvaluationService.getBankEvaluationByIdForOfficer(bankCustomerId, bankEvaluationId));
 	}
 }
+
