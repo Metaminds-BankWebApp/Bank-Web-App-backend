@@ -100,4 +100,36 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
 		@Param("accountNo") String accountNo,
 		Pageable pageable
 	);
+
+	@Query(
+		"""
+		select t
+		from Transaction t
+		where (t.senderAccountNo = :accountNo or t.receiverAccountNo = :accountNo)
+		  and upper(t.status) = :status
+		order by t.transactionDate desc
+		"""
+	)
+	List<Transaction> findAllByAccountNoAndStatusOrderByTransactionDateDesc(
+		@Param("accountNo") String accountNo,
+		@Param("status") String status
+	);
+
+	@Query(
+		"""
+		select t
+		from Transaction t
+		where (t.senderAccountNo = :accountNo or t.receiverAccountNo = :accountNo)
+		  and upper(t.status) = :status
+		  and t.transactionDate >= :fromDateTime
+		  and t.transactionDate <= :toDateTime
+		order by t.transactionDate asc
+		"""
+	)
+	List<Transaction> findAllByAccountNoAndStatusBetweenDatesOrderByTransactionDateAsc(
+		@Param("accountNo") String accountNo,
+		@Param("status") String status,
+		@Param("fromDateTime") LocalDateTime fromDateTime,
+		@Param("toDateTime") LocalDateTime toDateTime
+	);
 }
