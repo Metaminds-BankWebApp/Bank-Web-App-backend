@@ -1,6 +1,7 @@
 package com.bank_web_app.backend.admin.controller;
 
 import com.bank_web_app.backend.admin.dto.response.AdminDashboardSummaryResponse;
+import com.bank_web_app.backend.admin.dto.response.AdminMonthlyUserGrowthResponse;
 import com.bank_web_app.backend.admin.dto.response.AdminRecentActionResponse;
 import com.bank_web_app.backend.admin.service.AdminDashboardService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -49,5 +50,19 @@ public class AdminDashboardController {
 		@RequestParam(defaultValue = "20") Integer limit
 	) {
 		return ResponseEntity.ok(adminDashboardService.getRecentActions(hours, limit));
+	}
+
+	@GetMapping("/monthly-user-growth")
+	@Operation(
+		summary = "Get monthly user growth chart data",
+		description = "Returns month-by-month new customer user counts (all, bank, public) for the requested window.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Monthly user growth loaded successfully")
+		}
+	)
+	public ResponseEntity<AdminMonthlyUserGrowthResponse> getMonthlyUserGrowth(
+		@RequestParam(defaultValue = "6") Integer months
+	) {
+		return ResponseEntity.ok(adminDashboardService.getMonthlyUserGrowth(months));
 	}
 }
