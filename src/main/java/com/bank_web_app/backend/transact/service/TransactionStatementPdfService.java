@@ -55,7 +55,10 @@ public class TransactionStatementPdfService {
 	private static final Color BRAND_SECONDARY = new Color(14, 79, 98);
 	private static final Color BRAND_ACCENT = new Color(57, 159, 216);
 	private static final Color ROW_BG = new Color(236, 245, 252);
+	private static final Color ROW_BG_ALT = new Color(245, 250, 255);
 	private static final Color TOTAL_VALUE_BG = new Color(244, 250, 255);
+	private static final Color SECTION_BG = new Color(248, 252, 255);
+	private static final Color SECTION_BORDER = new Color(188, 215, 234);
 	private static final Color WHITE_GRID = new Color(255, 255, 255);
 
 	private static final Font FONT_SMALL = FontFactory.getFont(FontFactory.HELVETICA, 10);
@@ -63,8 +66,8 @@ public class TransactionStatementPdfService {
 	private static final Font FONT_SMALL_BOLD_WHITE = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 10, Color.WHITE);
 	private static final Font FONT_TABLE_HEAD = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 9, Color.WHITE);
 	private static final Font FONT_TABLE_BODY = FontFactory.getFont(FontFactory.HELVETICA, 9);
-	private static final Font FONT_LOGO_MARK = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 22, Color.WHITE);
 	private static final Font FONT_TITLE = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 15);
+	private static final Font FONT_TITLE_WHITE = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12, Color.WHITE);
 	private static final Font FONT_SUBTITLE = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12);
 	private static final Font FONT_FOOTER = FontFactory.getFont(FontFactory.HELVETICA, 8);
 	private static final Font FONT_FOOTER_ITALIC = FontFactory.getFont(FontFactory.HELVETICA_OBLIQUE, 8);
@@ -277,19 +280,26 @@ public class TransactionStatementPdfService {
 	}
 
 	private void addHeaderSection(Document document, DateRange range) throws DocumentException {
-		PdfPTable table = new PdfPTable(new float[] { 2f, 3f, 2f });
+		PdfPTable bannerTable = new PdfPTable(1);
+		bannerTable.setWidthPercentage(100f);
+		PdfPCell bannerCell = new PdfPCell(new Phrase("PRIMECORE DIGITAL BANK", FONT_TITLE_WHITE));
+		bannerCell.setHorizontalAlignment(Element.ALIGN_CENTER);
+		bannerCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+		bannerCell.setBackgroundColor(BRAND_PRIMARY);
+		bannerCell.setBorder(Rectangle.NO_BORDER);
+		bannerCell.setPadding(8f);
+		bannerTable.addCell(bannerCell);
+		document.add(bannerTable);
+		document.add(new Paragraph(" "));
+
+		PdfPTable table = new PdfPTable(new float[] { 4f, 2f });
 		table.setWidthPercentage(100f);
 
-		PdfPCell leftCell = new PdfPCell(buildBankBadgeTable());
+		PdfPCell leftCell = new PdfPCell();
 		leftCell.setBorder(Rectangle.NO_BORDER);
+		leftCell.addElement(new Paragraph("STATEMENT OF ACCOUNT", FONT_TITLE));
+		leftCell.addElement(new Paragraph("Transaction Statement", FONT_SMALL));
 		table.addCell(leftCell);
-
-		PdfPCell centerCell = new PdfPCell();
-		centerCell.setBorder(Rectangle.NO_BORDER);
-		centerCell.setHorizontalAlignment(Element.ALIGN_CENTER);
-		centerCell.addElement(centeredParagraph("STATEMENT OF ACCOUNT", FONT_TITLE));
-			centerCell.addElement(centeredParagraph("PRIMECORE DIGITAL BANK", FONT_SUBTITLE));
-			table.addCell(centerCell);
 
 		PdfPCell rightCell = new PdfPCell();
 		rightCell.setBorder(Rectangle.NO_BORDER);
@@ -298,71 +308,48 @@ public class TransactionStatementPdfService {
 		table.addCell(rightCell);
 
 		document.add(table);
-		document.add(new Paragraph("  "));
-	}
-
-	private PdfPTable buildBankBadgeTable() {
-		PdfPTable badgeTable = new PdfPTable(1);
-		badgeTable.setWidthPercentage(65f);
-
-		PdfPCell bankCell = new PdfPCell();
-		bankCell.setBorder(Rectangle.NO_BORDER);
-		bankCell.addElement(new Paragraph("PRIMECORE BANK", FONT_SMALL_BOLD));
-
-		PdfPTable logoTable = new PdfPTable(1);
-		logoTable.setWidthPercentage(100f);
-		PdfPCell logoCell = new PdfPCell();
-		logoCell.setBackgroundColor(BRAND_PRIMARY);
-		logoCell.setHorizontalAlignment(Element.ALIGN_CENTER);
-		logoCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
-		logoCell.setBorderColor(WHITE_GRID);
-		logoCell.setBorderWidth(1.2f);
-		logoCell.setPaddingTop(3f);
-		logoCell.setPaddingBottom(2f);
-		logoCell.addElement(centeredParagraph("PC", FONT_LOGO_MARK));
-		logoTable.addCell(logoCell);
-
-		bankCell.addElement(logoTable);
-		bankCell.addElement(new Paragraph("Digital Banking for Sri Lanka", FONT_SMALL));
-		badgeTable.addCell(bankCell);
-		return badgeTable;
+		document.add(new Paragraph(" "));
 	}
 
 	private void addCustomerSection(Document document, BankCustomer bankCustomer, Account account) throws DocumentException {
 		User user = bankCustomer.getUser();
 		String fullName = resolveDisplayName(user).toUpperCase(Locale.ENGLISH);
 		String address = safeText(user == null ? null : user.getAddress());
+		PdfPTable infoTable = new PdfPTable(new float[] { 2.2f, 3.8f });
+		infoTable.setWidthPercentage(100f);
 
-		Paragraph nameLine = new Paragraph(fullName.isBlank() ? "BANK CUSTOMER" : fullName, FONT_SMALL_BOLD);
-		document.add(nameLine);
+		PdfPCell customerCell = sectionCell();
+		customerCell.addElement(new Paragraph("CUSTOMER DETAILS", FONT_SMALL_BOLD));
+		customerCell.addElement(new Paragraph(fullName.isBlank() ? "BANK CUSTOMER" : fullName, FONT_SMALL_BOLD));
 		if (!address.isBlank()) {
 			for (String addressLine : splitAddressLines(address)) {
-				document.add(new Paragraph(addressLine.toUpperCase(Locale.ENGLISH), FONT_SMALL));
+				customerCell.addElement(new Paragraph(addressLine.toUpperCase(Locale.ENGLISH), FONT_SMALL));
 			}
 		}
-		document.add(new Paragraph("  "));
+		infoTable.addCell(customerCell);
 
-		PdfPTable details = new PdfPTable(new float[] { 2f, 5f });
-		details.setWidthPercentage(72f);
-		details.addCell(noBorderDetailCell("ACCOUNT NO"));
-		details.addCell(noBorderDetailCell(": " + normalizeAccountNumber(account.getAccountNumber())));
+		PdfPCell accountCell = sectionCell();
+		accountCell.addElement(new Paragraph("ACCOUNT DETAILS", FONT_SMALL_BOLD));
+
+		PdfPTable details = new PdfPTable(new float[] { 1.8f, 0.2f, 3f });
+		details.setWidthPercentage(100f);
+		addDetailRow(details, "ACCOUNT NO", normalizeAccountNumber(account.getAccountNumber()));
 
 		String branchCode = bankCustomer.getBranch() == null ? "" : safeText(bankCustomer.getBranch().getBranchCode());
 		String branchName = bankCustomer.getBranch() == null ? "" : safeText(bankCustomer.getBranch().getBranchName());
-		details.addCell(noBorderDetailCell("BRANCH CODE/NAME"));
-		details.addCell(noBorderDetailCell(": " + (branchCode + " " + branchName).trim()));
+		addDetailRow(details, "BRANCH", (branchCode + " " + branchName).trim());
+		addDetailRow(details, "CURRENCY", "LKR");
+		addDetailRow(details, "ACCOUNT TYPE", safeText(account.getAccountType()).toUpperCase(Locale.ENGLISH));
 
-		details.addCell(noBorderDetailCell("CURRENCY"));
-		details.addCell(noBorderDetailCell(": LKR"));
-		details.addCell(noBorderDetailCell("ACCOUNT TYPE"));
-		details.addCell(noBorderDetailCell(": " + safeText(account.getAccountType()).toUpperCase(Locale.ENGLISH)));
+		accountCell.addElement(details);
+		infoTable.addCell(accountCell);
 
-		document.add(details);
+		document.add(infoTable);
 		document.add(new Paragraph(" "));
 	}
 
 	private void addStatementTable(Document document, List<StatementRow> rows) throws DocumentException {
-		PdfPTable table = new PdfPTable(new float[] { 1.2f, 4.35f, 2f, 2f, 2f, 0.35f });
+		PdfPTable table = new PdfPTable(new float[] { 1.2f, 4.5f, 2f, 2f, 2f });
 		table.setWidthPercentage(100f);
 
 		table.addCell(headerCell("DATE"));
@@ -370,15 +357,16 @@ public class TransactionStatementPdfService {
 		table.addCell(headerCell("PAYMENTS"));
 		table.addCell(headerCell("RECEIPTS"));
 		table.addCell(headerCell("BALANCE"));
-		table.addCell(headerCell(""));
 
-		for (StatementRow row : rows) {
-			table.addCell(bodyCell(row.date(), Element.ALIGN_LEFT));
-			table.addCell(bodyCell(row.particulars(), Element.ALIGN_LEFT));
-			table.addCell(bodyCell(formatAmountOrBlank(row.payments()), Element.ALIGN_RIGHT));
-			table.addCell(bodyCell(formatAmountOrBlank(row.receipts()), Element.ALIGN_RIGHT));
-			table.addCell(bodyCell(formatAmount(row.balance()), Element.ALIGN_RIGHT));
-			table.addCell(bodyCell("", Element.ALIGN_LEFT));
+		for (int i = 0; i < rows.size(); i += 1) {
+			StatementRow row = rows.get(i);
+			Color rowColor = i % 2 == 0 ? ROW_BG : ROW_BG_ALT;
+
+			table.addCell(bodyCell(row.date(), Element.ALIGN_LEFT, rowColor));
+			table.addCell(bodyCell(row.particulars(), Element.ALIGN_LEFT, rowColor));
+			table.addCell(bodyCell(formatAmountOrBlank(row.payments()), Element.ALIGN_RIGHT, rowColor));
+			table.addCell(bodyCell(formatAmountOrBlank(row.receipts()), Element.ALIGN_RIGHT, rowColor));
+			table.addCell(bodyCell(formatAmount(row.balance()), Element.ALIGN_RIGHT, rowColor));
 		}
 
 		document.add(table);
@@ -423,11 +411,35 @@ public class TransactionStatementPdfService {
 		return paragraph;
 	}
 
-	private PdfPCell noBorderDetailCell(String value) {
-		PdfPCell cell = new PdfPCell(new Phrase(value, FONT_SMALL_BOLD));
-		cell.setBorder(Rectangle.NO_BORDER);
-		cell.setPadding(2f);
+	private PdfPCell sectionCell() {
+		PdfPCell cell = new PdfPCell();
+		cell.setBorderColor(SECTION_BORDER);
+		cell.setBorderWidth(1f);
+		cell.setBackgroundColor(SECTION_BG);
+		cell.setPadding(8f);
 		return cell;
+	}
+
+	private void addDetailRow(PdfPTable table, String label, String value) {
+		PdfPCell labelCell = new PdfPCell(new Phrase(label, FONT_SMALL_BOLD));
+		labelCell.setBorder(Rectangle.NO_BORDER);
+		labelCell.setPaddingTop(2f);
+		labelCell.setPaddingBottom(2f);
+
+		PdfPCell colonCell = new PdfPCell(new Phrase(":", FONT_SMALL_BOLD));
+		colonCell.setBorder(Rectangle.NO_BORDER);
+		colonCell.setHorizontalAlignment(Element.ALIGN_CENTER);
+		colonCell.setPaddingTop(2f);
+		colonCell.setPaddingBottom(2f);
+
+		PdfPCell valueCell = new PdfPCell(new Phrase(value, FONT_SMALL_BOLD));
+		valueCell.setBorder(Rectangle.NO_BORDER);
+		valueCell.setPaddingTop(2f);
+		valueCell.setPaddingBottom(2f);
+
+		table.addCell(labelCell);
+		table.addCell(colonCell);
+		table.addCell(valueCell);
 	}
 
 	private PdfPCell headerCell(String value) {
@@ -441,11 +453,11 @@ public class TransactionStatementPdfService {
 		return cell;
 	}
 
-	private PdfPCell bodyCell(String value, int horizontalAlignment) {
+	private PdfPCell bodyCell(String value, int horizontalAlignment, Color backgroundColor) {
 		PdfPCell cell = new PdfPCell(new Phrase(value, FONT_TABLE_BODY));
 		cell.setHorizontalAlignment(horizontalAlignment);
 		cell.setVerticalAlignment(Element.ALIGN_MIDDLE);
-		cell.setBackgroundColor(ROW_BG);
+		cell.setBackgroundColor(backgroundColor);
 		cell.setBorderColor(WHITE_GRID);
 		cell.setBorderWidth(1.3f);
 		cell.setPadding(4f);
