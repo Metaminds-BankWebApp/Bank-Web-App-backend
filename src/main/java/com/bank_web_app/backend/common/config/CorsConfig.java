@@ -16,6 +16,7 @@ public class CorsConfig implements WebMvcConfigurer {
 
 	private static final List<String> ALLOWED_ORIGINS = List.of("http://localhost:3000", "http://127.0.0.1:3000");
 	private static final List<String> ALLOWED_METHODS = List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS");
+	private static final List<String> EXPOSED_HEADERS = List.of("Content-Disposition");
 	private final SystemAuditLoggingInterceptor systemAuditLoggingInterceptor;
 
 	public CorsConfig(SystemAuditLoggingInterceptor systemAuditLoggingInterceptor) {
@@ -29,6 +30,7 @@ public class CorsConfig implements WebMvcConfigurer {
 			.allowedOrigins(ALLOWED_ORIGINS.toArray(String[]::new))
 			.allowedMethods(ALLOWED_METHODS.toArray(String[]::new))
 			.allowedHeaders("*")
+			.exposedHeaders(EXPOSED_HEADERS.toArray(String[]::new))
 			.allowCredentials(true)
 			.maxAge(3600);
 	}
@@ -44,6 +46,7 @@ public class CorsConfig implements WebMvcConfigurer {
 		configuration.setAllowedOrigins(ALLOWED_ORIGINS);
 		configuration.setAllowedMethods(ALLOWED_METHODS);
 		configuration.setAllowedHeaders(List.of("*"));
+		configuration.setExposedHeaders(EXPOSED_HEADERS);
 		configuration.setAllowCredentials(true);
 		configuration.setMaxAge(3600L);
 
