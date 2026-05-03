@@ -18,6 +18,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+/**
+ * Stores a public customer's calculated CreditLens snapshot for a given financial record revision.
+ */
 @Entity
 @Table(name = "self_credit_evaluations")
 @Getter

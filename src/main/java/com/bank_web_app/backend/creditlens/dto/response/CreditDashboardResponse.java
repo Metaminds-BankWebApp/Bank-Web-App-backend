@@ -4,6 +4,9 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.LocalDateTime;
 import java.util.List;
 
+/**
+ * Dashboard payload shared by the public-customer and bank-customer CreditLens home screens.
+ */
 @Schema(name = "CreditDashboardResponse", description = "Dashboard payload for a customer's credit view.")
 public record CreditDashboardResponse(
 	@Schema(description = "Evaluation id", example = "501")

@@ -3,6 +3,9 @@ package com.bank_web_app.backend.creditlens.dto.response;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.LocalDateTime;
 
+/**
+ * Detailed officer-facing profile for a customer inside the CreditLens analysis workspace.
+ */
 @Schema(name = "BankCreditAnalysisCustomerProfileResponse", description = "Customer profile payload for the bank officer credit analysis detail page.")
 public record BankCreditAnalysisCustomerProfileResponse(
 	@Schema(description = "Bank customer id", example = "14")

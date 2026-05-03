@@ -5,6 +5,9 @@ import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+/**
+ * Repository for bank-customer CreditLens evaluations, including officer-generated views.
+ */
 public interface BankCreditEvaluationRepository extends JpaRepository<BankCreditEvaluation, Long> {
 
 	Optional<BankCreditEvaluation> findTopByBankCustomer_BankCustomerIdOrderByCreatedAtDesc(Long bankCustomerId);

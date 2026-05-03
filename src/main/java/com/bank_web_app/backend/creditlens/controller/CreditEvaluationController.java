@@ -27,6 +27,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * Exposes CreditLens endpoints for public customers, bank customers, and bank officers.
+ * Each endpoint delegates calculation, trend generation, and report preparation to the
+ * CreditEvaluationService so the controller stays transport-focused.
+ */
 @RestController
 @RequestMapping("/api/creditlens")
 @Tag(name = "CreditLens", description = "Self and bank credit evaluation endpoints.")
