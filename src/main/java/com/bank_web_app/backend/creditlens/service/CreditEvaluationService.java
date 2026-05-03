@@ -77,6 +77,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+/**
+ * Central CreditLens orchestration service.
+ * This service resolves the authenticated actor, loads the relevant financial snapshot,
+ * calculates risk metrics, synchronizes stored evaluations, and shapes the responses
+ * used by the dashboard, insight, trend, report, and officer-analysis screens.
+ */
 @Service
 public class CreditEvaluationService {
 
@@ -152,6 +158,8 @@ public class CreditEvaluationService {
 		this.creditReportPdfExportService = creditReportPdfExportService;
 	}
 
+	// Public-customer evaluation and dashboard flows.
+
 	@Transactional
 	public SelfCreditEvaluationResponse createSelfEvaluation() {
 		PublicCustomerProfile profile = resolveLoggedInPublicCustomerProfile();
@@ -185,6 +193,8 @@ public class CreditEvaluationService {
 			.orElseThrow(() -> new IllegalArgumentException("Self credit evaluation not found for this public customer."));
 		return creditEvaluationMapper.toSelfResponse(synchronizeSelfEvaluation(evaluation));
 	}
+
+	// Bank-customer CreditLens views built from bank-owned financial records.
 
 	@Transactional
 	public BankCreditEvaluationResponse getCurrentBankEvaluationForCustomer() {
@@ -330,6 +340,8 @@ public class CreditEvaluationService {
 			.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Credit report was not found for this evaluation."));
 		return exportBankCreditReportPdf(bankCustomer, synchronizeBankEvaluation(evaluation));
 	}
+
+	// Officer-facing portfolio, profile, and evaluation flows.
 
 	@Transactional
 	public BankCreditAnalysisDashboardResponse getOfficerDashboard() {
@@ -518,6 +530,8 @@ public class CreditEvaluationService {
 			.orElseThrow(() -> new IllegalArgumentException("Bank credit evaluation not found for this bank customer."));
 		return creditEvaluationMapper.toBankResponse(synchronizeBankEvaluation(evaluation));
 	}
+
+	// Evaluation creation, synchronization, and scoring lifecycle helpers.
 
 	private SelfCreditEvaluation getOrCreateLatestSelfEvaluation(PublicCustomerProfile profile) {
 		PublicCustomerFinancialRecord currentRecord = resolveCurrentPublicFinancialRecord(profile.getPublicCustomerId());
@@ -755,6 +769,8 @@ public class CreditEvaluationService {
 		);
 	}
 
+	// Core scoring thresholds used across public and bank customer evaluations.
+
 	private int calculatePaymentHistoryPoints(int missedPaymentsCount) {
 		if (missedPaymentsCount <= 0) {
 			return 0;
@@ -918,6 +934,8 @@ public class CreditEvaluationService {
 			.map(this::toView)
 			.toList();
 	}
+
+	// Response builders that convert stored evaluations into UI-ready dashboard content.
 
 	private CreditDashboardResponse buildDashboardResponse(EvaluationView current, List<EvaluationView> history) {
 		return new CreditDashboardResponse(
@@ -1613,6 +1631,8 @@ public class CreditEvaluationService {
 		);
 	}
 
+	// Validation and synchronization guards that keep stored evaluations aligned with source data.
+
 	private SelfCreditEvaluation synchronizeSelfEvaluation(SelfCreditEvaluation evaluation) {
 		EvaluationMetrics metrics = buildPublicEvaluationMetrics(evaluation.getPublicRecord());
 		if (!matchesSelfEvaluationMetrics(evaluation, metrics)) {
@@ -1825,6 +1845,8 @@ public class CreditEvaluationService {
 		}
 		return "High";
 	}
+
+	// Authentication, ownership, and financial-record resolution helpers.
 
 	private PublicCustomerFinancialRecord resolveCurrentPublicFinancialRecord(Long publicCustomerId) {
 		return publicCustomerFinancialRecordRepository

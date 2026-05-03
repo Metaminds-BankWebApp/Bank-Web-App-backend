@@ -4,6 +4,9 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
+/**
+ * Snapshot row used inside the multi-month CreditLens report response.
+ */
 public record CreditReportSnapshotResponse(
 	Long evaluationId,
 	String monthLabel,

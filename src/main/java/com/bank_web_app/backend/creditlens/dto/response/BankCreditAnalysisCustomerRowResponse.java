@@ -3,6 +3,9 @@ package com.bank_web_app.backend.creditlens.dto.response;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.LocalDateTime;
 
+/**
+ * Summary row shown in the officer portfolio table for CreditLens analysis.
+ */
 @Schema(name = "BankCreditAnalysisCustomerRowResponse", description = "Single row in the bank officer credit analysis dashboard table.")
 public record BankCreditAnalysisCustomerRowResponse(
 	@Schema(description = "Bank customer id", example = "14")

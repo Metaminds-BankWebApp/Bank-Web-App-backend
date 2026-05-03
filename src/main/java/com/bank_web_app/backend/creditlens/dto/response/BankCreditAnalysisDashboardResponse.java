@@ -3,6 +3,9 @@ package com.bank_web_app.backend.creditlens.dto.response;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 
+/**
+ * Officer dashboard payload containing portfolio counts and customer rows for CreditLens analysis.
+ */
 @Schema(name = "BankCreditAnalysisDashboardResponse", description = "Dashboard summary for the logged-in bank officer's credit analysis view.")
 public record BankCreditAnalysisDashboardResponse(
 	@Schema(description = "Total number of customers shown on the dashboard", example = "2450")

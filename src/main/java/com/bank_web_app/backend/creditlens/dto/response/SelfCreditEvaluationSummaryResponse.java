@@ -2,6 +2,9 @@ package com.bank_web_app.backend.creditlens.dto.response;
 
 import java.time.LocalDateTime;
 
+/**
+ * Lightweight public-customer CreditLens history item used in lists and report selectors.
+ */
 public record SelfCreditEvaluationSummaryResponse(
 	Long selfEvaluationId,
 	Long publicCustomerId,

@@ -3,6 +3,9 @@ package com.bank_web_app.backend.creditlens.dto.response;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.LocalDateTime;
 
+/**
+ * Lightweight bank-customer CreditLens history item used in lists and timelines.
+ */
 @Schema(name = "BankCreditEvaluationSummaryResponse", description = "Summary row for a bank credit evaluation for list views.")
 public record BankCreditEvaluationSummaryResponse(
 	@Schema(description = "Bank evaluation id", example = "501")

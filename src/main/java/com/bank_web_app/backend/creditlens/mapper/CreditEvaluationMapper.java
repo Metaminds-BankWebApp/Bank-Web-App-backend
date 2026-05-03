@@ -12,6 +12,11 @@ import java.math.BigDecimal;
 import java.util.List;
 import org.springframework.stereotype.Component;
 
+/**
+ * Maps stored CreditLens entities into DTOs that are sent to the frontend.
+ * It also adds lightweight presentation helpers such as human-readable risk labels
+ * and factor groupings so controllers can return UI-ready responses.
+ */
 @Component
 public class CreditEvaluationMapper {
 
