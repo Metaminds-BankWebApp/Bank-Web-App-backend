@@ -88,6 +88,8 @@ public class CreditEvaluationService {
 
 	private static final Set<String> BANK_EVALUATION_SOURCES = Set.of("MANUAL", "CRIB_MERGED", "CRIB_ONLY");
 	private static final BigDecimal ESTIMATED_CARD_MIN_PAYMENT_RATIO = new BigDecimal("0.05");
+	private static final int LOW_RISK_MAX_POINTS = 33;
+	private static final int MEDIUM_RISK_MAX_POINTS = 66;
 	private static final DateTimeFormatter REPORT_DATE_FORMATTER = DateTimeFormatter.ofPattern("dd MMM uuuu", Locale.ENGLISH);
 	private static final DateTimeFormatter MONTH_LABEL_FORMATTER = DateTimeFormatter.ofPattern("MMMM uuuu", Locale.ENGLISH);
 	private static final DateTimeFormatter SHORT_MONTH_LABEL_FORMATTER = DateTimeFormatter.ofPattern("MMM", Locale.ENGLISH);
@@ -663,7 +665,7 @@ public class CreditEvaluationService {
 				.map(this::safeAmount)
 				.reduce(BigDecimal.ZERO, BigDecimal::add))
 			.add(estimatedCardMinPayment);
-		int activeFacilitiesCount = loans.size() + cards.size();
+		int activeFacilitiesCount = loans.size() + cards.size() + liabilities.size();
 		int incomeStabilityPoints = calculateIncomeStabilityPointsForPublic(incomes);
 
 		return calculateEvaluationMetrics(
@@ -711,7 +713,7 @@ public class CreditEvaluationService {
 				.map(this::safeAmount)
 				.reduce(BigDecimal.ZERO, BigDecimal::add))
 			.add(estimatedCardMinPayment);
-		int activeFacilitiesCount = loans.size() + cards.size();
+		int activeFacilitiesCount = loans.size() + cards.size() + liabilities.size();
 		int incomeStabilityPoints = calculateIncomeStabilityPointsForBank(incomes);
 
 		return calculateEvaluationMetrics(
@@ -861,7 +863,7 @@ public class CreditEvaluationService {
 
 		if ("SALARY".equals(normalizedCategory)) {
 			if (normalizedEmploymentType.contains("PERMANENT")) {
-				if (normalizedDurationMonths <= 0 || normalizedDurationMonths > 12) {
+				if (normalizedDurationMonths > 12) {
 					return BigDecimal.ZERO;
 				}
 				if (normalizedDurationMonths >= 6) {
@@ -892,10 +894,10 @@ public class CreditEvaluationService {
 	}
 
 	private String resolveRiskLevel(int totalRiskPoints) {
-		if (totalRiskPoints < 40) {
+		if (totalRiskPoints <= LOW_RISK_MAX_POINTS) {
 			return "LOW";
 		}
-		if (totalRiskPoints < 70) {
+		if (totalRiskPoints <= MEDIUM_RISK_MAX_POINTS) {
 			return "MEDIUM";
 		}
 		return "HIGH";
@@ -1522,13 +1524,13 @@ public class CreditEvaluationService {
 	}
 
 	private String resolveNextTarget(int score) {
-		if (score >= 70) {
-			return "Reduce " + (score - 69) + " risk pts to reach Medium Risk";
+		if (score > MEDIUM_RISK_MAX_POINTS) {
+			return "Reduce " + (score - MEDIUM_RISK_MAX_POINTS) + " risk pts to reach Medium Risk";
 		}
-		if (score >= 40) {
-			return "Reduce " + (score - 39) + " risk pts to reach Low Risk";
+		if (score > LOW_RISK_MAX_POINTS) {
+			return "Reduce " + (score - LOW_RISK_MAX_POINTS) + " risk pts to reach Low Risk";
 		}
-		return "Stay below 40 to remain in Low Risk";
+		return "Stay at 33 or below to remain in Low Risk";
 	}
 
 	private List<CreditRiskFactorResponse> buildRiskFactors(EvaluationView view) {
