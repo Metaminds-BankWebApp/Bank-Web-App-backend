@@ -1,8 +1,11 @@
 package com.bank_web_app.backend.creditlens.service;
 
-import static com.bank_web_app.backend.creditlens.service.CreditEvaluationAmounts.estimateCardMinimumPayment;
-import static com.bank_web_app.backend.creditlens.service.CreditEvaluationAmounts.safeAmount;
-import static com.bank_web_app.backend.creditlens.service.CreditEvaluationText.normalizeText;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.List;
+import java.util.Objects;
+
+import org.springframework.stereotype.Service;
 
 import com.bank_web_app.backend.bankcustomer.entity.BankCustomerCard;
 import com.bank_web_app.backend.bankcustomer.entity.BankCustomerFinancialRecord;
@@ -17,6 +20,9 @@ import com.bank_web_app.backend.bankcustomer.repository.BankCustomerLoanReposito
 import com.bank_web_app.backend.bankcustomer.repository.BankCustomerMissedPaymentRepository;
 import com.bank_web_app.backend.creditlens.entity.BankCreditEvaluation;
 import com.bank_web_app.backend.creditlens.entity.SelfCreditEvaluation;
+import static com.bank_web_app.backend.creditlens.service.CreditEvaluationAmounts.estimateCardMinimumPayment;
+import static com.bank_web_app.backend.creditlens.service.CreditEvaluationAmounts.safeAmount;
+import static com.bank_web_app.backend.creditlens.service.CreditEvaluationText.normalizeText;
 import com.bank_web_app.backend.publiccustomer.entity.PublicCustomerCard;
 import com.bank_web_app.backend.publiccustomer.entity.PublicCustomerFinancialRecord;
 import com.bank_web_app.backend.publiccustomer.entity.PublicCustomerIncome;
@@ -28,11 +34,6 @@ import com.bank_web_app.backend.publiccustomer.repository.PublicCustomerIncomeRe
 import com.bank_web_app.backend.publiccustomer.repository.PublicCustomerLiabilityRepository;
 import com.bank_web_app.backend.publiccustomer.repository.PublicCustomerLoanRepository;
 import com.bank_web_app.backend.publiccustomer.repository.PublicCustomerMissedPaymentRepository;
-import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.util.List;
-import java.util.Objects;
-import org.springframework.stereotype.Service;
 
 @Service
 public class CreditEvaluationScoringService {
