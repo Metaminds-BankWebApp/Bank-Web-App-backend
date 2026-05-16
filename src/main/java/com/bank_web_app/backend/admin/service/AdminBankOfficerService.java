@@ -18,6 +18,7 @@ import java.security.SecureRandom;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +31,7 @@ public class AdminBankOfficerService {
 	private static final int USERNAME_MAX_LENGTH = 50;
 	private static final int USERNAME_SUFFIX_LENGTH = 3;
 	private static final int USERNAME_ATTEMPT_LIMIT = 300;
+	private static final Pattern BANK_OFFICER_EMAIL_REGEX = Pattern.compile("^[A-Za-z0-9._%+-]+@gmail\\.com$", Pattern.CASE_INSENSITIVE);
 	private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
 	private final UserService userService;
@@ -163,6 +165,9 @@ public class AdminBankOfficerService {
 		String normalizedEmail = safe(request.email()).toLowerCase(Locale.ROOT);
 		if (normalizedEmail.isBlank()) {
 			throw new IllegalArgumentException("Email is required.");
+		}
+		if (!BANK_OFFICER_EMAIL_REGEX.matcher(normalizedEmail).matches()) {
+			throw new IllegalArgumentException("Email must be in the format name@gmail.com.");
 		}
 		if (userRepository.existsByEmailAndUserIdNot(normalizedEmail, user.getUserId())) {
 			throw new IllegalArgumentException("Email is already in use.");
