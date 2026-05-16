@@ -47,6 +47,7 @@ public class UserProfileServiceImpl implements UserProfileService {
 	private final PasswordEncoder passwordEncoder;
 	private final ProfileImageStorageService profileImageStorageService;
 
+	// Wires repositories and helpers needed to build and update profiles.
 	public UserProfileServiceImpl(
 		UserRepository userRepository,
 		PublicCustomerProfileRepository publicCustomerProfileRepository,
@@ -65,12 +66,14 @@ public class UserProfileServiceImpl implements UserProfileService {
 
 	@Override
 	@Transactional(readOnly = true)
+	// Loads the authenticated user's profile page response.
 	public UserProfileResponse getMyProfile() {
 		return buildProfile(resolveLoggedInUser());
 	}
 
 	@Override
 	@Transactional
+	// Updates personal details and optional username or password changes.
 	public UserProfileUpdateResponse updateMyProfile(UserProfileUpdateRequest request) {
 		if (request == null) {
 			throw new IllegalArgumentException("Request body is required.");
@@ -87,6 +90,7 @@ public class UserProfileServiceImpl implements UserProfileService {
 
 	@Override
 	@Transactional
+	// Saves a new profile image URL for the authenticated user.
 	public UserProfileUpdateResponse updateMyProfileImage(MultipartFile file) {
 		User user = resolveLoggedInUser();
 		String storedImageUrl = profileImageStorageService.storeProfileImage(file, user.getProfilePictureUrl(), user.getUserId());
@@ -97,6 +101,7 @@ public class UserProfileServiceImpl implements UserProfileService {
 
 	@Override
 	@Transactional
+	// Removes the authenticated user's profile image URL and file.
 	public UserProfileUpdateResponse removeMyProfileImage() {
 		User user = resolveLoggedInUser();
 		profileImageStorageService.deleteProfileImage(user.getProfilePictureUrl());
@@ -105,6 +110,7 @@ public class UserProfileServiceImpl implements UserProfileService {
 		return new UserProfileUpdateResponse("Profile image removed successfully.", buildProfile(savedUser));
 	}
 
+	// Applies validated name, email, phone, and address changes to the user.
 	private void updatePersonalDetails(User user, UserProfileUpdateRequest request) {
 		NameParts nameParts = splitFullName(request.fullName());
 		String normalizedEmail = normalizeEmail(request.email());
@@ -135,6 +141,7 @@ public class UserProfileServiceImpl implements UserProfileService {
 		}
 	}
 
+	// Changes the username only when a valid new username was requested.
 	private void updateUsernameIfRequested(User user, String requestedUsername) {
 		String normalizedUsername = normalizeNullableText(requestedUsername);
 		if (normalizedUsername.isBlank()) {
@@ -160,6 +167,7 @@ public class UserProfileServiceImpl implements UserProfileService {
 		user.setUsername(normalizedUsername);
 	}
 
+	// Validates the current password and saves a new encoded password when requested.
 	private void updatePasswordIfRequested(
 		User user,
 		String currentPassword,
@@ -199,6 +207,7 @@ public class UserProfileServiceImpl implements UserProfileService {
 		user.setPasswordHash(passwordEncoder.encode(next));
 	}
 
+	// Builds the role-aware profile payload used by the profile page.
 	private UserProfileResponse buildProfile(User user) {
 		String roleName = resolveRoleName(user);
 		String fullName = buildFullName(user);
@@ -281,6 +290,7 @@ public class UserProfileServiceImpl implements UserProfileService {
 		);
 	}
 
+	// Resolves the currently authenticated user from Spring Security.
 	private User resolveLoggedInUser() {
 		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 		if (
@@ -301,6 +311,7 @@ public class UserProfileServiceImpl implements UserProfileService {
 			.orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Logged-in user was not found."));
 	}
 
+	// Checks the current password and upgrades plain text legacy passwords to bcrypt.
 	private boolean matchesPasswordAndUpgradeIfNeeded(User user, String rawPassword) {
 		String stored = user.getPasswordHash();
 		if (stored == null || stored.isBlank()) {
@@ -316,21 +327,25 @@ public class UserProfileServiceImpl implements UserProfileService {
 		return true;
 	}
 
+	// Detects whether the stored password already looks like a bcrypt hash.
 	private boolean isBcryptHash(String value) {
 		return value.startsWith("$2a$") || value.startsWith("$2b$") || value.startsWith("$2y$");
 	}
 
+	// Gets the user's role name in a consistent uppercase format.
 	private String resolveRoleName(User user) {
 		return user.getRole() == null || user.getRole().getRoleName() == null
 			? ""
 			: user.getRole().getRoleName().trim().toUpperCase(Locale.ROOT);
 	}
 
+	// Builds a display name and falls back to email when names are missing.
 	private String buildFullName(User user) {
 		String fullName = (safe(user.getFirstName()) + " " + safe(user.getLastName())).trim();
 		return fullName.isBlank() ? safe(user.getEmail()) : fullName;
 	}
 
+	// Splits the full name into first and last name fields.
 	private NameParts splitFullName(String fullName) {
 		String normalized = normalizeText(fullName);
 		int firstSpaceIndex = normalized.indexOf(' ');
@@ -342,6 +357,7 @@ public class UserProfileServiceImpl implements UserProfileService {
 		return new NameParts(firstName, lastName);
 	}
 
+	// Creates two-letter initials for the profile avatar.
 	private String buildInitials(String value) {
 		String normalized = normalizeNullableText(value);
 		if (normalized.isBlank()) {
@@ -364,11 +380,13 @@ public class UserProfileServiceImpl implements UserProfileService {
 		return initials.toString();
 	}
 
+	// Formats a date-time value as the profile joined date.
 	private String formatDate(LocalDateTime dateTime) {
 		LocalDate date = dateTime == null ? null : dateTime.toLocalDate();
 		return date == null ? "-" : date.toString();
 	}
 
+	// Formats generated customer or employee codes for missing profile records.
 	private String formatCode(String prefix, Long value) {
 		if (value == null) {
 			return prefix + "-00000";
@@ -376,10 +394,12 @@ public class UserProfileServiceImpl implements UserProfileService {
 		return String.format("%s-%05d", prefix, value);
 	}
 
+	// Normalizes email text into lowercase storage format.
 	private String normalizeEmail(String value) {
 		return normalizeText(value).toLowerCase(Locale.ROOT);
 	}
 
+	// Normalizes required text and rejects blank values.
 	private String normalizeText(String value) {
 		String normalized = normalizeNullableText(value);
 		if (normalized.isBlank()) {
@@ -388,6 +408,7 @@ public class UserProfileServiceImpl implements UserProfileService {
 		return normalized;
 	}
 
+	// Trims nullable text and collapses repeated spaces.
 	private String normalizeNullableText(String value) {
 		if (value == null) {
 			return "";
@@ -395,11 +416,13 @@ public class UserProfileServiceImpl implements UserProfileService {
 		return value.trim().replaceAll("\\s+", " ");
 	}
 
+	// Returns the primary value or a safe fallback when it is blank.
 	private String fallback(String primary, String fallback) {
 		String normalizedPrimary = safe(primary);
 		return normalizedPrimary.isBlank() ? safe(fallback) : normalizedPrimary;
 	}
 
+	// Converts role labels and names into title case for display.
 	private String toTitleCase(String value) {
 		String normalized = safe(value).toLowerCase(Locale.ROOT);
 		if (normalized.isBlank()) {
@@ -422,10 +445,12 @@ public class UserProfileServiceImpl implements UserProfileService {
 		return result.toString();
 	}
 
+	// Trims nullable text into a safe string.
 	private String safe(String value) {
 		return value == null ? "" : value.trim();
 	}
 
+	// Trims nullable text but keeps null when the value is empty.
 	private String nullableTrim(String value) {
 		if (value == null) {
 			return null;

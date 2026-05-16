@@ -1,27 +1,21 @@
-package com.bank_web_app.backend.creditlens.dto.response;
+package com.bank_web_app.backend.creditlens.service;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.List;
 
-/**
- * Full CreditLens evaluation payload returned to a public customer.
- */
-public record SelfCreditEvaluationResponse(
-	Long selfEvaluationId,
-	Long publicCustomerId,
-	Long publicRecordId,
+record EvaluationView(
+	Long evaluationId,
+	Long recordId,
+	String scope,
+	String evaluationType,
 	Integer totalRiskPoints,
 	String riskLevel,
-	String riskLabel,
 	BigDecimal totalMonthlyIncome,
 	BigDecimal totalMonthlyDebtPayment,
 	BigDecimal totalCardLimit,
 	BigDecimal totalCardOutstanding,
 	BigDecimal dtiRatio,
-	String dtiBand,
 	BigDecimal creditUtilizationRatio,
-	String creditUtilizationBand,
 	Integer activeFacilitiesCount,
 	Integer missedPaymentsCount,
 	Integer paymentHistoryPoints,
@@ -29,8 +23,6 @@ public record SelfCreditEvaluationResponse(
 	Integer utilizationPoints,
 	Integer incomeStabilityPoints,
 	Integer exposurePoints,
-	Boolean reportGenerated,
-	LocalDateTime createdAt,
-	List<CreditRiskFactorResponse> factors
+	LocalDateTime createdAt
 ) {
 }

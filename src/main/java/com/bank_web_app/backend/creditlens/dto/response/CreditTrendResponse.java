@@ -3,6 +3,9 @@ package com.bank_web_app.backend.creditlens.dto.response;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 
+/**
+ * Trend dataset shared by the dashboard preview and the dedicated CreditLens trends page.
+ */
 @Schema(name = "CreditTrendResponse", description = "Trend data used in charts for a customer.")
 public record CreditTrendResponse(
 	@Schema(description = "Period key", example = "6m")

@@ -1,5 +1,8 @@
 package com.bank_web_app.backend.creditlens.dto.response;
 
+/**
+ * Narrative summary shown alongside the CreditLens monthly trend chart.
+ */
 public record CreditTrendSummaryResponse(
 	String riskLabel,
 	Integer riskDelta,

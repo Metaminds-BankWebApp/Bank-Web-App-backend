@@ -5,6 +5,9 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
+/**
+ * Full bank-customer CreditLens evaluation payload returned to customers and officers.
+ */
 @Schema(name = "BankCreditEvaluationResponse", description = "Detailed bank customer credit evaluation payload.")
 public record BankCreditEvaluationResponse(
 	@Schema(description = "Bank evaluation id", example = "501")

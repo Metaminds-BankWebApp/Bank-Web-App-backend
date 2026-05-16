@@ -18,6 +18,7 @@ import jakarta.validation.Valid;
 import java.time.LocalDate;
 import java.util.List;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -252,5 +253,29 @@ public class ExpenseController {
 		@RequestParam Integer year
 	) {
 		return ResponseEntity.ok(expenseService.getMonthlySummary(month, year));
+	}
+
+	@GetMapping(value = "/report/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
+	@Operation(
+		summary = "Download full SpendIQ PDF report",
+		description = "Downloads a backend-generated full detail SpendIQ report for all periods, or for a selected month/year.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "PDF report returned"),
+			@ApiResponse(responseCode = "400", description = "Invalid month/year filter"),
+			@ApiResponse(responseCode = "401", description = "Authentication required")
+		}
+	)
+	public ResponseEntity<byte[]> downloadSpendIqReportPdf(
+		@Parameter(description = "Month number (1-12). Provide with year, or omit both for all periods.", example = "5")
+		@RequestParam(required = false) Integer month,
+		@Parameter(description = "Year value. Provide with month, or omit both for all periods.", example = "2026")
+		@RequestParam(required = false) Integer year
+	) {
+		byte[] file = expenseService.downloadSpendIqReportPdf(month, year);
+		String reportStamp = month == null && year == null ? "all-periods" : year + "-" + String.format("%02d", month);
+		return ResponseEntity.ok()
+			.contentType(MediaType.APPLICATION_PDF)
+			.header("Content-Disposition", "attachment; filename=\"spendiq-report-" + reportStamp + ".pdf\"")
+			.body(file);
 	}
 }
