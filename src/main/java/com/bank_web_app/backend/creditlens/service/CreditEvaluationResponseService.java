@@ -1,8 +1,18 @@
 package com.bank_web_app.backend.creditlens.service;
 
-import static com.bank_web_app.backend.creditlens.service.CreditEvaluationAmounts.safeAmount;
-import static com.bank_web_app.backend.creditlens.service.CreditEvaluationAmounts.toPercentage;
-import static com.bank_web_app.backend.creditlens.service.CreditEvaluationText.toTitleCase;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDateTime;
+import java.time.YearMonth;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+
+import org.springframework.stereotype.Service;
 
 import com.bank_web_app.backend.creditlens.dto.response.CreditDashboardFactorResponse;
 import com.bank_web_app.backend.creditlens.dto.response.CreditDashboardResponse;
@@ -15,18 +25,9 @@ import com.bank_web_app.backend.creditlens.dto.response.CreditRiskFactorResponse
 import com.bank_web_app.backend.creditlens.dto.response.CreditTrendPointResponse;
 import com.bank_web_app.backend.creditlens.dto.response.CreditTrendResponse;
 import com.bank_web_app.backend.creditlens.dto.response.CreditTrendSummaryResponse;
-import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.time.LocalDateTime;
-import java.time.YearMonth;
-import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import org.springframework.stereotype.Service;
+import static com.bank_web_app.backend.creditlens.service.CreditEvaluationAmounts.safeAmount;
+import static com.bank_web_app.backend.creditlens.service.CreditEvaluationAmounts.toPercentage;
+import static com.bank_web_app.backend.creditlens.service.CreditEvaluationText.toTitleCase;
 
 @Service
 public class CreditEvaluationResponseService {
@@ -65,7 +66,7 @@ public class CreditEvaluationResponseService {
 	CreditTrendResponse buildTrendResponse(List<EvaluationView> history, String rangeKey) {
 		String normalizedRange = normalizeTrendRange(rangeKey);
 		int monthLimit = "12m".equals(normalizedRange) ? 12 : 6;
-		List<EvaluationView> monthlyViews = getLatestEvaluationsPerMonth(history);
+		List<EvaluationView> monthlyViews = getLatestEvaluationsPerMonth(history);//gets latest evaluation per month
 		if (monthlyViews.size() > monthLimit) {
 			monthlyViews = monthlyViews.subList(monthlyViews.size() - monthLimit, monthlyViews.size());
 		}
