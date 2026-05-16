@@ -65,6 +65,8 @@ public class LoanEligibilityService {
 	private static final Set<String> SUPPORTED_LOAN_TYPE_SET = Set.copyOf(SUPPORTED_LOAN_TYPES);
 	private static final BigDecimal CARD_MIN_PAYMENT_RATIO = new BigDecimal("0.05");
 	private static final BigDecimal DEFAULT_MAX_DBR_RATIO = new BigDecimal("0.40");
+	private static final BigDecimal MINOR_INTEREST_RATE_INCREASE_THRESHOLD = new BigDecimal("0.25");
+	private static final BigDecimal MAJOR_INTEREST_RATE_INCREASE_THRESHOLD = new BigDecimal("2.00");
 	private static final BigDecimal HUNDRED = new BigDecimal("100");
 
 	private final LoanEligibilityRepository loanEligibilityRepository;
@@ -274,9 +276,13 @@ public class LoanEligibilityService {
 	}
 
 	private LoanSenseEvaluation resolveLatestEvaluationForDashboard(BankCustomer customer) {
-		return loanEligibilityRepository
+		LoanSenseEvaluation latestEvaluation = loanEligibilityRepository
 			.findTopByBankCustomer_BankCustomerIdOrderByCreatedAtDesc(customer.getBankCustomerId())
 			.orElse(null);
+		if (latestEvaluation == null) {
+			return null;
+		}
+		return reconcileOverallStatus(latestEvaluation);
 	}
 
 	private String buildFullName(BankCustomer customer) {
@@ -337,7 +343,7 @@ public class LoanEligibilityService {
 				resolveLatestRiskAdjustmentUpdatedAt()
 			)
 		) {
-			return latestEvaluation;
+			return reconcileOverallStatus(latestEvaluation);
 		}
 
 		return createEvaluation(
@@ -346,6 +352,19 @@ public class LoanEligibilityService {
 			bankCreditEvaluation,
 			LoanRequestInput.forAllLoanTypes()
 		);
+	}
+
+	private LoanSenseEvaluation reconcileOverallStatus(LoanSenseEvaluation evaluation) {
+		String resolvedOverallStatus = resolveOverallStatus(evaluation.getResults());
+		String currentOverallStatus = normalizeText(evaluation.getOverallStatus());
+		if (resolvedOverallStatus.equals(currentOverallStatus)) {
+			return evaluation;
+		}
+
+		evaluation.setOverallStatus(resolvedOverallStatus);
+		RiskAdjustment riskAdjustment = riskAdjustmentRepository.findByRiskLevel(normalizeText(evaluation.getRiskLevel())).orElse(null);
+		evaluation.setRemarks(buildRemarks(resolvedOverallStatus, safeAmount(evaluation.getAvailableEmiCapacity()), riskAdjustment));
+		return loanEligibilityRepository.save(evaluation);
 	}
 
 	private LoanSenseEvaluation createEvaluation(
@@ -386,6 +405,10 @@ public class LoanEligibilityService {
 			.findAllByOrderByRiskLevelAsc()
 			.stream()
 			.collect(Collectors.toMap(adjustment -> normalizeText(adjustment.getRiskLevel()), Function.identity()));
+		Map<String, BigDecimal> previousInterestRatesByLoanType = loanEligibilityRepository
+			.findTopByBankCustomer_BankCustomerIdOrderByCreatedAtDesc(bankCustomer.getBankCustomerId())
+			.map(this::extractInterestRatesByLoanType)
+			.orElse(Map.of());
 
 		BigDecimal maxDbrRatio = activePolicyMap
 			.values()
@@ -441,7 +464,8 @@ public class LoanEligibilityService {
 				dbr,
 				availableEmiCapacity,
 				missedPaymentsCount,
-				requestInput.assetValuesByLoanType().get(loanType)
+				requestInput.assetValuesByLoanType().get(loanType),
+				previousInterestRatesByLoanType.get(loanType)
 			);
 			results.add(result);
 		}
@@ -462,7 +486,8 @@ public class LoanEligibilityService {
 		BigDecimal dbr,
 		BigDecimal availableEmiCapacity,
 		int missedPaymentsCount,
-		BigDecimal assetValue
+		BigDecimal assetValue,
+		BigDecimal previousInterestRate
 	) {
 		LoanEligibilityResult result = new LoanEligibilityResult();
 		result.setLoanSenseEvaluation(evaluation);
@@ -508,6 +533,15 @@ public class LoanEligibilityService {
 			}
 			if ("VEHICLE".equals(loanType) && normalizedAssetValue == null) {
 				cautions.add("Vehicle value was not provided; EMI-based recommendation is used.");
+			}
+
+			if (previousInterestRate != null && policy.getBaseInterestRate() != null) {
+				BigDecimal rateIncrease = policy.getBaseInterestRate().subtract(previousInterestRate);
+				if (rateIncrease.compareTo(MAJOR_INTEREST_RATE_INCREASE_THRESHOLD) >= 0) {
+					blockers.add("Base interest rate increased significantly since the previous evaluation.");
+				} else if (rateIncrease.compareTo(MINOR_INTEREST_RATE_INCREASE_THRESHOLD) >= 0) {
+					cautions.add("Base interest rate increased since the previous evaluation.");
+				}
 			}
 		}
 
@@ -660,12 +694,44 @@ public class LoanEligibilityService {
 	}
 
 	private String resolveOverallStatus(List<LoanEligibilityResult> results) {
-		boolean hasEligible = results.stream().anyMatch(result -> "ELIGIBLE".equals(result.getEligibilityStatus()));
-		if (hasEligible) {
+		if (results == null || results.isEmpty()) {
+			return "NOT_ELIGIBLE";
+		}
+
+		int eligibleCount = 0;
+		int partialCount = 0;
+		int notEligibleCount = 0;
+
+		for (LoanEligibilityResult result : results) {
+			String normalizedStatus = normalizeText(result == null ? null : result.getEligibilityStatus());
+			switch (normalizedStatus) {
+				case "ELIGIBLE" -> eligibleCount += 1;
+				case "PARTIALLY_ELIGIBLE" -> partialCount += 1;
+				case "NOT_ELIGIBLE" -> notEligibleCount += 1;
+				default -> partialCount += 1;
+			}
+		}
+
+		int total = results.size();
+
+		if (eligibleCount == total) {
 			return "ELIGIBLE";
 		}
-		boolean hasPartial = results.stream().anyMatch(result -> "PARTIALLY_ELIGIBLE".equals(result.getEligibilityStatus()));
-		return hasPartial ? "PARTIALLY_ELIGIBLE" : "NOT_ELIGIBLE";
+		if (partialCount == total) {
+			return "PARTIALLY_ELIGIBLE";
+		}
+		if (notEligibleCount == total) {
+			return "NOT_ELIGIBLE";
+		}
+
+		// If one or more NOT_ELIGIBLE exists together with other statuses, treat overall as partial.
+		if (notEligibleCount > 0) {
+			return "PARTIALLY_ELIGIBLE";
+		}
+
+		// Mixed ELIGIBLE + PARTIALLY_ELIGIBLE (no NOT_ELIGIBLE):
+		// ELIGIBLE wins on tie and majority, otherwise PARTIALLY_ELIGIBLE.
+		return eligibleCount >= partialCount ? "ELIGIBLE" : "PARTIALLY_ELIGIBLE";
 	}
 
 	private String buildRemarks(String overallStatus, BigDecimal availableEmiCapacity, RiskAdjustment riskAdjustment) {
@@ -811,6 +877,21 @@ public class LoanEligibilityService {
 
 	private String normalizeText(String value) {
 		return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
+	}
+
+	private Map<String, BigDecimal> extractInterestRatesByLoanType(LoanSenseEvaluation evaluation) {
+		return evaluation
+			.getResults()
+			.stream()
+			.filter(result -> result.getLoanType() != null)
+			.filter(result -> result.getInterestRate() != null)
+			.collect(
+				Collectors.toMap(
+					result -> normalizeText(result.getLoanType()),
+					LoanEligibilityResult::getInterestRate,
+					(existing, replacement) -> replacement
+				)
+			);
 	}
 
 	private record LoanRequestInput(

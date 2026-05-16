@@ -15,6 +15,12 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long>, JpaSp
 		Pageable pageable
 	);
 
+	List<AuditLog> findAllByCreatedAtGreaterThanEqualAndActorRoleIgnoreCaseOrderByCreatedAtDesc(
+		LocalDateTime createdAt,
+		String actorRole,
+		Pageable pageable
+	);
+
 	@Query("SELECT DISTINCT a.actionType FROM AuditLog a WHERE a.actionType IS NOT NULL ORDER BY a.actionType ASC")
 	List<String> findDistinctActionTypes();
 

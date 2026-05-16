@@ -41,6 +41,7 @@ public class AuditLogService {
 	private static final int MAX_HOURS = 168;
 	private static final int MAX_LIMIT = 100;
 	private static final int MAX_PAGE_SIZE = 200;
+	private static final int RECENT_ACTION_FETCH_MULTIPLIER = 5;
 
 	private final AuditLogRepository auditLogRepository;
 	private final UserRepository userRepository;
@@ -145,16 +146,36 @@ public class AuditLogService {
 
 	@Transactional(readOnly = true)
 	public List<AdminRecentActionResponse> getRecentActions(Integer hours, Integer limit) {
+		return getRecentActionsByActorRole(hours, limit, null);
+	}
+
+	@Transactional(readOnly = true)
+	public List<AdminRecentActionResponse> getRecentActionsByActorRole(
+		Integer hours,
+		Integer limit,
+		String actorRole
+	) {
 		int normalizedHours = normalizeHours(hours);
 		int normalizedLimit = normalizeLimit(limit);
+		String normalizedActorRole = normalizeNullable(actorRole, 60);
 		LocalDateTime threshold = LocalDateTime.now().minusHours(normalizedHours);
+		int fetchSize = Math.min(MAX_LIMIT * RECENT_ACTION_FETCH_MULTIPLIER, normalizedLimit * RECENT_ACTION_FETCH_MULTIPLIER);
 
-		return auditLogRepository
-			.findAllByCreatedAtGreaterThanEqualOrderByCreatedAtDesc(
+		List<AuditLog> logs = normalizedActorRole == null
+			? auditLogRepository.findAllByCreatedAtGreaterThanEqualOrderByCreatedAtDesc(
 				threshold,
-				PageRequest.of(0, normalizedLimit)
+				PageRequest.of(0, fetchSize)
 			)
+			: auditLogRepository.findAllByCreatedAtGreaterThanEqualAndActorRoleIgnoreCaseOrderByCreatedAtDesc(
+				threshold,
+				normalizedActorRole,
+				PageRequest.of(0, fetchSize)
+			);
+
+		return logs
 			.stream()
+			.filter(log -> !isSystemRequestLog(log))
+			.limit(normalizedLimit)
 			.map(this::toResponse)
 			.toList();
 	}
@@ -173,6 +194,44 @@ public class AuditLogService {
 			log.getIpAddress(),
 			log.getCreatedAt() == null ? null : log.getCreatedAt().toString()
 		);
+	}
+
+	private boolean isSystemRequestLog(AuditLog log) {
+		if (log == null) {
+			return true;
+		}
+
+		String actionType = normalizeNullable(log.getActionType(), 120);
+		String title = normalizeNullable(log.getTitle(), 300);
+		String details = normalizeNullable(log.getDetails(), 500);
+
+		if (actionType != null && (
+			actionType.startsWith("POST_") ||
+			actionType.startsWith("PUT_") ||
+			actionType.startsWith("PATCH_") ||
+			actionType.startsWith("DELETE_")
+		)) {
+			return true;
+		}
+
+		if (title != null) {
+			String normalizedTitle = title.toLowerCase(Locale.ROOT);
+			if (
+				(normalizedTitle.startsWith("executed ") || normalizedTitle.startsWith("failed ")) &&
+				normalizedTitle.contains(" on /api/")
+			) {
+				return true;
+			}
+		}
+
+		if (details != null) {
+			String normalizedDetails = details.toLowerCase(Locale.ROOT);
+			if (normalizedDetails.startsWith("http ") && normalizedDetails.contains("handler")) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	@Transactional(readOnly = true)

@@ -25,6 +25,7 @@ public class AdminDashboardService {
 
 	private static final String ROLE_BANK_CUSTOMER = "BANK_CUSTOMER";
 	private static final String ROLE_PUBLIC_CUSTOMER = "PUBLIC_CUSTOMER";
+	private static final String ROLE_ADMIN = "ADMIN";
 	private static final int DEFAULT_MONTH_WINDOW = 6;
 	private static final int MIN_MONTH_WINDOW = 1;
 	private static final int MAX_MONTH_WINDOW = 24;
@@ -61,7 +62,7 @@ public class AdminDashboardService {
 
 	@Transactional(readOnly = true)
 	public List<AdminRecentActionResponse> getRecentActions(Integer hours, Integer limit) {
-		return auditLogService.getRecentActions(hours, limit);
+		return auditLogService.getRecentActionsByActorRole(hours, limit, ROLE_ADMIN);
 	}
 
 	@Transactional(readOnly = true)
