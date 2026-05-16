@@ -40,10 +40,12 @@ public class CreditEvaluationResponseService {
 
 	private final CreditEvaluationRecordService creditEvaluationRecordService;
 
+	// Wires record loading used while building reports and insights.
 	public CreditEvaluationResponseService(CreditEvaluationRecordService creditEvaluationRecordService) {
 		this.creditEvaluationRecordService = creditEvaluationRecordService;
 	}
 
+	// Builds the main dashboard response for the current evaluation.
 	CreditDashboardResponse buildDashboardResponse(EvaluationView current, List<EvaluationView> history) {
 		return new CreditDashboardResponse(
 			current.evaluationId(),
@@ -59,6 +61,7 @@ public class CreditEvaluationResponseService {
 		);
 	}
 
+	// Builds chart-ready trend data for the requested six- or twelve-month range.
 	CreditTrendResponse buildTrendResponse(List<EvaluationView> history, String rangeKey) {
 		String normalizedRange = normalizeTrendRange(rangeKey);
 		int monthLimit = "12m".equals(normalizedRange) ? 12 : 6;
@@ -87,6 +90,7 @@ public class CreditEvaluationResponseService {
 		);
 	}
 
+	// Builds key risk, positive behavior, and financial tip insight cards.
 	CreditInsightsResponse buildInsightsResponse(
 		EvaluationView current,
 		List<EvaluationView> history,
@@ -107,6 +111,7 @@ public class CreditEvaluationResponseService {
 		);
 	}
 
+	// Builds the monthly report response with one snapshot per month.
 	CreditReportResponse buildReportResponse(
 		String customerType,
 		String evaluationType,
@@ -146,6 +151,7 @@ public class CreditEvaluationResponseService {
 		);
 	}
 
+	// Normalizes the trend range and rejects unsupported values.
 	String normalizeTrendRange(String range) {
 		if (range == null || range.isBlank()) {
 			return "6m";
@@ -157,22 +163,27 @@ public class CreditEvaluationResponseService {
 		return normalized;
 	}
 
+	// Formats an evaluation month for report headers.
 	String formatMonthLabel(EvaluationView view) {
 		return view.createdAt().format(MONTH_LABEL_FORMATTER);
 	}
 
+	// Formats timestamps used in exported report metadata.
 	String formatExportTimestamp(LocalDateTime value) {
 		return value.format(EXPORT_TIMESTAMP_FORMATTER);
 	}
 
+	// Converts stored risk level text into display text.
 	String toRiskDisplayLabel(String riskLevel) {
 		return toTitleCase(riskLevel);
 	}
 
+	// Converts a decimal ratio to a percentage number.
 	BigDecimal toPercentageValue(BigDecimal ratio) {
 		return toPercentage(ratio);
 	}
 
+	// Converts the DTI ratio into a report-friendly band.
 	String resolveDtiBand(BigDecimal dtiRatio) {
 		if (safeAmount(dtiRatio).compareTo(new BigDecimal("0.30")) <= 0) {
 			return "Low";
@@ -183,6 +194,7 @@ public class CreditEvaluationResponseService {
 		return "High";
 	}
 
+	// Builds the five risk-factor rows used by reports and PDFs.
 	List<CreditRiskFactorResponse> buildRiskFactors(EvaluationView view) {
 		return List.of(
 			new CreditRiskFactorResponse("Payment History", view.paymentHistoryPoints(), 30),
@@ -193,6 +205,7 @@ public class CreditEvaluationResponseService {
 		);
 	}
 
+	// Summarizes how the score moved between monthly evaluations.
 	private CreditTrendSummaryResponse buildTrendSummary(List<EvaluationView> monthlyViews, String rangeKey) {
 		if (monthlyViews.isEmpty()) {
 			return new CreditTrendSummaryResponse(
@@ -256,6 +269,7 @@ public class CreditEvaluationResponseService {
 		);
 	}
 
+	// Builds dashboard factor bars with colors and tooltip content.
 	private List<CreditDashboardFactorResponse> buildDashboardFactors(EvaluationView current) {
 		return List.of(
 			new CreditDashboardFactorResponse("Payment history", current.paymentHistoryPoints(), 30, resolveFactorColor(current.paymentHistoryPoints(), 30), null),
@@ -286,6 +300,7 @@ public class CreditEvaluationResponseService {
 		);
 	}
 
+	// Picks the top risk factors currently increasing the score.
 	private List<CreditInsightItemResponse> buildKeyRiskFactors(EvaluationView current) {
 		List<FactorSnapshot> factors = List.of(
 			new FactorSnapshot(
@@ -358,6 +373,7 @@ public class CreditEvaluationResponseService {
 			.toList();
 	}
 
+	// Picks positive behaviors that are helping or stabilizing the score.
 	private List<CreditInsightItemResponse> buildPositiveBehaviors(EvaluationView current, List<EvaluationView> monthlyViews) {
 		EvaluationView previous = monthlyViews.size() >= 2 ? monthlyViews.get(monthlyViews.size() - 2) : null;
 		List<InsightCandidate> candidates = new ArrayList<>();
@@ -493,6 +509,7 @@ public class CreditEvaluationResponseService {
 			.toList();
 	}
 
+	// Picks practical financial tips based on the current risk pressure.
 	private List<CreditInsightItemResponse> buildFinancialTips(EvaluationView current, RecordBreakdown breakdown) {
 		List<InsightCandidate> candidates = new ArrayList<>();
 
@@ -605,6 +622,7 @@ public class CreditEvaluationResponseService {
 			.toList();
 	}
 
+	// Keeps only the latest evaluation from each calendar month.
 	private List<EvaluationView> getLatestEvaluationsPerMonth(List<EvaluationView> history) {
 		Map<YearMonth, EvaluationView> latestByMonth = new LinkedHashMap<>();
 		history.stream()
@@ -613,6 +631,7 @@ public class CreditEvaluationResponseService {
 		return new ArrayList<>(latestByMonth.values());
 	}
 
+	// Finds the biggest factor that changed between the first and latest month.
 	private String resolveBiggestDriver(EvaluationView earliest, EvaluationView latest, String direction) {
 		Map<String, Integer> deltas = Map.of(
 			"PAYMENT", latest.paymentHistoryPoints() - earliest.paymentHistoryPoints(),
@@ -659,6 +678,7 @@ public class CreditEvaluationResponseService {
 		return buildCurrentPrimaryDriver(latest);
 	}
 
+	// Finds the current factor with the highest risk-point pressure.
 	private String buildCurrentPrimaryDriver(EvaluationView current) {
 		Map<String, Integer> points = Map.of(
 			"Payment history", current.paymentHistoryPoints(),
@@ -674,6 +694,7 @@ public class CreditEvaluationResponseService {
 			.orElse("Risk profile is currently well balanced");
 	}
 
+	// Builds the next score target text for the trend summary.
 	private String resolveNextTarget(int score) {
 		if (score > MEDIUM_RISK_MAX_POINTS) {
 			return "Reduce " + (score - MEDIUM_RISK_MAX_POINTS) + " risk pts to reach Medium Risk";
@@ -684,6 +705,7 @@ public class CreditEvaluationResponseService {
 		return "Stay at 33 or below to remain in Low Risk";
 	}
 
+	// Converts factor points into a short badge label.
 	private String resolveBadgeText(int value, int max) {
 		if (value <= 0) {
 			return "LOW";
@@ -702,6 +724,7 @@ public class CreditEvaluationResponseService {
 		return "LOW";
 	}
 
+	// Converts a factor badge label into a frontend color tone.
 	private String resolveBadgeTone(int value, int max) {
 		String badgeText = resolveBadgeText(value, max);
 		return switch (badgeText) {
@@ -712,6 +735,7 @@ public class CreditEvaluationResponseService {
 		};
 	}
 
+	// Converts factor points into a dashboard bar color.
 	private String resolveFactorColor(int value, int max) {
 		BigDecimal ratio = BigDecimal.valueOf(value)
 			.divide(BigDecimal.valueOf(Math.max(1, max)), 4, RoundingMode.HALF_UP);
@@ -724,10 +748,12 @@ public class CreditEvaluationResponseService {
 		return "#ef4444";
 	}
 
+	// Formats a ratio as a percentage label for insight text.
 	private String formatPercentageLabel(BigDecimal ratio) {
 		return toPercentage(ratio).stripTrailingZeros().toPlainString() + "%";
 	}
 
+	// Formats a stored risk level as a summary heading.
 	private String toRiskSummaryLabel(String riskLevel) {
 		return toTitleCase(riskLevel) + " Risk";
 	}

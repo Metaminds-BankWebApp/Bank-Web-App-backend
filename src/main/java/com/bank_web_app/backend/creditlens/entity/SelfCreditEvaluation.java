@@ -92,6 +92,7 @@ public class SelfCreditEvaluation {
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private LocalDateTime createdAt;
 
+	// Fills default report and created-time values before saving.
 	@PrePersist
 	void onCreate() {
 		if (reportGenerated == null) {

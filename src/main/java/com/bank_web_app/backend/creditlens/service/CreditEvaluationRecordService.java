@@ -43,6 +43,7 @@ public class CreditEvaluationRecordService {
 	private final BankCustomerCardRepository bankCustomerCardRepository;
 	private final BankCustomerLiabilityRepository bankCustomerLiabilityRepository;
 
+	// Wires the public and bank financial repositories used for CreditLens records.
 	public CreditEvaluationRecordService(
 		PublicCustomerFinancialRecordRepository publicCustomerFinancialRecordRepository,
 		PublicCustomerIncomeRepository publicCustomerIncomeRepository,
@@ -67,22 +68,26 @@ public class CreditEvaluationRecordService {
 		this.bankCustomerLiabilityRepository = bankCustomerLiabilityRepository;
 	}
 
+	// Finds the current public-customer financial record used for self evaluation.
 	PublicCustomerFinancialRecord resolveCurrentPublicFinancialRecord(Long publicCustomerId) {
 		return publicCustomerFinancialRecordRepository
 			.findByPublicCustomer_PublicCustomerIdAndRecordStatus(publicCustomerId, "CURRENT")
 			.orElseThrow(() -> new IllegalArgumentException("No current financial record found for this public customer."));
 	}
 
+	// Finds the newest bank-customer financial record used for bank evaluation.
 	BankCustomerFinancialRecord resolveLatestBankFinancialRecord(Long bankCustomerId) {
 		return bankCustomerFinancialRecordRepository
 			.findTopByBankCustomer_BankCustomerIdOrderByCreatedAtDesc(bankCustomerId)
 			.orElseThrow(() -> new IllegalArgumentException("No financial record found for this bank customer."));
 	}
 
+	// Checks whether stored financial data changed after an evaluation was created.
 	boolean isRecordUpdatedAfterEvaluation(LocalDateTime recordUpdatedAt, LocalDateTime evaluationCreatedAt) {
 		return recordUpdatedAt != null && evaluationCreatedAt != null && recordUpdatedAt.isAfter(evaluationCreatedAt);
 	}
 
+	// Loads income, loans, cards, and liabilities for the report breakdown.
 	RecordBreakdown loadRecordBreakdown(EvaluationView view) {
 		if ("PUBLIC".equals(view.scope())) {
 			List<PublicCustomerIncome> incomes = publicCustomerIncomeRepository.findAllByFinancialRecord_RecordId(view.recordId());
@@ -123,6 +128,7 @@ public class CreditEvaluationRecordService {
 		);
 	}
 
+	// Adds all remaining loan balances for a public-customer financial record.
 	BigDecimal loadPublicLoanRemainingBalance(Long recordId) {
 		return publicCustomerLoanRepository.findAllByFinancialRecord_RecordId(recordId)
 			.stream()
@@ -132,6 +138,7 @@ public class CreditEvaluationRecordService {
 			.setScale(2, RoundingMode.HALF_UP);
 	}
 
+	// Adds all remaining loan balances for a bank-customer financial record.
 	BigDecimal loadBankLoanRemainingBalance(Long bankRecordId) {
 		return bankCustomerLoanRepository.findAllByFinancialRecord_BankRecordId(bankRecordId)
 			.stream()

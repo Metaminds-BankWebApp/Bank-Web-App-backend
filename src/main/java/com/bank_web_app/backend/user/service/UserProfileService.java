@@ -7,11 +7,15 @@ import org.springframework.web.multipart.MultipartFile;
 
 public interface UserProfileService {
 
+	// Loads the authenticated user's profile page data.
 	UserProfileResponse getMyProfile();
 
+	// Updates profile details, username, or password for the authenticated user.
 	UserProfileUpdateResponse updateMyProfile(UserProfileUpdateRequest request);
 
+	// Uploads and saves a new profile image for the authenticated user.
 	UserProfileUpdateResponse updateMyProfileImage(MultipartFile file);
 
+	// Removes the authenticated user's saved profile image.
 	UserProfileUpdateResponse removeMyProfileImage();
 }

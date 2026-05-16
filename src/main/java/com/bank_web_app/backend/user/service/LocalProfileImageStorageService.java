@@ -30,6 +30,7 @@ public class LocalProfileImageStorageService implements ProfileImageStorageServi
 
 	private final Path storageRoot;
 
+	// Resolves the configured local folder for profile image uploads.
 	public LocalProfileImageStorageService(
 		@Value("${app.storage.profile-images-dir:uploads/profile-images}") String profileImagesDirectory
 	) {
@@ -37,6 +38,7 @@ public class LocalProfileImageStorageService implements ProfileImageStorageServi
 	}
 
 	@Override
+	// Validates and stores a replacement profile image in local storage.
 	public String storeProfileImage(MultipartFile file, String currentImageUrl, Long userId) {
 		validateFile(file);
 		ensureStorageRoot();
@@ -58,6 +60,7 @@ public class LocalProfileImageStorageService implements ProfileImageStorageServi
 	}
 
 	@Override
+	// Deletes a profile image file by its stored public URL.
 	public void deleteProfileImage(String imageUrl) {
 		String storedFileName = extractStoredFileName(imageUrl);
 		if (storedFileName.isBlank()) {
@@ -76,6 +79,7 @@ public class LocalProfileImageStorageService implements ProfileImageStorageServi
 		}
 	}
 
+	// Deletes an old profile image without failing the new upload.
 	private void deleteProfileImageQuietly(String imageUrl) {
 		try {
 			deleteProfileImage(imageUrl);
@@ -84,6 +88,7 @@ public class LocalProfileImageStorageService implements ProfileImageStorageServi
 		}
 	}
 
+	// Checks that the upload exists and uses an allowed image type.
 	private void validateFile(MultipartFile file) {
 		if (file == null || file.isEmpty()) {
 			throw new IllegalArgumentException("Profile image file is required.");
@@ -95,6 +100,7 @@ public class LocalProfileImageStorageService implements ProfileImageStorageServi
 		}
 	}
 
+	// Creates the profile image storage folder when it is missing.
 	private void ensureStorageRoot() {
 		try {
 			Files.createDirectories(storageRoot);
@@ -103,12 +109,14 @@ public class LocalProfileImageStorageService implements ProfileImageStorageServi
 		}
 	}
 
+	// Builds a unique stored filename for the uploaded profile image.
 	private String buildStoredFileName(MultipartFile file, Long userId) {
 		String extension = resolveExtension(file);
 		String userSegment = userId == null ? "user" : ("user-" + userId);
 		return userSegment + "-" + UUID.randomUUID() + extension;
 	}
 
+	// Selects the file extension from content type or original filename.
 	private String resolveExtension(MultipartFile file) {
 		String contentType = file.getContentType() == null ? "" : file.getContentType().trim().toLowerCase(Locale.ROOT);
 		return switch (contentType) {
@@ -120,6 +128,7 @@ public class LocalProfileImageStorageService implements ProfileImageStorageServi
 		};
 	}
 
+	// Safely derives an image extension from the original uploaded filename.
 	private String deriveExtensionFromOriginalFilename(String originalFilename) {
 		if (originalFilename == null || originalFilename.isBlank()) {
 			return ".jpg";
@@ -137,6 +146,7 @@ public class LocalProfileImageStorageService implements ProfileImageStorageServi
 		return extension;
 	}
 
+	// Extracts the stored filename from a profile image URL or path.
 	private String extractStoredFileName(String imageUrl) {
 		if (imageUrl == null || imageUrl.isBlank()) {
 			return "";

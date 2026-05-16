@@ -66,6 +66,7 @@ public class CreditReportPdfExportService {
 		}
 	}
 
+	// Draws the top PDF title area with customer month and risk badge.
 	private void drawHeader(PDPageContentStream stream, CreditReportPdfModel model) throws IOException {
 		float x = PAGE_MARGIN;
 		float y = 712f;
@@ -102,6 +103,7 @@ public class CreditReportPdfExportService {
 		);
 	}
 
+	// Draws the main credit score card in the PDF.
 	private void drawScorePanel(PDPageContentStream stream, CreditReportPdfModel model) throws IOException {
 		float x = PAGE_MARGIN;
 		float y = 598f;
@@ -115,6 +117,7 @@ public class CreditReportPdfExportService {
 		writeText(stream, "Evaluation: " + safe(model.evaluationType()), PDType1Font.HELVETICA, 10f, x + 16f, y + 12f, TEXT_MUTED);
 	}
 
+	// Draws the customer overview panel with DTI, utilization, and behavior values.
 	private void drawBehaviorPanel(PDPageContentStream stream, CreditReportPdfModel model) throws IOException {
 		float x = PAGE_MARGIN + 190f;
 		float y = 598f;
@@ -132,6 +135,7 @@ public class CreditReportPdfExportService {
 		writeText(stream, "Active Facilities: " + safe(model.activeFacilities()), PDType1Font.HELVETICA, 11f, x + 210f, y + 12f, TEXT_PRIMARY);
 	}
 
+	// Draws the four financial metric cards in the PDF.
 	private void drawFinancialCards(PDPageContentStream stream, CreditReportPdfModel model) throws IOException {
 		float cardWidth = (CONTENT_WIDTH - CARD_GAP) / 2f;
 		float topRowY = 488f;
@@ -144,6 +148,7 @@ public class CreditReportPdfExportService {
 		drawMetricCard(stream, PAGE_MARGIN + cardWidth + CARD_GAP, bottomRowY, cardWidth, cardHeight, "Other Liabilities", formatCurrency(model.otherLiabilities()), null, new Color(245, 243, 255));
 	}
 
+	// Draws one financial metric card with optional secondary text.
 	private void drawMetricCard(
 		PDPageContentStream stream,
 		float x,
@@ -163,6 +168,7 @@ public class CreditReportPdfExportService {
 		}
 	}
 
+	// Draws the risk factor breakdown table in the PDF.
 	private void drawRiskFactorTable(PDPageContentStream stream, CreditReportPdfModel model) throws IOException {
 		float x = PAGE_MARGIN;
 		float y = 156f;
@@ -183,6 +189,7 @@ public class CreditReportPdfExportService {
 		}
 	}
 
+	// Draws the header row for the risk factor table.
 	private void drawTableHeader(PDPageContentStream stream, float x, float y, float width) throws IOException {
 		fillRect(stream, x, y, width, 20f, new Color(241, 245, 249));
 		writeText(stream, "Factor", PDType1Font.HELVETICA_BOLD, 10f, x + 10f, y + 6f, TEXT_MUTED);
@@ -190,6 +197,7 @@ public class CreditReportPdfExportService {
 		writeText(stream, "Band", PDType1Font.HELVETICA_BOLD, 10f, x + width - 78f, y + 6f, TEXT_MUTED);
 	}
 
+	// Draws one factor row with points and risk band badge.
 	private void drawTableRow(PDPageContentStream stream, float x, float y, float width, CreditRiskFactorResponse factor) throws IOException {
 		strokeRect(stream, x, y, width, 24f, PANEL_BORDER);
 		writeText(stream, safe(factor.name()), PDType1Font.HELVETICA, 11f, x + 10f, y + 7f, TEXT_PRIMARY);
@@ -198,6 +206,7 @@ public class CreditReportPdfExportService {
 		drawBadge(stream, x + width - 84f, y + 4f, 66f, 16f, band, resolveBandColor(band), Color.WHITE);
 	}
 
+	// Draws generated time and report note at the bottom of the PDF.
 	private void drawFooter(PDPageContentStream stream, CreditReportPdfModel model) throws IOException {
 		float x = PAGE_MARGIN;
 		float y = 56f;
@@ -219,23 +228,27 @@ public class CreditReportPdfExportService {
 		);
 	}
 
+	// Draws a filled panel with a thin border.
 	private void drawPanel(PDPageContentStream stream, float x, float y, float width, float height, Color background) throws IOException {
 		fillRect(stream, x, y, width, height, background);
 		strokeRect(stream, x, y, width, height, PANEL_BORDER);
 	}
 
+	// Draws a centered label badge with background color.
 	private void drawBadge(PDPageContentStream stream, float x, float y, float width, float height, String text, Color background, Color textColor) throws IOException {
 		fillRect(stream, x, y, width, height, background);
 		float textWidth = textWidth(PDType1Font.HELVETICA_BOLD, 9f, text);
 		writeText(stream, text, PDType1Font.HELVETICA_BOLD, 9f, x + Math.max(8f, (width - textWidth) / 2f), y + 6f, textColor);
 	}
 
+	// Fills a rectangle on the PDF page.
 	private void fillRect(PDPageContentStream stream, float x, float y, float width, float height, Color color) throws IOException {
 		stream.setNonStrokingColor(color);
 		stream.addRect(x, y, width, height);
 		stream.fill();
 	}
 
+	// Draws a rectangle border on the PDF page.
 	private void strokeRect(PDPageContentStream stream, float x, float y, float width, float height, Color color) throws IOException {
 		stream.setStrokingColor(color);
 		stream.setLineWidth(0.8f);
@@ -243,6 +256,7 @@ public class CreditReportPdfExportService {
 		stream.stroke();
 	}
 
+	// Writes one safe text value at the requested PDF position.
 	private void writeText(PDPageContentStream stream, String text, PDFont font, float fontSize, float x, float y, Color color) throws IOException {
 		stream.beginText();
 		stream.setFont(font, fontSize);
@@ -252,6 +266,7 @@ public class CreditReportPdfExportService {
 		stream.endText();
 	}
 
+	// Writes text so its right edge ends at the requested X position.
 	private void writeRightAlignedText(
 		PDPageContentStream stream,
 		String text,
@@ -265,6 +280,7 @@ public class CreditReportPdfExportService {
 		writeText(stream, text, font, fontSize, x, y, color);
 	}
 
+	// Wraps and writes multi-line text inside a fixed width.
 	private void writeWrappedText(
 		PDPageContentStream stream,
 		String text,
@@ -283,6 +299,7 @@ public class CreditReportPdfExportService {
 		}
 	}
 
+	// Splits text into lines that fit inside the given width.
 	private List<String> wrapText(String text, PDFont font, float fontSize, float maxWidth) throws IOException {
 		List<String> lines = new ArrayList<>();
 		StringBuilder currentLine = new StringBuilder();
@@ -301,10 +318,12 @@ public class CreditReportPdfExportService {
 		return lines;
 	}
 
+	// Measures text width using the selected PDF font and size.
 	private float textWidth(PDFont font, float fontSize, String text) throws IOException {
 		return font.getStringWidth(safe(text)) / 1000f * fontSize;
 	}
 
+	// Converts factor points into LOW, MEDIUM, HIGH, or MAX.
 	private String resolveFactorBand(Integer value, Integer max) {
 		int safeValue = value == null ? 0 : value;
 		int safeMax = Math.max(1, max == null ? 0 : max);
@@ -325,6 +344,7 @@ public class CreditReportPdfExportService {
 		return "LOW";
 	}
 
+	// Converts a risk label into the matching PDF color.
 	private Color resolveRiskColor(String riskLabel) {
 		String normalized = safe(riskLabel).toUpperCase(Locale.ROOT);
 		if ("HIGH".equals(normalized)) {
@@ -336,6 +356,7 @@ public class CreditReportPdfExportService {
 		return LOW_RISK;
 	}
 
+	// Converts a factor band into the matching PDF color.
 	private Color resolveBandColor(String band) {
 		return switch (safe(band).toUpperCase(Locale.ROOT)) {
 			case "MAX", "HIGH" -> HIGH_RISK;
@@ -344,20 +365,24 @@ public class CreditReportPdfExportService {
 		};
 	}
 
+	// Formats money values as LKR currency for the PDF.
 	private String formatCurrency(BigDecimal value) {
 		DecimalFormat format = new DecimalFormat("#,##0.00");
 		return "LKR " + format.format(value == null ? BigDecimal.ZERO : value);
 	}
 
+	// Formats percentage values without unnecessary trailing zeros.
 	private String formatPercentage(BigDecimal value) {
 		BigDecimal safeValue = value == null ? BigDecimal.ZERO : value;
 		return safeValue.setScale(1, RoundingMode.HALF_UP).stripTrailingZeros().toPlainString() + "%";
 	}
 
+	// Trims nullable text into a safe string.
 	private String safe(String value) {
 		return value == null ? "" : value.trim();
 	}
 
+	// Converts nullable integer values into safe text.
 	private String safe(Integer value) {
 		return value == null ? "0" : value.toString();
 	}
@@ -387,6 +412,7 @@ public class CreditReportPdfExportService {
 		String dtiLabel,
 		List<CreditRiskFactorResponse> factors
 	) {
+		// Uses the current time when the report model has no generated timestamp.
 		public String generatedAtLabel() {
 			if (generatedAtLabel == null || generatedAtLabel.isBlank()) {
 				return FOOTER_TIME_FORMATTER.format(java.time.LocalDateTime.now());

@@ -51,6 +51,7 @@ public class CreditEvaluationScoringService {
 	private final BankCustomerLiabilityRepository bankCustomerLiabilityRepository;
 	private final BankCustomerMissedPaymentRepository bankCustomerMissedPaymentRepository;
 
+	// Wires all financial repositories needed to calculate CreditLens scores.
 	public CreditEvaluationScoringService(
 		PublicCustomerIncomeRepository publicCustomerIncomeRepository,
 		PublicCustomerLoanRepository publicCustomerLoanRepository,
@@ -75,6 +76,7 @@ public class CreditEvaluationScoringService {
 		this.bankCustomerMissedPaymentRepository = bankCustomerMissedPaymentRepository;
 	}
 
+	// Builds the complete CreditLens metrics from public-customer financial data.
 	EvaluationMetrics buildPublicEvaluationMetrics(PublicCustomerFinancialRecord record) {
 		Long recordId = record.getRecordId();
 		List<PublicCustomerIncome> incomes = publicCustomerIncomeRepository.findAllByFinancialRecord_RecordId(recordId);
@@ -122,6 +124,7 @@ public class CreditEvaluationScoringService {
 		);
 	}
 
+	// Builds the complete CreditLens metrics from bank-customer financial data.
 	EvaluationMetrics buildBankEvaluationMetrics(BankCustomerFinancialRecord record) {
 		Long bankRecordId = record.getBankRecordId();
 		List<BankCustomerIncome> incomes = bankCustomerIncomeRepository.findAllByFinancialRecord_BankRecordId(bankRecordId);
@@ -169,6 +172,7 @@ public class CreditEvaluationScoringService {
 		);
 	}
 
+	// Copies calculated metrics into a self credit evaluation entity.
 	void applyCommonMetricsToSelfEvaluation(SelfCreditEvaluation evaluation, EvaluationMetrics metrics) {
 		evaluation.setTotalRiskPoints(metrics.totalRiskPoints());
 		evaluation.setRiskLevel(metrics.riskLevel());
@@ -188,6 +192,7 @@ public class CreditEvaluationScoringService {
 		evaluation.setReportGenerated(Boolean.FALSE);
 	}
 
+	// Copies calculated metrics into a bank credit evaluation entity.
 	void applyCommonMetricsToBankEvaluation(BankCreditEvaluation evaluation, EvaluationMetrics metrics) {
 		evaluation.setTotalRiskPoints(metrics.totalRiskPoints());
 		evaluation.setRiskLevel(metrics.riskLevel());
@@ -207,6 +212,7 @@ public class CreditEvaluationScoringService {
 		evaluation.setReportGenerated(Boolean.FALSE);
 	}
 
+	// Checks whether a stored self evaluation still matches current metrics.
 	boolean matchesSelfEvaluationMetrics(SelfCreditEvaluation evaluation, EvaluationMetrics metrics) {
 		return
 			Objects.equals(evaluation.getTotalRiskPoints(), metrics.totalRiskPoints()) &&
@@ -226,6 +232,7 @@ public class CreditEvaluationScoringService {
 			Objects.equals(evaluation.getExposurePoints(), metrics.exposurePoints());
 	}
 
+	// Checks whether a stored bank evaluation still matches current metrics.
 	boolean matchesBankEvaluationMetrics(BankCreditEvaluation evaluation, EvaluationMetrics metrics) {
 		return
 			Objects.equals(evaluation.getTotalRiskPoints(), metrics.totalRiskPoints()) &&
@@ -245,6 +252,7 @@ public class CreditEvaluationScoringService {
 			Objects.equals(evaluation.getExposurePoints(), metrics.exposurePoints());
 	}
 
+	// Calculates ratios, factor points, total risk points, and risk level.
 	private EvaluationMetrics calculateEvaluationMetrics(
 		BigDecimal totalMonthlyIncome,
 		BigDecimal totalMonthlyDebtPayment,
@@ -289,6 +297,7 @@ public class CreditEvaluationScoringService {
 		);
 	}
 
+	// Converts missed payment count into payment history risk points.
 	private int calculatePaymentHistoryPoints(int missedPaymentsCount) {
 		if (missedPaymentsCount <= 0) {
 			return 0;
@@ -302,6 +311,7 @@ public class CreditEvaluationScoringService {
 		return 30;
 	}
 
+	// Converts debt-to-income ratio into DTI risk points.
 	private int calculateDtiPoints(BigDecimal dtiRatio) {
 		if (dtiRatio.compareTo(new BigDecimal("0.30")) <= 0) {
 			return 0;
@@ -312,6 +322,7 @@ public class CreditEvaluationScoringService {
 		return 25;
 	}
 
+	// Converts card utilization ratio into utilization risk points.
 	private int calculateUtilizationPoints(BigDecimal creditUtilizationRatio) {
 		if (creditUtilizationRatio.compareTo(new BigDecimal("0.40")) <= 0) {
 			return 0;
@@ -322,6 +333,7 @@ public class CreditEvaluationScoringService {
 		return 20;
 	}
 
+	// Converts active facility count into exposure risk points.
 	private int calculateExposurePoints(int activeFacilitiesCount) {
 		if (activeFacilitiesCount <= 2) {
 			return 0;
@@ -332,6 +344,7 @@ public class CreditEvaluationScoringService {
 		return 10;
 	}
 
+	// Calculates public-customer income stability points across all income rows.
 	private int calculateIncomeStabilityPointsForPublic(List<PublicCustomerIncome> incomes) {
 		if (incomes.isEmpty()) {
 			return 15;
@@ -349,6 +362,7 @@ public class CreditEvaluationScoringService {
 		return totalPoints.setScale(0, RoundingMode.HALF_UP).intValue();
 	}
 
+	// Calculates bank-customer income stability points across all income rows.
 	private int calculateIncomeStabilityPointsForBank(List<BankCustomerIncome> incomes) {
 		if (incomes.isEmpty()) {
 			return 15;
@@ -366,6 +380,7 @@ public class CreditEvaluationScoringService {
 		return totalPoints.setScale(0, RoundingMode.HALF_UP).intValue();
 	}
 
+	// Resolves how risky one income source is based on category and stability.
 	private BigDecimal resolveIncomeRiskMultiplier(
 		String incomeCategory,
 		String employmentType,
@@ -409,6 +424,7 @@ public class CreditEvaluationScoringService {
 		return BigDecimal.ONE;
 	}
 
+	// Converts total risk points into LOW, MEDIUM, or HIGH risk level.
 	private String resolveRiskLevel(int totalRiskPoints) {
 		if (totalRiskPoints <= LOW_RISK_MAX_POINTS) {
 			return "LOW";
@@ -419,10 +435,12 @@ public class CreditEvaluationScoringService {
 		return "HIGH";
 	}
 
+	// Compares two money values after converting nulls to zero.
 	private boolean isSameAmount(BigDecimal left, BigDecimal right) {
 		return safeAmount(left).compareTo(safeAmount(right)) == 0;
 	}
 
+	// Validates public-customer financial inputs before scoring.
 	private void validatePublicFinancialInputs(
 		List<PublicCustomerIncome> incomes,
 		List<PublicCustomerLoan> loans,
@@ -455,6 +473,7 @@ public class CreditEvaluationScoringService {
 		}
 	}
 
+	// Validates bank-customer financial inputs before scoring.
 	private void validateBankFinancialInputs(
 		List<BankCustomerIncome> incomes,
 		List<BankCustomerLoan> loans,
