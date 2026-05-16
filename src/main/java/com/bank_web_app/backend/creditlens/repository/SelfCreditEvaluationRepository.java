@@ -10,11 +10,15 @@ import org.springframework.data.jpa.repository.JpaRepository;
  */
 public interface SelfCreditEvaluationRepository extends JpaRepository<SelfCreditEvaluation, Long> {
 
+	// Finds the newest self evaluation for a public customer.
 	Optional<SelfCreditEvaluation> findTopByPublicCustomer_PublicCustomerIdOrderByCreatedAtDesc(Long publicCustomerId);
 
+	// Finds the newest self evaluation created for one financial record.
 	Optional<SelfCreditEvaluation> findTopByPublicRecord_RecordIdOrderByCreatedAtDesc(Long recordId);
 
+	// Lists all self evaluations for the public customer history view.
 	List<SelfCreditEvaluation> findAllByPublicCustomer_PublicCustomerIdOrderByCreatedAtDesc(Long publicCustomerId);
 
+	// Finds one self evaluation only when it belongs to the public customer.
 	Optional<SelfCreditEvaluation> findBySelfEvaluationIdAndPublicCustomer_PublicCustomerId(Long selfEvaluationId, Long publicCustomerId);
 }

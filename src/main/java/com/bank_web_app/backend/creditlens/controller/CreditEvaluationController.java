@@ -39,6 +39,7 @@ public class CreditEvaluationController {
 
 	private final CreditEvaluationService creditEvaluationService;
 
+	// Wires the CreditLens service used by every endpoint in this controller.
 	public CreditEvaluationController(CreditEvaluationService creditEvaluationService) {
 		this.creditEvaluationService = creditEvaluationService;
 	}
@@ -52,6 +53,7 @@ public class CreditEvaluationController {
 			@ApiResponse(responseCode = "403", description = "Forbidden: logged-in user is not a public customer")
 		}
 	)
+	// Creates a fresh self credit evaluation for the logged-in public customer.
 	public ResponseEntity<SelfCreditEvaluationResponse> createSelfEvaluation() {
 		return ResponseEntity.ok(creditEvaluationService.createSelfEvaluation());
 	}
@@ -65,36 +67,42 @@ public class CreditEvaluationController {
 			@ApiResponse(responseCode = "403", description = "Forbidden: logged-in user is not a public customer")
 		}
 	)
+	// Returns the latest self credit evaluation for the logged-in public customer.
 	public ResponseEntity<SelfCreditEvaluationResponse> getCurrentSelfEvaluation() {
 		return ResponseEntity.ok(creditEvaluationService.getCurrentSelfEvaluation());
 	}
 
 	@GetMapping("/public/dashboard")
 	@Operation(summary = "Get the CreditLens dashboard data for the logged-in public customer.")
+	// Returns public customer dashboard cards and trend data.
 	public ResponseEntity<CreditDashboardResponse> getPublicDashboard() {
 		return ResponseEntity.ok(creditEvaluationService.getPublicDashboard());
 	}
 
 	@GetMapping("/public/trends")
 	@Operation(summary = "Get the CreditLens trend data for the logged-in public customer.")
+	// Returns public customer risk score trends for the selected range.
 	public ResponseEntity<CreditTrendResponse> getPublicTrends(@RequestParam(defaultValue = "6m") String range) {
 		return ResponseEntity.ok(creditEvaluationService.getPublicTrends(range));
 	}
 
 	@GetMapping({"/public/insight", "/public/insights"})
 	@Operation(summary = "Get the CreditLens insight cards for the logged-in public customer.")
+	// Returns public customer risk factors, strengths, and tips.
 	public ResponseEntity<CreditInsightsResponse> getPublicInsights() {
 		return ResponseEntity.ok(creditEvaluationService.getPublicInsights());
 	}
 
 	@GetMapping("/public/report")
 	@Operation(summary = "Get the CreditLens monthly report data for the logged-in public customer.")
+	// Returns public customer monthly report data for the frontend.
 	public ResponseEntity<CreditReportResponse> getPublicReport() {
 		return ResponseEntity.ok(creditEvaluationService.getPublicReport());
 	}
 
 	@GetMapping(value = "/public/report/{selfEvaluationId}/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
 	@Operation(summary = "Download a CreditLens PDF report for a specific public customer evaluation.")
+	// Downloads the public customer's CreditLens report as a PDF file.
 	public ResponseEntity<byte[]> downloadPublicReportPdf(@PathVariable Long selfEvaluationId) {
 		byte[] file = creditEvaluationService.getPublicReportPdf(selfEvaluationId);
 		return ResponseEntity.ok()
@@ -105,12 +113,14 @@ public class CreditEvaluationController {
 
 	@GetMapping("/public/history")
 	@Operation(summary = "Get self credit evaluation history for the logged-in public customer.")
+	// Returns all self evaluation history rows for the logged-in public customer.
 	public ResponseEntity<List<SelfCreditEvaluationSummaryResponse>> getSelfEvaluationHistory() {
 		return ResponseEntity.ok(creditEvaluationService.getSelfEvaluationHistory());
 	}
 
 	@GetMapping("/public/evaluations/{selfEvaluationId}")
 	@Operation(summary = "Get a specific self credit evaluation for the logged-in public customer.")
+	// Returns one self evaluation when it belongs to the logged-in public customer.
 	public ResponseEntity<SelfCreditEvaluationResponse> getSelfEvaluationById(@PathVariable Long selfEvaluationId) {
 		return ResponseEntity.ok(creditEvaluationService.getSelfEvaluationById(selfEvaluationId));
 	}
@@ -125,6 +135,7 @@ public class CreditEvaluationController {
 			@ApiResponse(responseCode = "404", description = "Bank evaluation not found for this customer")
 		}
 	)
+	// Returns the latest bank evaluation for the logged-in bank customer.
 	public ResponseEntity<BankCreditEvaluationResponse> getCurrentBankEvaluationForCustomer() {
 		return ResponseEntity.ok(creditEvaluationService.getCurrentBankEvaluationForCustomer());
 	}
@@ -138,6 +149,7 @@ public class CreditEvaluationController {
 			@ApiResponse(responseCode = "403", description = "Forbidden: logged-in user is not a bank customer")
 		}
 	)
+	// Returns bank customer dashboard cards and trend data.
 	public ResponseEntity<CreditDashboardResponse> getBankDashboard() {
 		return ResponseEntity.ok(creditEvaluationService.getBankDashboard());
 	}
@@ -151,6 +163,7 @@ public class CreditEvaluationController {
 			@ApiResponse(responseCode = "403", description = "Forbidden: logged-in user is not a bank customer")
 		}
 	)
+	// Returns bank customer risk score trends for the selected range.
 	public ResponseEntity<CreditTrendResponse> getBankTrends(@RequestParam(defaultValue = "6m") String range) {
 		return ResponseEntity.ok(creditEvaluationService.getBankTrends(range));
 	}
@@ -164,6 +177,7 @@ public class CreditEvaluationController {
 			@ApiResponse(responseCode = "403", description = "Forbidden: logged-in user is not a bank customer")
 		}
 	)
+	// Returns bank customer risk factors, strengths, and tips.
 	public ResponseEntity<CreditInsightsResponse> getBankInsights() {
 		return ResponseEntity.ok(creditEvaluationService.getBankInsights());
 	}
@@ -177,12 +191,14 @@ public class CreditEvaluationController {
 			@ApiResponse(responseCode = "403", description = "Forbidden: logged-in user is not a bank customer")
 		}
 	)
+	// Returns bank customer monthly report data for the frontend.
 	public ResponseEntity<CreditReportResponse> getBankReport() {
 		return ResponseEntity.ok(creditEvaluationService.getBankReport());
 	}
 
 	@GetMapping(value = "/bank/report/{bankEvaluationId}/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
 	@Operation(summary = "Download a CreditLens PDF report for a specific bank customer evaluation.")
+	// Downloads the bank customer's CreditLens report as a PDF file.
 	public ResponseEntity<byte[]> downloadBankReportPdf(@PathVariable Long bankEvaluationId) {
 		byte[] file = creditEvaluationService.getBankReportPdf(bankEvaluationId);
 		return ResponseEntity.ok()
@@ -200,6 +216,7 @@ public class CreditEvaluationController {
 			@ApiResponse(responseCode = "403", description = "Forbidden: logged-in user is not a bank customer")
 		}
 	)
+	// Returns all bank evaluation history rows for the logged-in bank customer.
 	public ResponseEntity<List<BankCreditEvaluationSummaryResponse>> getBankEvaluationHistoryForCustomer() {
 		return ResponseEntity.ok(creditEvaluationService.getBankEvaluationHistoryForCustomer());
 	}
@@ -214,6 +231,7 @@ public class CreditEvaluationController {
 			@ApiResponse(responseCode = "404", description = "Bank evaluation not found for this customer")
 		}
 	)
+	// Returns one bank evaluation when it belongs to the logged-in bank customer.
 	public ResponseEntity<BankCreditEvaluationResponse> getBankEvaluationByIdForCustomer(@PathVariable Long bankEvaluationId) {
 		return ResponseEntity.ok(creditEvaluationService.getBankEvaluationByIdForCustomer(bankEvaluationId));
 	}
@@ -228,6 +246,7 @@ public class CreditEvaluationController {
 			@ApiResponse(responseCode = "403", description = "Forbidden: logged-in user is not a bank officer")
 		}
 	)
+	// Returns the officer CreditLens dashboard with assigned customer risk rows.
 	public ResponseEntity<BankCreditAnalysisDashboardResponse> getOfficerDashboard() {
 		return ResponseEntity.ok(creditEvaluationService.getOfficerDashboard());
 	}
@@ -242,6 +261,7 @@ public class CreditEvaluationController {
 			@ApiResponse(responseCode = "404", description = "Customer profile not found for this officer")
 		}
 	)
+	// Returns a CreditLens profile summary for one officer-owned bank customer.
 	public ResponseEntity<BankCreditAnalysisCustomerProfileResponse> getOfficerCustomerProfile(@PathVariable Long bankCustomerId) {
 		return ResponseEntity.ok(creditEvaluationService.getOfficerCustomerProfile(bankCustomerId));
 	}
@@ -256,6 +276,7 @@ public class CreditEvaluationController {
 			@ApiResponse(responseCode = "403", description = "Forbidden: customer is not assigned to this bank officer")
 		}
 	)
+	// Creates a bank credit evaluation for an officer-owned bank customer.
 	public ResponseEntity<BankCreditEvaluationResponse> createBankEvaluationForOfficer(
 		@PathVariable Long bankCustomerId,
 		@Valid @RequestBody(required = false) CreateBankCreditEvaluationRequest request
@@ -273,12 +294,14 @@ public class CreditEvaluationController {
 			@ApiResponse(responseCode = "404", description = "Customer evaluation not found for this officer")
 		}
 	)
+	// Returns the latest evaluation for an officer-owned bank customer.
 	public ResponseEntity<BankCreditEvaluationResponse> getCurrentBankEvaluationForOfficer(@PathVariable Long bankCustomerId) {
 		return ResponseEntity.ok(creditEvaluationService.getCurrentBankEvaluationForOfficer(bankCustomerId));
 	}
 
 	@GetMapping("/officer/customers/{bankCustomerId}/trends")
 	@Operation(summary = "Get CreditLens trend data for a bank customer owned by the logged-in bank officer.")
+	// Returns trend data for an officer-owned bank customer.
 	public ResponseEntity<CreditTrendResponse> getOfficerCustomerTrends(
 		@PathVariable Long bankCustomerId,
 		@RequestParam(defaultValue = "6m") String range
@@ -288,18 +311,21 @@ public class CreditEvaluationController {
 
 	@GetMapping({"/officer/customers/{bankCustomerId}/insight", "/officer/customers/{bankCustomerId}/insights"})
 	@Operation(summary = "Get CreditLens insight cards for a bank customer owned by the logged-in bank officer.")
+	// Returns insight cards for an officer-owned bank customer.
 	public ResponseEntity<CreditInsightsResponse> getOfficerCustomerInsights(@PathVariable Long bankCustomerId) {
 		return ResponseEntity.ok(creditEvaluationService.getOfficerCustomerInsights(bankCustomerId));
 	}
 
 	@GetMapping("/officer/customers/{bankCustomerId}/report")
 	@Operation(summary = "Get CreditLens monthly report data for a bank customer owned by the logged-in bank officer.")
+	// Returns report data for an officer-owned bank customer.
 	public ResponseEntity<CreditReportResponse> getOfficerCustomerReport(@PathVariable Long bankCustomerId) {
 		return ResponseEntity.ok(creditEvaluationService.getOfficerCustomerReport(bankCustomerId));
 	}
 
 	@GetMapping(value = "/officer/customers/{bankCustomerId}/report/{bankEvaluationId}/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
 	@Operation(summary = "Download a CreditLens PDF report for a bank customer evaluation owned by the logged-in bank officer.")
+	// Downloads a CreditLens PDF for an officer-owned bank customer evaluation.
 	public ResponseEntity<byte[]> downloadOfficerCustomerReportPdf(
 		@PathVariable Long bankCustomerId,
 		@PathVariable Long bankEvaluationId
@@ -320,6 +346,7 @@ public class CreditEvaluationController {
 			@ApiResponse(responseCode = "403", description = "Forbidden: customer is not assigned to this bank officer")
 		}
 	)
+	// Returns evaluation history for an officer-owned bank customer.
 	public ResponseEntity<List<BankCreditEvaluationSummaryResponse>> getBankEvaluationHistoryForOfficer(@PathVariable Long bankCustomerId) {
 		return ResponseEntity.ok(creditEvaluationService.getBankEvaluationHistoryForOfficer(bankCustomerId));
 	}
@@ -334,6 +361,7 @@ public class CreditEvaluationController {
 			@ApiResponse(responseCode = "404", description = "Evaluation not found for this officer")
 		}
 	)
+	// Returns one evaluation for an officer-owned bank customer.
 	public ResponseEntity<BankCreditEvaluationResponse> getBankEvaluationByIdForOfficer(
 		@PathVariable Long bankCustomerId,
 		@PathVariable Long bankEvaluationId

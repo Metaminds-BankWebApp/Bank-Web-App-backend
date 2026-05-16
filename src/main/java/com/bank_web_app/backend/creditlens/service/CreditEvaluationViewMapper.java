@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class CreditEvaluationViewMapper {
 
+	// Converts a public self evaluation entity into a shared dashboard view.
 	EvaluationView toView(SelfCreditEvaluation evaluation) {
 		return new EvaluationView(
 			evaluation.getSelfEvaluationId(),
@@ -32,6 +33,7 @@ public class CreditEvaluationViewMapper {
 		);
 	}
 
+	// Converts a bank evaluation entity into a shared dashboard view.
 	EvaluationView toView(BankCreditEvaluation evaluation) {
 		return new EvaluationView(
 			evaluation.getBankEvaluationId(),

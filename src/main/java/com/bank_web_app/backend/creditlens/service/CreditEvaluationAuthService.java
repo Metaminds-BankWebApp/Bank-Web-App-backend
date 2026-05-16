@@ -24,6 +24,7 @@ public class CreditEvaluationAuthService {
 	private final BankOfficerRepository bankOfficerRepository;
 	private final UserRepository userRepository;
 
+	// Wires repositories needed to resolve the authenticated CreditLens user.
 	public CreditEvaluationAuthService(
 		PublicCustomerProfileRepository publicCustomerProfileRepository,
 		BankCustomerRepository bankCustomerRepository,
@@ -36,6 +37,7 @@ public class CreditEvaluationAuthService {
 		this.userRepository = userRepository;
 	}
 
+	// Returns the logged-in public customer profile or blocks non-public users.
 	PublicCustomerProfile resolveLoggedInPublicCustomerProfile() {
 		User user = resolveAuthenticatedUser("Public customer authentication is required.");
 		return publicCustomerProfileRepository
@@ -43,6 +45,7 @@ public class CreditEvaluationAuthService {
 			.orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Logged-in user is not a public customer."));
 	}
 
+	// Returns the logged-in bank customer after verifying the bank-customer role.
 	BankCustomer resolveLoggedInBankCustomer() {
 		User user = resolveAuthenticatedUser("Bank customer authentication is required.");
 		String roleName = user.getRole() == null || user.getRole().getRoleName() == null
@@ -56,6 +59,7 @@ public class CreditEvaluationAuthService {
 			.orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Bank customer profile was not found for logged-in user."));
 	}
 
+	// Returns the bank officer profile for the logged-in officer user.
 	BankOfficer resolveLoggedInBankOfficer() {
 		User user = resolveAuthenticatedUser("Bank officer authentication is required.");
 		return bankOfficerRepository
@@ -63,6 +67,7 @@ public class CreditEvaluationAuthService {
 			.orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Logged-in user is not a bank officer."));
 	}
 
+	// Makes sure the requested bank customer belongs to the logged-in officer.
 	BankCustomer resolveOwnedBankCustomer(Long bankCustomerId, BankOfficer officer) {
 		BankCustomer bankCustomer = bankCustomerRepository
 			.findById(bankCustomerId)
@@ -73,6 +78,7 @@ public class CreditEvaluationAuthService {
 		return bankCustomer;
 	}
 
+	// Reads Spring Security authentication and loads the matching user record.
 	private User resolveAuthenticatedUser(String unauthenticatedMessage) {
 		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 		if (
