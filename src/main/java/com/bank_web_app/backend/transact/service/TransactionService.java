@@ -84,6 +84,7 @@ public class TransactionService {
 	private final boolean otpPlainLogEnabled;
 	private final String otpOverrideRecipientEmail;
 
+	// Injects repositories, infra services, and OTP behavior flags for transact flows.
 	public TransactionService(
 		TransactionRepository transactionRepository,
 		OtpRecordRepository otpRecordRepository,
@@ -113,6 +114,7 @@ public class TransactionService {
 		this.otpOverrideRecipientEmail = otpOverrideRecipientEmail == null ? "" : otpOverrideRecipientEmail.trim();
 	}
 
+	// Starts a transfer request, validates business rules, and issues OTP.
 	@Transactional
 	public TransactionInitiateResponse initiateTransaction(CreateTransactionRequest request) {
 		BankCustomer bankCustomer = resolveLoggedInBankCustomer();
@@ -178,6 +180,7 @@ public class TransactionService {
 		);
 	}
 
+	// Verifies OTP, applies fund transfer, and marks transaction as successful.
 	@Transactional
 	public TransactionResponse verifyOtp(VerifyTransactionOtpRequest request) {
 		BankCustomer bankCustomer = resolveLoggedInBankCustomer();
@@ -258,6 +261,7 @@ public class TransactionService {
 		return toTransactionResponse(transaction);
 	}
 
+	// Reissues OTP for a pending transaction and keeps resend history.
 	@Transactional
 	public TransactionInitiateResponse resendOtp(ResendTransactionOtpRequest request) {
 		BankCustomer bankCustomer = resolveLoggedInBankCustomer();
@@ -313,6 +317,7 @@ public class TransactionService {
 		);
 	}
 
+	// Builds aggregate summary data used by transact dashboard cards and charts.
 	@Transactional(readOnly = true)
 	public TransactDashboardSummaryResponse getDashboardSummary() {
 		BankCustomer bankCustomer = resolveLoggedInBankCustomer();
@@ -347,6 +352,7 @@ public class TransactionService {
 		);
 	}
 
+	// Returns account number and current balance for the logged-in bank customer.
 	@Transactional(readOnly = true)
 	public CurrentBalanceResponse getCurrentBalance() {
 		BankCustomer bankCustomer = resolveLoggedInBankCustomer();
@@ -362,6 +368,7 @@ public class TransactionService {
 		);
 	}
 
+	// Returns transaction history for the logged-in customer (latest first).
 	@Transactional(readOnly = true)
 	public List<TransactionResponse> getHistory() {
 		BankCustomer bankCustomer = resolveLoggedInBankCustomer();
@@ -372,6 +379,7 @@ public class TransactionService {
 			.toList();
 	}
 
+	// Returns all transactions across customers for officer/read-only views.
 	@Transactional(readOnly = true)
 	public List<TransactionResponse> getAllTransactions() {
 		return transactionRepository
@@ -381,6 +389,7 @@ public class TransactionService {
 			.toList();
 	}
 
+	// Returns one transaction by reference number scoped to logged-in customer.
 	@Transactional(readOnly = true)
 	public TransactionResponse getByReferenceNo(String referenceNo) {
 		BankCustomer bankCustomer = resolveLoggedInBankCustomer();
@@ -395,6 +404,7 @@ public class TransactionService {
 		return toTransactionResponse(transaction);
 	}
 
+	// Creates a beneficiary entry after account checks and duplicate validation.
 	@Transactional
 	public BeneficiaryResponse createBeneficiary(CreateBeneficiaryRequest request) {
 		BankCustomer bankCustomer = resolveLoggedInBankCustomer();
@@ -420,6 +430,7 @@ public class TransactionService {
 		return toBeneficiaryResponse(beneficiary);
 	}
 
+	// Updates one beneficiary owned by the logged-in customer.
 	@Transactional
 	public BeneficiaryResponse updateBeneficiary(Long beneficiaryId, UpdateBeneficiaryRequest request) {
 		BankCustomer bankCustomer = resolveLoggedInBankCustomer();
@@ -446,6 +457,7 @@ public class TransactionService {
 		return toBeneficiaryResponse(beneficiary);
 	}
 
+	// Lists beneficiaries saved by the logged-in customer.
 	@Transactional(readOnly = true)
 	public List<BeneficiaryResponse> getBeneficiaries() {
 		BankCustomer bankCustomer = resolveLoggedInBankCustomer();
@@ -456,6 +468,7 @@ public class TransactionService {
 			.toList();
 	}
 
+	// Deletes one beneficiary owned by the logged-in customer.
 	@Transactional
 	public void deleteBeneficiary(Long beneficiaryId) {
 		BankCustomer bankCustomer = resolveLoggedInBankCustomer();
@@ -465,6 +478,7 @@ public class TransactionService {
 		beneficiaryRepository.delete(beneficiary);
 	}
 
+	// Persists a new OTP record with hashed code and expiry details.
 	private OtpRecord createOtpRecord(Transaction transaction, String sentToEmail, String plainOtpCode, int resendCount) {
 		OtpRecord otpRecord = new OtpRecord();
 		otpRecord.setTransaction(transaction);
@@ -476,6 +490,7 @@ public class TransactionService {
 		return otpRecordRepository.save(otpRecord);
 	}
 
+	// Sends transfer OTP email and supports fail-open behavior for local/dev fallback.
 	private boolean sendTransferOtpEmail(
 		BankCustomer bankCustomer,
 		Transaction transaction,
@@ -520,6 +535,7 @@ public class TransactionService {
 		}
 	}
 
+	// Resolves OTP recipient email, honoring override configuration when provided.
 	private String resolveOtpRecipientEmail(BankCustomer bankCustomer) {
 		if (!otpOverrideRecipientEmail.isBlank()) {
 			LOGGER.debug("Using APP_TRANSACT_OTP_OVERRIDE_RECIPIENT_EMAIL for OTP delivery.");
@@ -541,6 +557,7 @@ public class TransactionService {
 		return customerEmail;
 	}
 
+	// Builds plain-text OTP email content including transfer metadata.
 	private String buildOtpEmailBody(
 		String customerName,
 		String otpCode,
@@ -574,6 +591,7 @@ public class TransactionService {
 		return sb.toString();
 	}
 
+	// Chooses the best display name fallback sequence for a user.
 	private String resolveDisplayName(User user) {
 		if (user == null) {
 			return "";
@@ -591,6 +609,7 @@ public class TransactionService {
 		return user.getEmail() == null ? "" : user.getEmail().trim();
 	}
 
+	// Generates a unique transaction reference number with collision retries.
 	private String generateUniqueReferenceNo() {
 		for (int i = 0; i < 20; i += 1) {
 			String candidate = "TXN-" + LocalDateTime.now().format(REFERENCE_TIME_FORMAT) + "-" + randomAlphaNumeric(6);
@@ -601,6 +620,7 @@ public class TransactionService {
 		throw new IllegalStateException("Unable to generate unique transaction reference number.");
 	}
 
+	// Builds a random alpha-numeric token from allowed characters.
 	private String randomAlphaNumeric(int length) {
 		StringBuilder sb = new StringBuilder(length);
 		for (int i = 0; i < length; i += 1) {
@@ -609,11 +629,13 @@ public class TransactionService {
 		return sb.toString();
 	}
 
+	// Generates fixed-length numeric OTP value.
 	private String generateOtp() {
 		int value = secureRandom.nextInt(1_000_000);
 		return String.format(Locale.ROOT, "%0" + OTP_LENGTH + "d", value);
 	}
 
+	// Validates account status is ACTIVE before transaction processing.
 	private void validateActiveAccount(Account account, String message) {
 		String status = account.getStatus() == null ? "" : account.getStatus().trim().toUpperCase(Locale.ROOT);
 		if (!"ACTIVE".equals(status)) {
@@ -621,6 +643,7 @@ public class TransactionService {
 		}
 	}
 
+	// Validates transfer amount boundaries and basic positivity.
 	private void validateTransferAmount(BigDecimal amount) {
 		if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
 			throw new IllegalArgumentException("Amount must be greater than 0.");
@@ -630,6 +653,7 @@ public class TransactionService {
 		}
 	}
 
+	// Ensures sender has enough balance and minimum remaining balance after transfer.
 	private BigDecimal requireSufficientBalanceAndMinimumRemaining(Account senderAccount, BigDecimal amount) {
 		BigDecimal availableBalance = senderAccount.getBalance();
 		if (availableBalance == null || availableBalance.compareTo(amount) < 0) {
@@ -642,6 +666,7 @@ public class TransactionService {
 		return availableBalance;
 	}
 
+	// Normalizes failure text into safe DB-length reason.
 	private String toFailureReason(String message) {
 		if (message == null || message.isBlank()) {
 			return "Transaction failed.";
@@ -650,10 +675,12 @@ public class TransactionService {
 		return trimmed.length() > 255 ? trimmed.substring(0, 255) : trimmed;
 	}
 
+	// Returns zero when amount is null.
 	private BigDecimal safeAmount(BigDecimal amount) {
 		return amount == null ? BigDecimal.ZERO : amount;
 	}
 
+	// Builds 12-month transaction amount timeline for dashboard chart.
 	private TransactDashboardSummaryResponse.TransactionTimeline buildTransactionTimeline(String accountNumber) {
 		YearMonth currentMonth = YearMonth.now();
 		YearMonth firstMonth = currentMonth.minusMonths(11);
@@ -692,6 +719,7 @@ public class TransactionService {
 		return new TransactDashboardSummaryResponse.TransactionTimeline(labels, values);
 	}
 
+	// Computes transaction counts grouped by status.
 	private TransactDashboardSummaryResponse.TransactionStatusSummary buildTransactionStatusSummary(String accountNumber) {
 		long successCount = transactionRepository.countAllByAccountNoAndStatus(accountNumber, STATUS_SUCCESS);
 		long failedCount = transactionRepository.countAllByAccountNoAndStatus(accountNumber, STATUS_FAILED);
@@ -706,6 +734,7 @@ public class TransactionService {
 		);
 	}
 
+	// Computes OTP log counts grouped by OTP status.
 	private TransactDashboardSummaryResponse.OtpStatusSummary buildOtpStatusSummary(Long bankCustomerId) {
 		long sentCount = otpRecordRepository.countByBankCustomerIdAndOtpStatus(bankCustomerId, OTP_STATUS_SENT);
 		long verifiedCount = otpRecordRepository.countByBankCustomerIdAndOtpStatus(bankCustomerId, OTP_STATUS_VERIFIED);
@@ -720,6 +749,7 @@ public class TransactionService {
 		);
 	}
 
+	// Loads recent transaction rows and maps them for dashboard preview.
 	private List<TransactDashboardSummaryResponse.RecentTransactionItem> buildRecentTransactions(String accountNumber) {
 		return transactionRepository
 			.findRecentByAccountNo(accountNumber, PageRequest.of(0, 8))
@@ -728,6 +758,7 @@ public class TransactionService {
 			.toList();
 	}
 
+	// Maps transaction entity into dashboard recent-transaction item.
 	private TransactDashboardSummaryResponse.RecentTransactionItem toRecentTransactionItem(
 		Transaction transaction,
 		String accountNumber
@@ -759,14 +790,17 @@ public class TransactionService {
 		);
 	}
 
+	// Returns trimmed string or empty fallback.
 	private String safeText(String value) {
 		return value == null ? "" : value.trim();
 	}
 
+	// Normalizes account number by removing internal spaces.
 	private String normalizeAccountNumber(String accountNo) {
 		return accountNo == null ? "" : accountNo.replaceAll("\\s+", "").trim();
 	}
 
+	// Resolves sender account from authenticated bank customer context.
 	private Account resolveSenderAccountForBankCustomer(BankCustomer bankCustomer) {
 		if (bankCustomer == null || bankCustomer.getAccount() == null) {
 			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Sender account is not linked to logged-in bank customer.");
@@ -785,6 +819,7 @@ public class TransactionService {
 		return senderAccount;
 	}
 
+	// Resolves account owned by authenticated bank customer for read operations.
 	private Account resolveOwnedAccountForBankCustomer(BankCustomer bankCustomer) {
 		if (bankCustomer == null || bankCustomer.getAccount() == null) {
 			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Account was not found for logged-in bank customer.");
@@ -799,6 +834,7 @@ public class TransactionService {
 		return senderAccount;
 	}
 
+	// Validates beneficiary account uniqueness for create/update flows.
 	private void ensureNoDuplicateBeneficiary(Long bankCustomerId, String accountNo, Long beneficiaryIdToIgnore) {
 		boolean duplicateExists = beneficiaryIdToIgnore == null
 			? beneficiaryRepository.existsByBankCustomer_BankCustomerIdAndBeneficiaryAccountNo(bankCustomerId, accountNo)
@@ -812,6 +848,7 @@ public class TransactionService {
 		}
 	}
 
+	// Sends successful transfer details to expense tracking integration.
 	private void trackExpenseForSuccessfulTransaction(BankCustomer bankCustomer, Transaction transaction) {
 		try {
 			expenseService.trackTransactExpenseForBankCustomer(
@@ -825,6 +862,7 @@ public class TransactionService {
 		}
 	}
 
+	// Converts transaction entity to API response DTO.
 	private TransactionResponse toTransactionResponse(Transaction transaction) {
 		return new TransactionResponse(
 			transaction.getTransactionId(),
@@ -843,6 +881,7 @@ public class TransactionService {
 		);
 	}
 
+	// Converts beneficiary entity to API response DTO.
 	private BeneficiaryResponse toBeneficiaryResponse(Beneficiary beneficiary) {
 		return new BeneficiaryResponse(
 			beneficiary.getBeneficiaryId(),
@@ -854,6 +893,7 @@ public class TransactionService {
 		);
 	}
 
+	// Resolves and validates authenticated principal as BANK_CUSTOMER.
 	private BankCustomer resolveLoggedInBankCustomer() {
 		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 		if (

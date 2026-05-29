@@ -22,21 +22,26 @@ import lombok.Setter;
 @NoArgsConstructor
 public class PublicCustomerMissedPayment {
 
+	// Primary key of missed-payment aggregate row.
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	@Column(name = "missed_payment_id")
 	private Long missedPaymentId;
 
+	// One-to-one financial record owning this missed-payment count.
 	@OneToOne(fetch = FetchType.LAZY, optional = false)
 	@JoinColumn(name = "record_id", nullable = false, unique = true)
 	private PublicCustomerFinancialRecord financialRecord;
 
+	// Aggregate missed-payments count in the tracked window.
 	@Column(name = "missed_payments", nullable = false)
 	private Integer missedPayments = 0;
 
+	// Row creation timestamp.
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private LocalDateTime createdAt;
 
+	// Initializes created timestamp when row is first persisted.
 	@PrePersist
 	void onCreate() {
 		createdAt = LocalDateTime.now();

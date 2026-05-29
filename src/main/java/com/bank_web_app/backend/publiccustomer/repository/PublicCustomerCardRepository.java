@@ -5,11 +5,15 @@ import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
+// Repository for public-customer card entries and provider lookups.
 public interface PublicCustomerCardRepository extends JpaRepository<PublicCustomerCard, Long> {
+	// Returns all card rows linked to a financial record.
 	List<PublicCustomerCard> findAllByFinancialRecord_RecordId(Long recordId);
 
+	// Deletes all card rows linked to a financial record.
 	void deleteByFinancialRecord_RecordId(Long recordId);
 
+	// Returns distinct non-empty card provider names for dropdown options.
 	@Query("select distinct c.provider from PublicCustomerCard c where c.provider is not null and trim(c.provider) <> '' order by c.provider")
 	List<String> findDistinctProviders();
 }

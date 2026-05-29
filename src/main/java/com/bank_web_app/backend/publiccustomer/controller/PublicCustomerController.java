@@ -32,12 +32,15 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Public Customers", description = "PUBLIC_CUSTOMER onboarding and listing endpoints.")
 public class PublicCustomerController {
 
+	// Service layer handling public-customer onboarding and financial-step workflows.
 	private final PublicCustomerService publicCustomerService;
 
+	// Injects public customer service dependency for controller endpoints.
 	public PublicCustomerController(PublicCustomerService publicCustomerService) {
 		this.publicCustomerService = publicCustomerService;
 	}
 
+	// Saves a draft registration profile for a public customer.
 	@PostMapping("/draft")
 	@Operation(
 		summary = "Save PUBLIC_CUSTOMER draft",
@@ -52,6 +55,7 @@ public class PublicCustomerController {
 		return ResponseEntity.ok(publicCustomerService.saveDraft(request));
 	}
 
+	// Completes public customer registration as SUCCESS state.
 	@PostMapping
 	@Operation(
 		summary = "Register PUBLIC_CUSTOMER",
@@ -66,6 +70,7 @@ public class PublicCustomerController {
 		return ResponseEntity.ok(publicCustomerService.register(request));
 	}
 
+	// Returns public-customer summary list for management screens.
 	@GetMapping
 	@Operation(
 		summary = "Get all public customers",
@@ -80,6 +85,7 @@ public class PublicCustomerController {
 		return ResponseEntity.ok(publicCustomerService.getAll());
 	}
 
+	// Resolves and returns the currently authenticated public-customer profile.
 	@GetMapping("/me")
 	@Operation(
 		summary = "Get logged-in public customer profile",
@@ -94,6 +100,7 @@ public class PublicCustomerController {
 		return ResponseEntity.ok(publicCustomerService.getMe());
 	}
 
+	// Returns dropdown options for card provider selection in application flow.
 	@GetMapping("/card-providers")
 	@Operation(
 		summary = "Get card provider dropdown options",
@@ -108,6 +115,7 @@ public class PublicCustomerController {
 		return ResponseEntity.ok(publicCustomerService.getCardProviderOptions());
 	}
 
+	// Saves income information step for the current financial record.
 	@PutMapping("/{publicCustomerId}/financial-records/steps/income")
 	@Operation(
 		summary = "Save income step",
@@ -124,6 +132,7 @@ public class PublicCustomerController {
 		return ResponseEntity.ok(publicCustomerService.saveIncomeStep(publicCustomerId, request));
 	}
 
+	// Saves loans information step for the current financial record.
 	@PutMapping("/{publicCustomerId}/financial-records/steps/loans")
 	@Operation(
 		summary = "Save loans step",
@@ -140,6 +149,7 @@ public class PublicCustomerController {
 		return ResponseEntity.ok(publicCustomerService.saveLoanStep(publicCustomerId, request));
 	}
 
+	// Saves credit/debit card information step for the current financial record.
 	@PutMapping("/{publicCustomerId}/financial-records/steps/cards")
 	@Operation(
 		summary = "Save cards step",
@@ -156,6 +166,7 @@ public class PublicCustomerController {
 		return ResponseEntity.ok(publicCustomerService.saveCardStep(publicCustomerId, request));
 	}
 
+	// Saves liabilities and missed-payments step for the current financial record.
 	@PutMapping("/{publicCustomerId}/financial-records/steps/liabilities")
 	@Operation(
 		summary = "Save liabilities step",
@@ -172,6 +183,7 @@ public class PublicCustomerController {
 		return ResponseEntity.ok(publicCustomerService.saveLiabilityStep(publicCustomerId, request));
 	}
 
+	// Returns the CURRENT financial snapshot for one public customer.
 	@GetMapping("/{publicCustomerId}/financial-records/current")
 	@Operation(
 		summary = "Get current financial record",
@@ -189,6 +201,7 @@ public class PublicCustomerController {
 		return ResponseEntity.ok(publicCustomerService.getCurrentFinancialRecord(publicCustomerId));
 	}
 
+	// Returns full financial snapshot history for one public customer.
 	@GetMapping("/{publicCustomerId}/financial-records/history")
 	@Operation(
 		summary = "Get financial record history",
@@ -206,6 +219,7 @@ public class PublicCustomerController {
 		return ResponseEntity.ok(publicCustomerService.getFinancialRecordHistory(publicCustomerId));
 	}
 
+	// Returns one financial snapshot by record id for a public customer.
 	@GetMapping("/{publicCustomerId}/financial-records/{recordId}")
 	@Operation(
 		summary = "Get financial record by id",

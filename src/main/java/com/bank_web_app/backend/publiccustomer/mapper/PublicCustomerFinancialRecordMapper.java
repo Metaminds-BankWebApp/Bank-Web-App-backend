@@ -15,6 +15,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class PublicCustomerFinancialRecordMapper {
 
+	// Maps a financial record entity to lightweight summary DTO.
 	public PublicCustomerFinancialRecordSummaryResponse toSummary(PublicCustomerFinancialRecord record) {
 		return new PublicCustomerFinancialRecordSummaryResponse(
 			record.getRecordId(),
@@ -25,6 +26,7 @@ public class PublicCustomerFinancialRecordMapper {
 		);
 	}
 
+	// Maps a financial record with related rows into full response DTO.
 	public PublicCustomerFinancialRecordResponse toResponse(
 		PublicCustomerFinancialRecord record,
 		List<PublicCustomerIncome> incomes,
@@ -33,6 +35,7 @@ public class PublicCustomerFinancialRecordMapper {
 		List<PublicCustomerLiability> liabilities,
 		int missedPayments
 	) {
+		// Maps and orders income rows for stable response ordering.
 		List<PublicCustomerFinancialRecordResponse.IncomeItem> incomeItems = incomes
 			.stream()
 			.sorted(Comparator.comparing(PublicCustomerIncome::getIncomeId))
@@ -48,6 +51,7 @@ public class PublicCustomerFinancialRecordMapper {
 			))
 			.collect(Collectors.toList());
 
+		// Maps and orders loan rows for stable response ordering.
 		List<PublicCustomerFinancialRecordResponse.LoanItem> loanItems = loans
 			.stream()
 			.sorted(Comparator.comparing(PublicCustomerLoan::getLoanId))
@@ -60,6 +64,7 @@ public class PublicCustomerFinancialRecordMapper {
 			))
 			.collect(Collectors.toList());
 
+		// Maps and orders card rows for stable response ordering.
 		List<PublicCustomerFinancialRecordResponse.CardItem> cardItems = cards
 			.stream()
 			.sorted(Comparator.comparing(PublicCustomerCard::getCardId))
@@ -72,6 +77,7 @@ public class PublicCustomerFinancialRecordMapper {
 			))
 			.collect(Collectors.toList());
 
+		// Maps and orders liability rows for stable response ordering.
 		List<PublicCustomerFinancialRecordResponse.LiabilityItem> liabilityItems = liabilities
 			.stream()
 			.sorted(Comparator.comparing(PublicCustomerLiability::getLiabilityId))

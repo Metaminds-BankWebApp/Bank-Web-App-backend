@@ -38,9 +38,12 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Bank Customer Transact", description = "Transfer, OTP verification, beneficiary, and history endpoints for BANK_CUSTOMER users.")
 public class TransactionController {
 
+	// Service layer for transfer, OTP, beneficiary, and history operations.
 	private final TransactionService transactionService;
+	// Service layer for generating statement-style transaction history PDFs.
 	private final TransactionStatementPdfService transactionStatementPdfService;
 
+	// Injects transact services used by customer-facing transact endpoints.
 	public TransactionController(
 		TransactionService transactionService,
 		TransactionStatementPdfService transactionStatementPdfService
@@ -49,6 +52,7 @@ public class TransactionController {
 		this.transactionStatementPdfService = transactionStatementPdfService;
 	}
 
+	// Initiates a transfer and triggers OTP delivery for confirmation.
 	@PostMapping("/transactions/initiate")
 	@Operation(
 		summary = "Initiate transfer transaction",
@@ -65,6 +69,7 @@ public class TransactionController {
 		return ResponseEntity.ok(transactionService.initiateTransaction(request));
 	}
 
+	// Verifies OTP and completes the pending transfer when valid.
 	@PostMapping("/transactions/verify-otp")
 	@Operation(
 		summary = "Verify transfer OTP",
@@ -80,6 +85,7 @@ public class TransactionController {
 		return ResponseEntity.ok(transactionService.verifyOtp(request));
 	}
 
+	// Sends a new OTP for a transaction still pending OTP verification.
 	@PostMapping("/transactions/resend-otp")
 	@Operation(
 		summary = "Resend transfer OTP",
@@ -96,6 +102,7 @@ public class TransactionController {
 		return ResponseEntity.ok(transactionService.resendOtp(request));
 	}
 
+	// Returns current account balance details for the authenticated bank customer.
 	@GetMapping("/dashboard/current-balance")
 	@Operation(
 		summary = "Get current balance card data",
@@ -114,6 +121,7 @@ public class TransactionController {
 			.body(transactionService.getCurrentBalance());
 	}
 
+	// Returns dashboard summary metrics for the authenticated bank customer.
 	@GetMapping("/dashboard/summary")
 	@Operation(
 		summary = "Get transact dashboard summary cards",
@@ -132,6 +140,7 @@ public class TransactionController {
 			.body(transactionService.getDashboardSummary());
 	}
 
+	// Returns transaction history for the authenticated bank customer.
 	@GetMapping("/transactions/history")
 	@Operation(
 		summary = "Get transaction history",
@@ -146,6 +155,7 @@ public class TransactionController {
 		return ResponseEntity.ok(transactionService.getHistory());
 	}
 
+	// Generates and downloads transaction history report as a PDF file.
 	@GetMapping(value = "/transactions/history/report", produces = MediaType.APPLICATION_PDF_VALUE)
 	@Operation(
 		summary = "Download transaction history report as PDF",
@@ -174,6 +184,7 @@ public class TransactionController {
 			.body(report.content());
 	}
 
+	// Returns a single transaction using its reference number.
 	@GetMapping("/transactions/{referenceNo}")
 	@Operation(
 		summary = "Get transaction by reference",
@@ -189,6 +200,7 @@ public class TransactionController {
 		return ResponseEntity.ok(transactionService.getByReferenceNo(referenceNo));
 	}
 
+	// Creates a new beneficiary for the authenticated bank customer.
 	@PostMapping("/beneficiaries")
 	@Operation(
 		summary = "Create beneficiary",
@@ -205,6 +217,7 @@ public class TransactionController {
 		return ResponseEntity.ok(transactionService.createBeneficiary(request));
 	}
 
+	// Updates an existing beneficiary owned by the authenticated bank customer.
 	@PutMapping("/beneficiaries/{beneficiaryId}")
 	@Operation(
 		summary = "Update beneficiary",
@@ -224,6 +237,7 @@ public class TransactionController {
 		return ResponseEntity.ok(transactionService.updateBeneficiary(beneficiaryId, request));
 	}
 
+	// Lists all beneficiaries saved by the authenticated bank customer.
 	@GetMapping("/beneficiaries")
 	@Operation(
 		summary = "Get beneficiaries",
@@ -238,6 +252,7 @@ public class TransactionController {
 		return ResponseEntity.ok(transactionService.getBeneficiaries());
 	}
 
+	// Deletes a beneficiary owned by the authenticated bank customer.
 	@DeleteMapping("/beneficiaries/{beneficiaryId}")
 	@Operation(
 		summary = "Delete beneficiary",

@@ -33,30 +33,38 @@ import lombok.Setter;
 @NoArgsConstructor
 public class Beneficiary {
 
+	// Primary key of the beneficiary record.
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	@Column(name = "beneficiary_id")
 	private Long beneficiaryId;
 
+	// Owning bank customer for this beneficiary entry.
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
 	@JoinColumn(name = "bank_customer_id", nullable = false)
 	private BankCustomer bankCustomer;
 
+	// Beneficiary account number used for transfers.
 	@Column(name = "beneficiary_account_no", nullable = false, length = 20)
 	private String beneficiaryAccountNo;
 
+	// Display nickname shown in customer UI.
 	@Column(name = "nick_name", nullable = false, length = 100)
 	private String nickName;
 
+	// Optional-style note attached to beneficiary.
 	@Column(name = "remark", nullable = false, length = 255)
 	private String remark;
 
+	// Creation timestamp managed automatically.
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private LocalDateTime createdAt;
 
+	// Last update timestamp managed automatically.
 	@Column(name = "updated_at", nullable = false)
 	private LocalDateTime updatedAt;
 
+	// Initializes audit timestamps when record is first persisted.
 	@PrePersist
 	void onCreate() {
 		LocalDateTime now = LocalDateTime.now();
@@ -64,6 +72,7 @@ public class Beneficiary {
 		updatedAt = now;
 	}
 
+	// Refreshes update timestamp on each entity update.
 	@PreUpdate
 	void onUpdate() {
 		updatedAt = LocalDateTime.now();
