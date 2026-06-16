@@ -24,4 +24,7 @@ public interface BankCreditEvaluationRepository extends JpaRepository<BankCredit
 
 	// Checks whether an officer has produced any bank credit evaluations.
 	boolean existsByEvaluatedByOfficer_OfficerId(Long officerId);
+
+	BankCreditEvaluation[] findAllByBankCustomer_Officer_OfficerIdOrderByBankCustomer_BankCustomerIdAscCreatedAtDesc(
+			Long officerId);
 }

@@ -77,18 +77,6 @@ public class BrevoSmtpEmailService implements EmailService {
 		if (toEmail == null || toEmail.isBlank()) {
 			throw new IllegalArgumentException("Email recipient is required.");
 		}
-		if (brevoApiKey.isBlank()) {
-			throw new EmailDeliveryException(
-				"Unable to deliver credentials email: BREVO_API_KEY is required.",
-				new IllegalStateException("Brevo API key is blank.")
-			);
-		}
-		if (fromAddress == null || fromAddress.isBlank()) {
-			throw new EmailDeliveryException(
-				"Unable to deliver credentials email: APP_MAIL_FROM is required.",
-				new IllegalStateException("APP_MAIL_FROM is blank.")
-			);
-		}
 		if (subject == null || subject.isBlank()) {
 			throw new IllegalArgumentException("Email subject is required.");
 		}
@@ -98,12 +86,24 @@ public class BrevoSmtpEmailService implements EmailService {
 
 		// Primary path: Brevo transactional API.
 		if (!brevoApiKey.isBlank()) {
+			if (fromAddress == null || fromAddress.isBlank()) {
+				throw new EmailDeliveryException(
+					"Unable to deliver credentials email: APP_MAIL_FROM is required.",
+					new IllegalStateException("APP_MAIL_FROM is blank.")
+				);
+			}
 			sendViaBrevoApi(toEmail, subject, body);
 			return;
 		}
 
 		// Fallback path: SMTP relay when API key is not configured.
 		if (smtpFallbackEnabled && hasSmtpRelayCredentials()) {
+			if (fromAddress == null || fromAddress.isBlank()) {
+				throw new EmailDeliveryException(
+					"Unable to deliver credentials email: APP_MAIL_FROM is required.",
+					new IllegalStateException("APP_MAIL_FROM is blank.")
+				);
+			}
 			sendViaSmtpRelay(toEmail, subject, body);
 			return;
 		}
@@ -185,28 +185,6 @@ public class BrevoSmtpEmailService implements EmailService {
 			LOGGER.error("Brevo API I/O error for {}", toEmail, ex);
 			throw new EmailDeliveryException("Unable to deliver credentials email: cannot connect to Brevo API server.", ex);
 		}
-	}
-
-	private void sendViaSmtpRelay(String toEmail, String subject, String body) {
-		try {
-			SimpleMailMessage message = new SimpleMailMessage();
-			message.setFrom(fromAddress);
-			message.setTo(toEmail.trim());
-			message.setSubject(subject.trim());
-			message.setText(body);
-			javaMailSender.send(message);
-			LOGGER.info("SMTP relay email sent successfully to {}", toEmail.trim());
-		} catch (MailException ex) {
-			LOGGER.error("SMTP relay email delivery failed for {}", toEmail, ex);
-			throw new EmailDeliveryException(
-				"Unable to deliver email using SMTP relay. Check spring.mail.host, spring.mail.username, spring.mail.password, and APP_MAIL_FROM.",
-				ex
-			);
-		}
-	}
-
-	private boolean hasSmtpRelayCredentials() {
-		return !smtpHost.isBlank() && !smtpUsername.isBlank() && !smtpPassword.isBlank();
 	}
 
 	private void sendViaSmtpRelay(String toEmail, String subject, String body) {
