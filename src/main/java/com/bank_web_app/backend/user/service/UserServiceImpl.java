@@ -8,8 +8,8 @@ import com.bank_web_app.backend.bankcustomer.repository.AccountRepository;
 import com.bank_web_app.backend.bankcustomer.repository.BankCustomerRepository;
 import com.bank_web_app.backend.bankofficer.entity.BankOfficer;
 import com.bank_web_app.backend.bankofficer.repository.BankOfficerRepository;
-import com.bank_web_app.backend.bankofficer.service.BankOfficerContextService;
-import com.bank_web_app.backend.bankofficer.service.PortfolioService;
+import com.bank_web_app.backend.common.email.BankOfficerCredentialsEmailService;
+import com.bank_web_app.backend.common.email.EmailDeliveryException;
 import com.bank_web_app.backend.common.exception.DuplicateFieldsException;
 import com.bank_web_app.backend.publiccustomer.entity.PublicCustomerProfile;
 import com.bank_web_app.backend.publiccustomer.repository.PublicCustomerProfileRepository;
@@ -30,6 +30,8 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -42,6 +44,7 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class UserServiceImpl implements UserService {
 
+private static final Logger LOGGER = LoggerFactory.getLogger(UserServiceImpl.class);
 private static final String ROLE_BANK_CUSTOMER = "BANK_CUSTOMER";
 private static final String ROLE_PUBLIC_CUSTOMER = "PUBLIC_CUSTOMER";
 private static final String ROLE_BANK_OFFICER = "BANK_OFFICER";
@@ -51,7 +54,7 @@ private static final String STATE_PENDING_STEP_2 = "PENDING_STEP_2";
 private static final String STATE_SUCCESS = "SUCCESS";
 private static final Pattern NIC_REGEX = Pattern.compile("^(?:\\d{9}[VvXx]|\\d{12})$");
 private static final Pattern BANK_OFFICER_MOBILE_REGEX = Pattern.compile("^(?:077|076|078|070|072|074|075|071)\\d{7}$");
-private static final Pattern BANK_OFFICER_EMAIL_REGEX = Pattern.compile("^[A-Za-z0-9._%+-]+@primecore\\.com$", Pattern.CASE_INSENSITIVE);
+private static final Pattern BANK_OFFICER_EMAIL_REGEX = Pattern.compile("^[A-Za-z0-9._%+-]+@gmail\\.com$", Pattern.CASE_INSENSITIVE);
 private static final Set<String> SRI_LANKA_PROVINCES = Set.of(
 "western",
 "central",
@@ -74,6 +77,8 @@ private final PublicCustomerProfileRepository publicCustomerProfileRepository;
 private final BankOfficerContextService bankOfficerContextService;
 private final PortfolioService portfolioService;
 private final PasswordEncoder passwordEncoder;
+private final BankCustomerCredentialsEmailService credentialsEmailService;
+private final BankOfficerCredentialsEmailService bankOfficerCredentialsEmailService;
 private static final java.security.SecureRandom SECURE_RANDOM = new java.security.SecureRandom();
 
 public UserServiceImpl(
@@ -84,9 +89,9 @@ BankOfficerRepository bankOfficerRepository,
 BankCustomerRepository bankCustomerRepository,
 AccountRepository accountRepository,
 PublicCustomerProfileRepository publicCustomerProfileRepository,
-BankOfficerContextService bankOfficerContextService,
-PortfolioService portfolioService,
-PasswordEncoder passwordEncoder
+PasswordEncoder passwordEncoder,
+BankCustomerCredentialsEmailService credentialsEmailService,
+BankOfficerCredentialsEmailService bankOfficerCredentialsEmailService
 ) {
 this.userRepository = userRepository;
 this.roleRepository = roleRepository;
@@ -98,6 +103,8 @@ this.publicCustomerProfileRepository = publicCustomerProfileRepository;
 this.bankOfficerContextService = bankOfficerContextService;
 this.portfolioService = portfolioService;
 this.passwordEncoder = passwordEncoder;
+this.credentialsEmailService = credentialsEmailService;
+this.bankOfficerCredentialsEmailService = bankOfficerCredentialsEmailService;
 }
 
 @Override
@@ -164,7 +171,14 @@ return new UserRegistrationStepResponse(user.getUserId(), ROLE_BANK_OFFICER, STA
 public UserRegistrationStepResponse continueBankOfficerStepOne(UserRegistrationStepOneRequest request) {
 User user = createUserForRole(request, ROLE_BANK_OFFICER);
 createBankOfficerProfile(request, user);
-return new UserRegistrationStepResponse(user.getUserId(), ROLE_BANK_OFFICER, STATE_SUCCESS, "Bank officer registration completed successfully.");
+String responseMessage = "Bank officer registration completed successfully.";
+try {
+bankOfficerCredentialsEmailService.sendCredentialsEmail(user.getEmail(), user.getFirstName(), user.getUsername(), request.password());
+} catch (EmailDeliveryException ex) {
+LOGGER.warn("Bank officer created, but credentials email delivery failed for {}: {}", user.getEmail(), ex.getMessage());
+responseMessage = "Bank officer registration completed, but credentials email could not be delivered.";
+}
+return new UserRegistrationStepResponse(user.getUserId(), ROLE_BANK_OFFICER, STATE_SUCCESS, responseMessage);
 }
 
 @Override
@@ -465,7 +479,7 @@ throw new IllegalArgumentException("Contact number must be 10 digits and start w
 
 String email = safeTrim(request.email());
 if (!BANK_OFFICER_EMAIL_REGEX.matcher(email).matches()) {
-throw new IllegalArgumentException("Email must be in the format name@primecore.com.");
+throw new IllegalArgumentException("Email must be in the format name@gmail.com.");
 }
 
 String province = safeTrim(request.province()).toLowerCase(Locale.ROOT);

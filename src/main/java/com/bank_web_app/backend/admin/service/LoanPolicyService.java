@@ -22,9 +22,11 @@ public class LoanPolicyService {
 	private static final Set<String> SUPPORTED_LOAN_TYPES = Set.of("PERSONAL", "VEHICLE", "EDUCATION", "HOUSING");
 
 	private final LoanPolicyRepository loanPolicyRepository;
+	private final AuditLogService auditLogService;
 
-	public LoanPolicyService(LoanPolicyRepository loanPolicyRepository) {
+	public LoanPolicyService(LoanPolicyRepository loanPolicyRepository, AuditLogService auditLogService) {
 		this.loanPolicyRepository = loanPolicyRepository;
+		this.auditLogService = auditLogService;
 	}
 
 	@Transactional(readOnly = true)
@@ -59,7 +61,17 @@ public class LoanPolicyService {
 		policy.setMinIncomeRequired(normalizeOptionalCurrency(request.minIncomeRequired()));
 		policy.setStatus(normalizeStatus(request.status()));
 
-		return toResponse(loanPolicyRepository.save(policy));
+		LoanPolicy saved = loanPolicyRepository.save(policy);
+		LoanPolicyResponse response = toResponse(saved);
+		auditLogService.logAction(
+			"LOAN_POLICY_UPDATED",
+			"Updated Loan Policy: " + toLoanTypeLabel(response.loanType()),
+			"LOAN_POLICY",
+			String.valueOf(response.policyId()),
+			"Updated policy parameters and status for " + response.loanType() + ".",
+			"INFO"
+		);
+		return response;
 	}
 
 	@Transactional
@@ -89,12 +101,21 @@ public class LoanPolicyService {
 			policy.setBaseInterestRate(normalizeNonNegative(item.baseInterestRate(), "Base interest rate is required."));
 		});
 
-		return loanPolicyRepository
+		List<LoanPolicyResponse> responses = loanPolicyRepository
 			.saveAll(policyMap.values())
 			.stream()
 			.sorted((left, right) -> left.getLoanType().compareTo(right.getLoanType()))
 			.map(this::toResponse)
 			.toList();
+		auditLogService.logAction(
+			"LOAN_POLICY_INTEREST_BULK_UPDATED",
+			"Updated Loan Policy Interest Rates (Bulk)",
+			"LOAN_POLICY",
+			null,
+			"Updated base interest rates for " + responses.size() + " loan policy records.",
+			"INFO"
+		);
+		return responses;
 	}
 
 	private LoanPolicy findPolicy(Long policyId) {
@@ -114,6 +135,7 @@ public class LoanPolicyService {
 			policy.getMaxFinancePercentage(),
 			policy.getMinIncomeRequired(),
 			policy.getStatus(),
+			policy.getCreatedAt() == null ? null : policy.getCreatedAt().toString(),
 			policy.getUpdatedAt() == null ? null : policy.getUpdatedAt().toString()
 		);
 	}

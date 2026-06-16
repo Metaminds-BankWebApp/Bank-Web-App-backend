@@ -1,13 +1,17 @@
 package com.bank_web_app.backend.admin.controller;
 
 import com.bank_web_app.backend.admin.dto.response.AdminDashboardSummaryResponse;
+import com.bank_web_app.backend.admin.dto.response.AdminMonthlyUserGrowthResponse;
+import com.bank_web_app.backend.admin.dto.response.AdminRecentActionResponse;
 import com.bank_web_app.backend.admin.service.AdminDashboardService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import java.util.List;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -31,5 +35,34 @@ public class AdminDashboardController {
 	)
 	public ResponseEntity<AdminDashboardSummaryResponse> getSummary() {
 		return ResponseEntity.ok(adminDashboardService.getSummary());
+	}
+
+	@GetMapping("/recent-actions")
+	@Operation(
+		summary = "Get recent admin actions",
+		description = "Returns recent admin actions within the requested time window. Default window is last 12 hours.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Recent actions loaded successfully")
+		}
+	)
+	public ResponseEntity<List<AdminRecentActionResponse>> getRecentActions(
+		@RequestParam(defaultValue = "12") Integer hours,
+		@RequestParam(defaultValue = "20") Integer limit
+	) {
+		return ResponseEntity.ok(adminDashboardService.getRecentActions(hours, limit));
+	}
+
+	@GetMapping("/monthly-user-growth")
+	@Operation(
+		summary = "Get monthly user growth chart data",
+		description = "Returns month-by-month new customer user counts (all, bank, public) for the requested window.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Monthly user growth loaded successfully")
+		}
+	)
+	public ResponseEntity<AdminMonthlyUserGrowthResponse> getMonthlyUserGrowth(
+		@RequestParam(defaultValue = "6") Integer months
+	) {
+		return ResponseEntity.ok(adminDashboardService.getMonthlyUserGrowth(months));
 	}
 }

@@ -18,8 +18,14 @@ import com.bank_web_app.backend.bankcustomer.repository.BankCustomerLiabilityRep
 import com.bank_web_app.backend.bankcustomer.repository.BankCustomerLoanRepository;
 import com.bank_web_app.backend.bankcustomer.repository.BankCustomerMissedPaymentRepository;
 import com.bank_web_app.backend.bankcustomer.repository.BankCustomerRepository;
+import com.bank_web_app.backend.bankofficer.entity.BankOfficer;
+import com.bank_web_app.backend.bankofficer.repository.BankOfficerRepository;
 import com.bank_web_app.backend.creditlens.entity.BankCreditEvaluation;
 import com.bank_web_app.backend.creditlens.service.CreditEvaluationService;
+import com.bank_web_app.backend.loansense.dto.request.CreateLoanSenseEvaluationRequest;
+import com.bank_web_app.backend.loansense.dto.request.LoanSenseLoanInputRequest;
+import com.bank_web_app.backend.loansense.dto.response.LoanSenseOfficerCustomerRowResponse;
+import com.bank_web_app.backend.loansense.dto.response.LoanSenseOfficerDashboardResponse;
 import com.bank_web_app.backend.loansense.dto.response.LoanSenseEvaluationResponse;
 import com.bank_web_app.backend.loansense.dto.response.LoanSenseHistoryItemResponse;
 import com.bank_web_app.backend.loansense.dto.response.LoanTypeDetailResponse;
@@ -36,9 +42,11 @@ import java.time.LocalDateTime;
 import java.time.Period;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -57,6 +65,9 @@ public class LoanEligibilityService {
 	private static final Set<String> SUPPORTED_LOAN_TYPE_SET = Set.copyOf(SUPPORTED_LOAN_TYPES);
 	private static final BigDecimal CARD_MIN_PAYMENT_RATIO = new BigDecimal("0.05");
 	private static final BigDecimal DEFAULT_MAX_DBR_RATIO = new BigDecimal("0.40");
+	private static final BigDecimal MINOR_INTEREST_RATE_INCREASE_THRESHOLD = new BigDecimal("0.25");
+	private static final BigDecimal MAJOR_INTEREST_RATE_INCREASE_THRESHOLD = new BigDecimal("2.00");
+	private static final BigDecimal HUNDRED = new BigDecimal("100");
 
 	private final LoanEligibilityRepository loanEligibilityRepository;
 	private final BankCustomerRepository bankCustomerRepository;
@@ -66,6 +77,7 @@ public class LoanEligibilityService {
 	private final BankCustomerCardRepository bankCustomerCardRepository;
 	private final BankCustomerLiabilityRepository bankCustomerLiabilityRepository;
 	private final BankCustomerMissedPaymentRepository bankCustomerMissedPaymentRepository;
+	private final BankOfficerRepository bankOfficerRepository;
 	private final LoanPolicyRepository loanPolicyRepository;
 	private final RiskAdjustmentRepository riskAdjustmentRepository;
 	private final UserRepository userRepository;
@@ -81,6 +93,7 @@ public class LoanEligibilityService {
 		BankCustomerCardRepository bankCustomerCardRepository,
 		BankCustomerLiabilityRepository bankCustomerLiabilityRepository,
 		BankCustomerMissedPaymentRepository bankCustomerMissedPaymentRepository,
+		BankOfficerRepository bankOfficerRepository,
 		LoanPolicyRepository loanPolicyRepository,
 		RiskAdjustmentRepository riskAdjustmentRepository,
 		UserRepository userRepository,
@@ -95,6 +108,7 @@ public class LoanEligibilityService {
 		this.bankCustomerCardRepository = bankCustomerCardRepository;
 		this.bankCustomerLiabilityRepository = bankCustomerLiabilityRepository;
 		this.bankCustomerMissedPaymentRepository = bankCustomerMissedPaymentRepository;
+		this.bankOfficerRepository = bankOfficerRepository;
 		this.loanPolicyRepository = loanPolicyRepository;
 		this.riskAdjustmentRepository = riskAdjustmentRepository;
 		this.userRepository = userRepository;
@@ -119,12 +133,92 @@ public class LoanEligibilityService {
 	public List<LoanSenseHistoryItemResponse> getHistory(String loanType, Integer months) {
 		BankCustomer bankCustomer = resolveLoggedInBankCustomer();
 		getOrCreateLatestEvaluation(bankCustomer);
+		return buildHistoryResponses(bankCustomer.getBankCustomerId(), loanType, months);
+	}
 
+	@Transactional(readOnly = true)
+	public LoanSenseEvaluationResponse getEvaluationById(Long loansenseEvaluationId) {
+		BankCustomer bankCustomer = resolveLoggedInBankCustomer();
+		LoanSenseEvaluation evaluation = loanEligibilityRepository
+			.findByLoansenseEvaluationIdAndBankCustomer_BankCustomerId(loansenseEvaluationId, bankCustomer.getBankCustomerId())
+			.orElseThrow(() -> new IllegalArgumentException("LoanSense evaluation not found for this bank customer."));
+		return loanEligibilityMapper.toEvaluationResponse(evaluation);
+	}
+
+	@Transactional
+	public LoanSenseEvaluationResponse createEvaluationForOfficer(Long bankCustomerId, CreateLoanSenseEvaluationRequest request) {
+		BankOfficer officer = resolveLoggedInBankOfficer();
+		BankCustomer bankCustomer = resolveOwnedBankCustomer(bankCustomerId, officer);
+		BankCustomerFinancialRecord latestRecord = resolveLatestBankFinancialRecord(bankCustomer.getBankCustomerId());
+		BankCreditEvaluation bankCreditEvaluation = resolveCurrentBankCreditEvaluation(bankCustomer);
+		return loanEligibilityMapper.toEvaluationResponse(
+			createEvaluation(bankCustomer, latestRecord, bankCreditEvaluation, parseRequestedLoanInputs(request))
+		);
+	}
+
+	@Transactional
+	public LoanSenseEvaluationResponse getCurrentEvaluationForOfficer(Long bankCustomerId) {
+		BankOfficer officer = resolveLoggedInBankOfficer();
+		BankCustomer bankCustomer = resolveOwnedBankCustomer(bankCustomerId, officer);
+		return loanEligibilityMapper.toEvaluationResponse(getOrCreateLatestEvaluation(bankCustomer));
+	}
+
+	@Transactional
+	public List<LoanSenseHistoryItemResponse> getHistoryForOfficer(Long bankCustomerId, String loanType, Integer months) {
+		BankOfficer officer = resolveLoggedInBankOfficer();
+		BankCustomer bankCustomer = resolveOwnedBankCustomer(bankCustomerId, officer);
+		getOrCreateLatestEvaluation(bankCustomer);
+		return buildHistoryResponses(bankCustomer.getBankCustomerId(), loanType, months);
+	}
+
+	@Transactional(readOnly = true)
+	public LoanSenseEvaluationResponse getEvaluationByIdForOfficer(Long bankCustomerId, Long loansenseEvaluationId) {
+		BankOfficer officer = resolveLoggedInBankOfficer();
+		BankCustomer bankCustomer = resolveOwnedBankCustomer(bankCustomerId, officer);
+		LoanSenseEvaluation evaluation = loanEligibilityRepository
+			.findByLoansenseEvaluationIdAndBankCustomer_BankCustomerId(loansenseEvaluationId, bankCustomer.getBankCustomerId())
+			.orElseThrow(() -> new IllegalArgumentException("LoanSense evaluation not found for this bank customer."));
+		return loanEligibilityMapper.toEvaluationResponse(evaluation);
+	}
+
+	@Transactional
+	public LoanTypeDetailResponse getLoanTypeDetailForOfficer(Long bankCustomerId, String loanType) {
+		BankOfficer officer = resolveLoggedInBankOfficer();
+		BankCustomer bankCustomer = resolveOwnedBankCustomer(bankCustomerId, officer);
+		LoanSenseEvaluation evaluation = getOrCreateLatestEvaluation(bankCustomer);
+		return buildLoanTypeDetail(evaluation, normalizeLoanType(loanType));
+	}
+
+	@Transactional
+	public LoanSenseOfficerDashboardResponse getOfficerDashboard() {
+		BankOfficer officer = resolveLoggedInBankOfficer();
+		List<LoanSenseOfficerCustomerRowResponse> rows = bankCustomerRepository
+			.findAllByOfficer_OfficerIdOrderByUpdatedAtDesc(officer.getOfficerId())
+			.stream()
+			.map(this::toOfficerCustomerRow)
+			.toList();
+
+		int evaluatedCustomers = (int) rows.stream().filter(row -> !"NOT_EVALUATED".equals(row.overallStatus())).count();
+		int eligibleCustomers = (int) rows.stream().filter(row -> "ELIGIBLE".equals(row.overallStatus())).count();
+		int partiallyEligibleCustomers = (int) rows.stream().filter(row -> "PARTIALLY_ELIGIBLE".equals(row.overallStatus())).count();
+		int notEligibleCustomers = (int) rows.stream().filter(row -> "NOT_ELIGIBLE".equals(row.overallStatus())).count();
+
+		return new LoanSenseOfficerDashboardResponse(
+			rows.size(),
+			evaluatedCustomers,
+			eligibleCustomers,
+			partiallyEligibleCustomers,
+			notEligibleCustomers,
+			rows
+		);
+	}
+
+	private List<LoanSenseHistoryItemResponse> buildHistoryResponses(Long bankCustomerId, String loanType, Integer months) {
 		String normalizedLoanType = loanType == null || loanType.isBlank() ? null : normalizeLoanType(loanType);
 		LocalDateTime threshold = months == null ? null : LocalDateTime.now().minusMonths(normalizePositiveMonths(months));
 
 		return loanEligibilityRepository
-			.findAllByBankCustomer_BankCustomerIdOrderByCreatedAtDesc(bankCustomer.getBankCustomerId())
+			.findAllByBankCustomer_BankCustomerIdOrderByCreatedAtDesc(bankCustomerId)
 			.stream()
 			.filter(evaluation -> threshold == null || !evaluation.getCreatedAt().isBefore(threshold))
 			.flatMap(evaluation ->
@@ -141,13 +235,83 @@ public class LoanEligibilityService {
 			.toList();
 	}
 
-	@Transactional(readOnly = true)
-	public LoanSenseEvaluationResponse getEvaluationById(Long loansenseEvaluationId) {
-		BankCustomer bankCustomer = resolveLoggedInBankCustomer();
-		LoanSenseEvaluation evaluation = loanEligibilityRepository
-			.findByLoansenseEvaluationIdAndBankCustomer_BankCustomerId(loansenseEvaluationId, bankCustomer.getBankCustomerId())
-			.orElseThrow(() -> new IllegalArgumentException("LoanSense evaluation not found for this bank customer."));
-		return loanEligibilityMapper.toEvaluationResponse(evaluation);
+	private LoanSenseOfficerCustomerRowResponse toOfficerCustomerRow(BankCustomer customer) {
+		LoanSenseEvaluation evaluation = resolveLatestEvaluationForDashboard(customer);
+		if (evaluation == null) {
+			return new LoanSenseOfficerCustomerRowResponse(
+				customer.getBankCustomerId(),
+				customer.getCustomerCode(),
+				buildFullName(customer),
+				null,
+				"NOT_EVALUATED",
+				"Not Evaluated",
+				null,
+				null,
+				null,
+				null,
+				null
+			);
+		}
+
+		BigDecimal maxRecommendedAmount = evaluation.getResults()
+			.stream()
+			.map(LoanEligibilityResult::getRecommendedMaxAmount)
+			.filter(Objects::nonNull)
+			.max(Comparator.naturalOrder())
+			.orElse(null);
+
+		return new LoanSenseOfficerCustomerRowResponse(
+			customer.getBankCustomerId(),
+			customer.getCustomerCode(),
+			buildFullName(customer),
+			evaluation.getLoansenseEvaluationId(),
+			evaluation.getOverallStatus(),
+			toEligibilityLabel(evaluation.getOverallStatus()),
+			evaluation.getRiskLevel(),
+			toRiskLabel(evaluation.getRiskLevel()),
+			maxRecommendedAmount,
+			evaluation.getAvailableEmiCapacity(),
+			evaluation.getCreatedAt()
+		);
+	}
+
+	private LoanSenseEvaluation resolveLatestEvaluationForDashboard(BankCustomer customer) {
+		LoanSenseEvaluation latestEvaluation = loanEligibilityRepository
+			.findTopByBankCustomer_BankCustomerIdOrderByCreatedAtDesc(customer.getBankCustomerId())
+			.orElse(null);
+		if (latestEvaluation == null) {
+			return null;
+		}
+		return reconcileOverallStatus(latestEvaluation);
+	}
+
+	private String buildFullName(BankCustomer customer) {
+		User user = customer.getUser();
+		if (user == null) {
+			return customer.getCustomerCode();
+		}
+		String firstName = user.getFirstName() == null ? "" : user.getFirstName().trim();
+		String lastName = user.getLastName() == null ? "" : user.getLastName().trim();
+		String fullName = (firstName + " " + lastName).trim();
+		return fullName.isEmpty() ? customer.getCustomerCode() : fullName;
+	}
+
+	private String toEligibilityLabel(String status) {
+		return switch (normalizeText(status)) {
+			case "ELIGIBLE" -> "Eligible";
+			case "PARTIALLY_ELIGIBLE" -> "Partially Eligible";
+			case "NOT_ELIGIBLE" -> "Not Eligible";
+			default -> "Unknown";
+		};
+	}
+
+	private String toRiskLabel(String riskLevel) {
+		return switch (normalizeText(riskLevel)) {
+			case "LOW" -> "Low Risk";
+			case "MEDIUM" -> "Medium Risk";
+			case "HIGH" -> "High Risk";
+			default -> "";
+		};
 	}
 
 	private LoanTypeDetailResponse buildLoanTypeDetail(LoanSenseEvaluation evaluation, String loanType) {
@@ -179,16 +343,35 @@ public class LoanEligibilityService {
 				resolveLatestRiskAdjustmentUpdatedAt()
 			)
 		) {
-			return latestEvaluation;
+			return reconcileOverallStatus(latestEvaluation);
 		}
 
-		return createEvaluation(bankCustomer, latestRecord, bankCreditEvaluation);
+		return createEvaluation(
+			bankCustomer,
+			latestRecord,
+			bankCreditEvaluation,
+			LoanRequestInput.forAllLoanTypes()
+		);
+	}
+
+	private LoanSenseEvaluation reconcileOverallStatus(LoanSenseEvaluation evaluation) {
+		String resolvedOverallStatus = resolveOverallStatus(evaluation.getResults());
+		String currentOverallStatus = normalizeText(evaluation.getOverallStatus());
+		if (resolvedOverallStatus.equals(currentOverallStatus)) {
+			return evaluation;
+		}
+
+		evaluation.setOverallStatus(resolvedOverallStatus);
+		RiskAdjustment riskAdjustment = riskAdjustmentRepository.findByRiskLevel(normalizeText(evaluation.getRiskLevel())).orElse(null);
+		evaluation.setRemarks(buildRemarks(resolvedOverallStatus, safeAmount(evaluation.getAvailableEmiCapacity()), riskAdjustment));
+		return loanEligibilityRepository.save(evaluation);
 	}
 
 	private LoanSenseEvaluation createEvaluation(
 		BankCustomer bankCustomer,
 		BankCustomerFinancialRecord record,
-		BankCreditEvaluation bankCreditEvaluation
+		BankCreditEvaluation bankCreditEvaluation,
+		LoanRequestInput requestInput
 	) {
 		Long bankRecordId = record.getBankRecordId();
 		List<BankCustomerIncome> incomes = bankCustomerIncomeRepository.findAllByFinancialRecord_BankRecordId(bankRecordId);
@@ -209,6 +392,7 @@ public class LoanEligibilityService {
 		BigDecimal leasingHirePurchasePayment = sum(liabilities.stream().map(BankCustomerLiability::getMonthlyAmount).toList());
 		BigDecimal creditCardOutstanding = sum(cards.stream().map(BankCustomerCard::getOutstandingBalance).toList());
 		BigDecimal creditCardLimit = sum(cards.stream().map(BankCustomerCard::getCreditLimit).toList());
+		validateFinancialInputs(totalExistingLoanEmi, leasingHirePurchasePayment, creditCardOutstanding, creditCardLimit, missedPaymentsCount);
 		BigDecimal creditCardMinPayment = creditCardOutstanding
 			.multiply(CARD_MIN_PAYMENT_RATIO)
 			.setScale(2, RoundingMode.HALF_UP);
@@ -221,6 +405,10 @@ public class LoanEligibilityService {
 			.findAllByOrderByRiskLevelAsc()
 			.stream()
 			.collect(Collectors.toMap(adjustment -> normalizeText(adjustment.getRiskLevel()), Function.identity()));
+		Map<String, BigDecimal> previousInterestRatesByLoanType = loanEligibilityRepository
+			.findTopByBankCustomer_BankCustomerIdOrderByCreatedAtDesc(bankCustomer.getBankCustomerId())
+			.map(this::extractInterestRatesByLoanType)
+			.orElse(Map.of());
 
 		BigDecimal maxDbrRatio = activePolicyMap
 			.values()
@@ -256,8 +444,15 @@ public class LoanEligibilityService {
 		evaluation.setRiskLevel(riskLevel);
 		evaluation.setRiskMultiplier(riskMultiplier);
 
+		Set<String> loanTypesToEvaluate = requestInput.requestedLoanTypes().isEmpty()
+			? new LinkedHashSet<>(SUPPORTED_LOAN_TYPES)
+			: requestInput.requestedLoanTypes();
+
 		List<LoanEligibilityResult> results = new ArrayList<>();
 		for (String loanType : SUPPORTED_LOAN_TYPES) {
+			if (!loanTypesToEvaluate.contains(loanType)) {
+				continue;
+			}
 			LoanPolicy policy = activePolicyMap.get(loanType);
 			LoanEligibilityResult result = buildLoanResult(
 				evaluation,
@@ -268,7 +463,9 @@ public class LoanEligibilityService {
 				monthlyIncome,
 				dbr,
 				availableEmiCapacity,
-				missedPaymentsCount
+				missedPaymentsCount,
+				requestInput.assetValuesByLoanType().get(loanType),
+				previousInterestRatesByLoanType.get(loanType)
 			);
 			results.add(result);
 		}
@@ -288,21 +485,24 @@ public class LoanEligibilityService {
 		BigDecimal monthlyIncome,
 		BigDecimal dbr,
 		BigDecimal availableEmiCapacity,
-		int missedPaymentsCount
+		int missedPaymentsCount,
+		BigDecimal assetValue,
+		BigDecimal previousInterestRate
 	) {
 		LoanEligibilityResult result = new LoanEligibilityResult();
 		result.setLoanSenseEvaluation(evaluation);
 		result.setLoanType(loanType);
 		result.setCustomerAge(customerAge);
-		result.setAssetValue(null);
+		BigDecimal normalizedAssetValue = assetValue == null ? null : assetValue.setScale(2, RoundingMode.HALF_UP);
+		result.setAssetValue(normalizedAssetValue);
 
 		BigDecimal usableEmiCapacity = availableEmiCapacity.max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
 		result.setEstimatedEmi(usableEmiCapacity);
 		result.setInterestRate(policy == null ? null : policy.getBaseInterestRate());
-		result.setTenureMonths(policy == null ? null : policy.getMaxTenureMonths());
 
 		List<String> blockers = new ArrayList<>();
 		List<String> cautions = new ArrayList<>();
+		Integer adjustedTenureMonths = null;
 
 		if (policy == null) {
 			blockers.add("This loan product is not currently configured as active.");
@@ -310,6 +510,12 @@ public class LoanEligibilityService {
 			if (customerAge < policy.getMinAge() || customerAge > policy.getMaxAge()) {
 				blockers.add("Customer age is outside the policy age range for this product.");
 			}
+
+			adjustedTenureMonths = resolveAdjustedTenureMonths(policy, customerAge);
+			if (adjustedTenureMonths <= 0) {
+				blockers.add("Loan tenure exceeds the policy age-at-maturity limit for this customer.");
+			}
+
 			if (usableEmiCapacity.compareTo(BigDecimal.ZERO) <= 0) {
 				blockers.add("Current debt obligations already consume the allowed EMI capacity.");
 			}
@@ -325,6 +531,18 @@ public class LoanEligibilityService {
 			if (missedPaymentsCount >= 3) {
 				cautions.add("Recent missed payments make the recommendation more conservative.");
 			}
+			if ("VEHICLE".equals(loanType) && normalizedAssetValue == null) {
+				cautions.add("Vehicle value was not provided; EMI-based recommendation is used.");
+			}
+
+			if (previousInterestRate != null && policy.getBaseInterestRate() != null) {
+				BigDecimal rateIncrease = policy.getBaseInterestRate().subtract(previousInterestRate);
+				if (rateIncrease.compareTo(MAJOR_INTEREST_RATE_INCREASE_THRESHOLD) >= 0) {
+					blockers.add("Base interest rate increased significantly since the previous evaluation.");
+				} else if (rateIncrease.compareTo(MINOR_INTEREST_RATE_INCREASE_THRESHOLD) >= 0) {
+					cautions.add("Base interest rate increased since the previous evaluation.");
+				}
+			}
 		}
 
 		BigDecimal recommendedMaxAmount = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
@@ -332,18 +550,134 @@ public class LoanEligibilityService {
 		if (!blockers.isEmpty()) {
 			eligibilityStatus = "NOT_ELIGIBLE";
 		} else {
-			BigDecimal multiplier = riskAdjustment == null ? BigDecimal.ONE : riskAdjustment.getMultiplier();
-			recommendedMaxAmount = usableEmiCapacity
-				.multiply(BigDecimal.valueOf(policy.getMaxTenureMonths()))
+			BigDecimal multiplier = riskAdjustment == null ? BigDecimal.ONE : safeAmount(riskAdjustment.getMultiplier());
+			if (multiplier.compareTo(BigDecimal.ZERO) <= 0) {
+				multiplier = BigDecimal.ONE;
+			}
+
+			BigDecimal grossAmount = usableEmiCapacity
+				.multiply(BigDecimal.valueOf(adjustedTenureMonths))
 				.multiply(multiplier)
 				.setScale(2, RoundingMode.HALF_UP);
+			BigDecimal principalAmount = convertGrossToPrincipal(grossAmount, policy.getBaseInterestRate());
+			recommendedMaxAmount = applyAssetCap(principalAmount, normalizedAssetValue, policy);
+			if (recommendedMaxAmount.compareTo(BigDecimal.ZERO) <= 0) {
+				blockers.add("Calculated affordable amount is too low under current policy and risk settings.");
+				eligibilityStatus = "NOT_ELIGIBLE";
+				recommendedMaxAmount = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+				result.setTenureMonths(adjustedTenureMonths);
+				result.setEligibilityStatus(eligibilityStatus);
+				result.setRecommendedMaxAmount(recommendedMaxAmount);
+				result.setDecisionReason(buildDecisionReason(blockers, cautions, eligibilityStatus));
+				return result;
+			}
 			eligibilityStatus = cautions.isEmpty() ? "ELIGIBLE" : "PARTIALLY_ELIGIBLE";
 		}
 
+		result.setTenureMonths(adjustedTenureMonths);
 		result.setEligibilityStatus(eligibilityStatus);
 		result.setRecommendedMaxAmount(recommendedMaxAmount);
 		result.setDecisionReason(buildDecisionReason(blockers, cautions, eligibilityStatus));
 		return result;
+	}
+
+	private LoanRequestInput parseRequestedLoanInputs(CreateLoanSenseEvaluationRequest request) {
+		if (request == null || request.loans() == null || request.loans().isEmpty()) {
+			return LoanRequestInput.forAllLoanTypes();
+		}
+
+		Set<String> requestedLoanTypes = new LinkedHashSet<>();
+		Map<String, BigDecimal> assetValuesByLoanType = new java.util.HashMap<>();
+		for (LoanSenseLoanInputRequest item : request.loans()) {
+			if (item == null) {
+				throw new IllegalArgumentException("Loan request entries must not be null.");
+			}
+
+			String loanType = normalizeLoanType(item.loanType());
+			if (!requestedLoanTypes.add(loanType)) {
+				throw new IllegalArgumentException("Duplicate loan type found in request payload.");
+			}
+
+			BigDecimal assetValue = item.assetValue();
+			if (assetValue != null && assetValue.compareTo(BigDecimal.ZERO) < 0) {
+				throw new IllegalArgumentException("Asset value must not be negative.");
+			}
+			assetValuesByLoanType.put(loanType, assetValue == null ? null : assetValue.setScale(2, RoundingMode.HALF_UP));
+		}
+
+		if (requestedLoanTypes.isEmpty()) {
+			throw new IllegalArgumentException("At least one loan type must be requested.");
+		}
+
+		return new LoanRequestInput(requestedLoanTypes, assetValuesByLoanType);
+	}
+
+	private int resolveAdjustedTenureMonths(LoanPolicy policy, int customerAge) {
+		if (policy == null || policy.getMaxTenureMonths() == null || policy.getMaxTenureMonths() <= 0) {
+			return 0;
+		}
+		int remainingYears = policy.getMaxAge() - customerAge;
+		if (remainingYears <= 0) {
+			return 0;
+		}
+		int ageBoundTenureMonths = remainingYears * 12;
+		return Math.max(0, Math.min(policy.getMaxTenureMonths(), ageBoundTenureMonths));
+	}
+
+	private BigDecimal convertGrossToPrincipal(BigDecimal grossAmount, BigDecimal interestRate) {
+		BigDecimal normalizedGross = safeAmount(grossAmount).setScale(2, RoundingMode.HALF_UP);
+		if (normalizedGross.compareTo(BigDecimal.ZERO) <= 0) {
+			return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+		}
+		if (interestRate == null || interestRate.compareTo(BigDecimal.ZERO) <= 0) {
+			return normalizedGross;
+		}
+		BigDecimal denominator = HUNDRED.add(interestRate);
+		if (denominator.compareTo(BigDecimal.ZERO) <= 0) {
+			return normalizedGross;
+		}
+		return normalizedGross.multiply(HUNDRED).divide(denominator, 2, RoundingMode.HALF_UP);
+	}
+
+	private BigDecimal applyAssetCap(BigDecimal principalAmount, BigDecimal assetValue, LoanPolicy policy) {
+		BigDecimal amount = safeAmount(principalAmount).setScale(2, RoundingMode.HALF_UP);
+		if (amount.compareTo(BigDecimal.ZERO) <= 0) {
+			return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+		}
+		if (policy == null || policy.getMaxFinancePercentage() == null || assetValue == null) {
+			return amount;
+		}
+
+		BigDecimal financeRatio = policy.getMaxFinancePercentage().divide(HUNDRED, 4, RoundingMode.HALF_UP);
+		BigDecimal assetCap = safeAmount(assetValue).multiply(financeRatio).setScale(2, RoundingMode.HALF_UP);
+		if (assetCap.compareTo(BigDecimal.ZERO) <= 0) {
+			return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+		}
+		return amount.min(assetCap).setScale(2, RoundingMode.HALF_UP);
+	}
+
+	private void validateFinancialInputs(
+		BigDecimal totalExistingLoanEmi,
+		BigDecimal leasingHirePurchasePayment,
+		BigDecimal creditCardOutstanding,
+		BigDecimal creditCardLimit,
+		int missedPaymentsCount
+	) {
+		if (safeAmount(totalExistingLoanEmi).compareTo(BigDecimal.ZERO) < 0) {
+			throw new IllegalArgumentException("Total existing loan EMIs must not be negative.");
+		}
+		if (safeAmount(leasingHirePurchasePayment).compareTo(BigDecimal.ZERO) < 0) {
+			throw new IllegalArgumentException("Leasing or hire-purchase payment must not be negative.");
+		}
+		if (safeAmount(creditCardOutstanding).compareTo(BigDecimal.ZERO) < 0) {
+			throw new IllegalArgumentException("Credit-card outstanding balance must not be negative.");
+		}
+		if (safeAmount(creditCardLimit).compareTo(BigDecimal.ZERO) < 0) {
+			throw new IllegalArgumentException("Credit-card limit must not be negative.");
+		}
+		if (missedPaymentsCount < 0) {
+			throw new IllegalArgumentException("Missed payments count must not be negative.");
+		}
 	}
 
 	private String buildDecisionReason(List<String> blockers, List<String> cautions, String eligibilityStatus) {
@@ -360,12 +694,44 @@ public class LoanEligibilityService {
 	}
 
 	private String resolveOverallStatus(List<LoanEligibilityResult> results) {
-		boolean hasEligible = results.stream().anyMatch(result -> "ELIGIBLE".equals(result.getEligibilityStatus()));
-		if (hasEligible) {
+		if (results == null || results.isEmpty()) {
+			return "NOT_ELIGIBLE";
+		}
+
+		int eligibleCount = 0;
+		int partialCount = 0;
+		int notEligibleCount = 0;
+
+		for (LoanEligibilityResult result : results) {
+			String normalizedStatus = normalizeText(result == null ? null : result.getEligibilityStatus());
+			switch (normalizedStatus) {
+				case "ELIGIBLE" -> eligibleCount += 1;
+				case "PARTIALLY_ELIGIBLE" -> partialCount += 1;
+				case "NOT_ELIGIBLE" -> notEligibleCount += 1;
+				default -> partialCount += 1;
+			}
+		}
+
+		int total = results.size();
+
+		if (eligibleCount == total) {
 			return "ELIGIBLE";
 		}
-		boolean hasPartial = results.stream().anyMatch(result -> "PARTIALLY_ELIGIBLE".equals(result.getEligibilityStatus()));
-		return hasPartial ? "PARTIALLY_ELIGIBLE" : "NOT_ELIGIBLE";
+		if (partialCount == total) {
+			return "PARTIALLY_ELIGIBLE";
+		}
+		if (notEligibleCount == total) {
+			return "NOT_ELIGIBLE";
+		}
+
+		// If one or more NOT_ELIGIBLE exists together with other statuses, treat overall as partial.
+		if (notEligibleCount > 0) {
+			return "PARTIALLY_ELIGIBLE";
+		}
+
+		// Mixed ELIGIBLE + PARTIALLY_ELIGIBLE (no NOT_ELIGIBLE):
+		// ELIGIBLE wins on tie and majority, otherwise PARTIALLY_ELIGIBLE.
+		return eligibleCount >= partialCount ? "ELIGIBLE" : "PARTIALLY_ELIGIBLE";
 	}
 
 	private String buildRemarks(String overallStatus, BigDecimal availableEmiCapacity, RiskAdjustment riskAdjustment) {
@@ -438,6 +804,23 @@ public class LoanEligibilityService {
 			.orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Bank customer profile was not found for logged-in user."));
 	}
 
+	private BankOfficer resolveLoggedInBankOfficer() {
+		User user = resolveAuthenticatedUser("Bank officer authentication is required.");
+		return bankOfficerRepository
+			.findByUser_UserId(user.getUserId())
+			.orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Logged-in user is not a bank officer."));
+	}
+
+	private BankCustomer resolveOwnedBankCustomer(Long bankCustomerId, BankOfficer officer) {
+		BankCustomer bankCustomer = bankCustomerRepository
+			.findById(bankCustomerId)
+			.orElseThrow(() -> new IllegalArgumentException("Bank customer not found."));
+		if (bankCustomer.getOfficer() == null || !bankCustomer.getOfficer().getOfficerId().equals(officer.getOfficerId())) {
+			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This bank customer is not assigned to the logged-in bank officer.");
+		}
+		return bankCustomer;
+	}
+
 	private User resolveAuthenticatedUser(String unauthenticatedMessage) {
 		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 		if (
@@ -494,5 +877,29 @@ public class LoanEligibilityService {
 
 	private String normalizeText(String value) {
 		return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
+	}
+
+	private Map<String, BigDecimal> extractInterestRatesByLoanType(LoanSenseEvaluation evaluation) {
+		return evaluation
+			.getResults()
+			.stream()
+			.filter(result -> result.getLoanType() != null)
+			.filter(result -> result.getInterestRate() != null)
+			.collect(
+				Collectors.toMap(
+					result -> normalizeText(result.getLoanType()),
+					LoanEligibilityResult::getInterestRate,
+					(existing, replacement) -> replacement
+				)
+			);
+	}
+
+	private record LoanRequestInput(
+		Set<String> requestedLoanTypes,
+		Map<String, BigDecimal> assetValuesByLoanType
+	) {
+		static LoanRequestInput forAllLoanTypes() {
+			return new LoanRequestInput(Set.of(), Map.of());
+		}
 	}
 }

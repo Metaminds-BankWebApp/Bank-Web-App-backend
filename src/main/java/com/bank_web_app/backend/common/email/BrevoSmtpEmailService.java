@@ -16,6 +16,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.mail.MailException;
+import org.springframework.mail.SimpleMailMessage;
+import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -26,27 +29,46 @@ public class BrevoSmtpEmailService implements EmailService {
 
 	private final HttpClient httpClient;
 	private final ObjectMapper objectMapper;
+	private final JavaMailSender javaMailSender;
 	private final String brevoApiKey;
 	private final String fromAddress;
 	private final String fromName;
+	private final String smtpHost;
+	private final String smtpUsername;
+	private final String smtpPassword;
+	private final boolean smtpFallbackEnabled;
 
 	public BrevoSmtpEmailService(
-		@Value("${spring.mail.brevo.api.key:${BREVO_API_KEY:}}") String brevoApiKey,
+		@Value("${spring.mail.brevo.api.key:${BREVO_API_KEY:${spring.mail.password:${MAIL_PASSWORD:${BREVO_SMTP_KEY:}}}}}") String brevoApiKey,
 		@Value("${app.mail.from:${spring.mail.app.email.from:${APP_MAIL_FROM:}}}") String fromAddress,
-		@Value("${app.mail.name:${spring.mail.app.email.name:${APP_MAIL_NAME:Primecore}}}") String fromName
+		@Value("${app.mail.name:${spring.mail.app.email.name:${APP_MAIL_NAME:Primecore}}}") String fromName,
+		@Value("${spring.mail.host:${MAIL_HOST:}}") String smtpHost,
+		@Value("${spring.mail.username:${MAIL_USERNAME:${BREVO_SMTP_LOGIN:}}}") String smtpUsername,
+		@Value("${spring.mail.password:${MAIL_PASSWORD:${BREVO_SMTP_KEY:}}}") String smtpPassword,
+		@Value("${app.mail.smtp-fallback-enabled:true}") boolean smtpFallbackEnabled,
+		JavaMailSender javaMailSender
 	) {
 		this.httpClient = HttpClient.newBuilder()
 			.connectTimeout(Duration.ofSeconds(15))
 			.build();
 		this.objectMapper = new ObjectMapper();
+		this.javaMailSender = javaMailSender;
 		this.brevoApiKey = brevoApiKey == null ? "" : brevoApiKey.trim();
 		this.fromAddress = fromAddress == null ? "" : fromAddress.trim();
 		this.fromName = fromName == null || fromName.isBlank() ? "Primecore" : fromName.trim();
+		this.smtpHost = smtpHost == null ? "" : smtpHost.trim();
+		this.smtpUsername = smtpUsername == null ? "" : smtpUsername.trim();
+		this.smtpPassword = smtpPassword == null ? "" : smtpPassword.trim();
+		this.smtpFallbackEnabled = smtpFallbackEnabled;
 		LOGGER.info(
-			"Brevo mail config initialized with apiKeyLength={}, fromAddress={}, fromName={}",
+			"Brevo mail config initialized with apiKeyLength={}, fromAddress={}, fromName={}, smtpHost={}, smtpUsernameSet={}, smtpPasswordSet={}, smtpFallbackEnabled={}",
 			this.brevoApiKey.length(),
 			this.fromAddress,
-			this.fromName
+			this.fromName,
+			this.smtpHost,
+			!this.smtpUsername.isBlank(),
+			!this.smtpPassword.isBlank(),
+			this.smtpFallbackEnabled
 		);
 	}
 
@@ -74,6 +96,25 @@ public class BrevoSmtpEmailService implements EmailService {
 			throw new IllegalArgumentException("Email body is required.");
 		}
 
+		// Primary path: Brevo transactional API.
+		if (!brevoApiKey.isBlank()) {
+			sendViaBrevoApi(toEmail, subject, body);
+			return;
+		}
+
+		// Fallback path: SMTP relay when API key is not configured.
+		if (smtpFallbackEnabled && hasSmtpRelayCredentials()) {
+			sendViaSmtpRelay(toEmail, subject, body);
+			return;
+		}
+
+		throw new EmailDeliveryException(
+			"Unable to deliver email: configure BREVO_API_KEY or SMTP relay credentials (spring.mail.username/spring.mail.password).",
+			new IllegalStateException("Brevo API key and SMTP relay credentials are missing.")
+		);
+	}
+
+	private void sendViaBrevoApi(String toEmail, String subject, String body) {
 		Map<String, Object> payload = new HashMap<>();
 		payload.put("sender", Map.of("name", fromName, "email", fromAddress));
 		payload.put("to", List.of(Map.of("email", toEmail.trim())));
@@ -144,6 +185,50 @@ public class BrevoSmtpEmailService implements EmailService {
 			LOGGER.error("Brevo API I/O error for {}", toEmail, ex);
 			throw new EmailDeliveryException("Unable to deliver credentials email: cannot connect to Brevo API server.", ex);
 		}
+	}
+
+	private void sendViaSmtpRelay(String toEmail, String subject, String body) {
+		try {
+			SimpleMailMessage message = new SimpleMailMessage();
+			message.setFrom(fromAddress);
+			message.setTo(toEmail.trim());
+			message.setSubject(subject.trim());
+			message.setText(body);
+			javaMailSender.send(message);
+			LOGGER.info("SMTP relay email sent successfully to {}", toEmail.trim());
+		} catch (MailException ex) {
+			LOGGER.error("SMTP relay email delivery failed for {}", toEmail, ex);
+			throw new EmailDeliveryException(
+				"Unable to deliver email using SMTP relay. Check spring.mail.host, spring.mail.username, spring.mail.password, and APP_MAIL_FROM.",
+				ex
+			);
+		}
+	}
+
+	private boolean hasSmtpRelayCredentials() {
+		return !smtpHost.isBlank() && !smtpUsername.isBlank() && !smtpPassword.isBlank();
+	}
+
+	private void sendViaSmtpRelay(String toEmail, String subject, String body) {
+		try {
+			SimpleMailMessage message = new SimpleMailMessage();
+			message.setFrom(fromAddress);
+			message.setTo(toEmail.trim());
+			message.setSubject(subject.trim());
+			message.setText(body);
+			javaMailSender.send(message);
+			LOGGER.info("SMTP relay email sent successfully to {}", toEmail.trim());
+		} catch (MailException ex) {
+			LOGGER.error("SMTP relay email delivery failed for {}", toEmail, ex);
+			throw new EmailDeliveryException(
+				"Unable to deliver email using SMTP relay. Check spring.mail.host, spring.mail.username, spring.mail.password, and APP_MAIL_FROM.",
+				ex
+			);
+		}
+	}
+
+	private boolean hasSmtpRelayCredentials() {
+		return !smtpHost.isBlank() && !smtpUsername.isBlank() && !smtpPassword.isBlank();
 	}
 
 	private String buildUserFacingMessage(int statusCode, String responseBody, String requestBody) {

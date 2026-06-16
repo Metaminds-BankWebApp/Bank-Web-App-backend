@@ -27,6 +27,7 @@ public class UserProfileController {
 
 	private final UserProfileService userProfileService;
 
+	// Wires the profile service used by all profile endpoints.
 	public UserProfileController(UserProfileService userProfileService) {
 		this.userProfileService = userProfileService;
 	}
@@ -40,6 +41,7 @@ public class UserProfileController {
 			@ApiResponse(responseCode = "401", description = "Authentication required")
 		}
 	)
+	// Returns the current user's profile page data.
 	public ResponseEntity<UserProfileResponse> getMyProfile() {
 		return ResponseEntity.ok(userProfileService.getMyProfile());
 	}
@@ -55,6 +57,7 @@ public class UserProfileController {
 			@ApiResponse(responseCode = "409", description = "Username or email already exists")
 		}
 	)
+	// Updates the current user's editable profile fields.
 	public ResponseEntity<UserProfileUpdateResponse> updateMyProfile(
 		@Valid @RequestBody UserProfileUpdateRequest request
 	) {
@@ -71,6 +74,7 @@ public class UserProfileController {
 			@ApiResponse(responseCode = "401", description = "Authentication required")
 		}
 	)
+	// Uploads a new profile image for the current user.
 	public ResponseEntity<UserProfileUpdateResponse> uploadMyProfileImage(
 		@RequestParam("file") MultipartFile file
 	) {
@@ -86,6 +90,7 @@ public class UserProfileController {
 			@ApiResponse(responseCode = "401", description = "Authentication required")
 		}
 	)
+	// Deletes the current user's saved profile image.
 	public ResponseEntity<UserProfileUpdateResponse> deleteMyProfileImage() {
 		return ResponseEntity.ok(userProfileService.removeMyProfileImage());
 	}

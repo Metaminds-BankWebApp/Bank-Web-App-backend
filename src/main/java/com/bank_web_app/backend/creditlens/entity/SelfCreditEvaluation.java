@@ -18,6 +18,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+/**
+ * Stores a public customer's calculated CreditLens snapshot for a given financial record revision.
+ */
 @Entity
 @Table(name = "self_credit_evaluations")
 @Getter
@@ -89,6 +92,7 @@ public class SelfCreditEvaluation {
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private LocalDateTime createdAt;
 
+	// Fills default report and created-time values before saving.
 	@PrePersist
 	void onCreate() {
 		if (reportGenerated == null) {

@@ -24,15 +24,18 @@ public class BranchService {
 	private final BranchRepository branchRepository;
 	private final BankOfficerRepository bankOfficerRepository;
 	private final BankCustomerRepository bankCustomerRepository;
+	private final AuditLogService auditLogService;
 
 	public BranchService(
 		BranchRepository branchRepository,
 		BankOfficerRepository bankOfficerRepository,
-		BankCustomerRepository bankCustomerRepository
+		BankCustomerRepository bankCustomerRepository,
+		AuditLogService auditLogService
 	) {
 		this.branchRepository = branchRepository;
 		this.bankOfficerRepository = bankOfficerRepository;
 		this.bankCustomerRepository = bankCustomerRepository;
+		this.auditLogService = auditLogService;
 	}
 
 	@Transactional
@@ -45,7 +48,17 @@ public class BranchService {
 		branch.setAddress(normalizeOptional(request.address()));
 		branch.setStatus(normalizeStatus(request.status()));
 
-		return toResponse(branchRepository.save(branch));
+		Branch saved = branchRepository.save(branch);
+		BranchResponse response = toResponse(saved);
+		auditLogService.logAction(
+			"BRANCH_CREATED",
+			"Approved Branch Creation: \"" + safe(saved.getBranchName()) + "\"",
+			"BRANCH",
+			safe(saved.getBranchCode()),
+			"Created branch with status " + safe(saved.getStatus() == null ? null : saved.getStatus().name()) + ".",
+			"SUCCESS"
+		);
+		return response;
 	}
 
 	@Transactional(readOnly = true)
@@ -68,14 +81,35 @@ public class BranchService {
 		branch.setAddress(normalizeOptional(request.address()));
 		branch.setStatus(normalizeStatus(request.status()));
 
-		return toResponse(branchRepository.save(branch));
+		Branch saved = branchRepository.save(branch);
+		BranchResponse response = toResponse(saved);
+		auditLogService.logAction(
+			"BRANCH_UPDATED",
+			"Updated Branch Details: \"" + safe(saved.getBranchName()) + "\"",
+			"BRANCH",
+			safe(saved.getBranchCode()),
+			"Updated branch profile details and status.",
+			"INFO"
+		);
+		return response;
 	}
 
 	@Transactional
 	public BranchResponse updateStatus(Long branchId, String status) {
 		Branch branch = findBranch(branchId);
 		branch.setStatus(normalizeStatus(status));
-		return toResponse(branchRepository.save(branch));
+		Branch saved = branchRepository.save(branch);
+		BranchResponse response = toResponse(saved);
+		String normalizedStatus = safe(saved.getStatus() == null ? null : saved.getStatus().name());
+		auditLogService.logAction(
+			"BRANCH_STATUS_CHANGED",
+			"Changed Branch Status: \"" + safe(saved.getBranchName()) + "\" -> " + normalizedStatus,
+			"BRANCH",
+			safe(saved.getBranchCode()),
+			"Branch status changed to " + normalizedStatus + ".",
+			"ACTIVE".equals(normalizedStatus) ? "SUCCESS" : "WARNING"
+		);
+		return response;
 	}
 
 	@Transactional
@@ -92,6 +126,14 @@ public class BranchService {
 
 		BranchResponse response = toResponse(branch);
 		branchRepository.delete(branch);
+		auditLogService.logAction(
+			"BRANCH_DELETED",
+			"Deleted Branch Permanently: \"" + safe(response.branchName()) + "\"",
+			"BRANCH",
+			safe(response.branchCode()),
+			"Branch was deleted permanently from the system.",
+			"WARNING"
+		);
 		return response;
 	}
 
@@ -112,19 +154,16 @@ public class BranchService {
 
 	private long resolveNextBranchCodeValue() {
 		try {
-			Long nextFromSequence = branchRepository.getNextBranchCodeSequence();
-			if (nextFromSequence != null && nextFromSequence > 0) {
-				return nextFromSequence;
+			Long maxValue = branchRepository.findMaxBranchCodeNumericValue();
+			if (maxValue != null && maxValue > 0) {
+				return maxValue + 1L;
 			}
 		} catch (Exception ex) {
-			LOGGER.warn(
-				"branch_code_seq is not available. Falling back to max branch code strategy.",
-				ex
-			);
+			LOGGER.warn("Failed to resolve max branch code from DB. Falling back to count strategy.", ex);
 		}
 
-		Long maxValue = branchRepository.findMaxBranchCodeNumericValue();
-		return (maxValue == null ? 0L : maxValue) + 1L;
+		long count = branchRepository.count();
+		return count + 1L;
 	}
 
 	private BranchResponse toResponse(Branch branch) {
@@ -155,6 +194,10 @@ public class BranchService {
 
 	private String normalizeOptional(String value) {
 		return value == null ? null : value.trim();
+	}
+
+	private String safe(String value) {
+		return value == null ? "" : value.trim();
 	}
 
 	private BranchStatus normalizeStatus(String value) {

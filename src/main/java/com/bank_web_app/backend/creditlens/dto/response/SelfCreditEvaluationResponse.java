@@ -4,6 +4,9 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
+/**
+ * Full CreditLens evaluation payload returned to a public customer.
+ */
 public record SelfCreditEvaluationResponse(
 	Long selfEvaluationId,
 	Long publicCustomerId,

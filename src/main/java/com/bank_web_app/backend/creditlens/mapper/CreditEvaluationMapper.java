@@ -12,9 +12,15 @@ import java.math.BigDecimal;
 import java.util.List;
 import org.springframework.stereotype.Component;
 
+/**
+ * Maps stored CreditLens entities into DTOs that are sent to the frontend.
+ * It also adds lightweight presentation helpers such as human-readable risk labels
+ * and factor groupings so controllers can return UI-ready responses.
+ */
 @Component
 public class CreditEvaluationMapper {
 
+	// Builds the full self-evaluation response sent to the public customer UI.
 	public SelfCreditEvaluationResponse toSelfResponse(SelfCreditEvaluation evaluation) {
 		return new SelfCreditEvaluationResponse(
 			evaluation.getSelfEvaluationId(),
@@ -50,6 +56,7 @@ public class CreditEvaluationMapper {
 		);
 	}
 
+	// Builds a compact self-evaluation row for history lists.
 	public SelfCreditEvaluationSummaryResponse toSelfSummary(SelfCreditEvaluation evaluation) {
 		return new SelfCreditEvaluationSummaryResponse(
 			evaluation.getSelfEvaluationId(),
@@ -62,6 +69,7 @@ public class CreditEvaluationMapper {
 		);
 	}
 
+	// Builds the full bank-evaluation response sent to customer or officer UI.
 	public BankCreditEvaluationResponse toBankResponse(BankCreditEvaluation evaluation) {
 		return new BankCreditEvaluationResponse(
 			evaluation.getBankEvaluationId(),
@@ -100,6 +108,7 @@ public class CreditEvaluationMapper {
 		);
 	}
 
+	// Builds a compact bank-evaluation row for history lists.
 	public BankCreditEvaluationSummaryResponse toBankSummary(BankCreditEvaluation evaluation) {
 		return new BankCreditEvaluationSummaryResponse(
 			evaluation.getBankEvaluationId(),
@@ -114,6 +123,7 @@ public class CreditEvaluationMapper {
 		);
 	}
 
+	// Builds one customer row for the bank officer CreditLens dashboard.
 	public BankCreditAnalysisCustomerRowResponse toDashboardRow(BankCreditEvaluation evaluation) {
 		String firstName = safe(evaluation.getBankCustomer().getUser().getFirstName());
 		String lastName = safe(evaluation.getBankCustomer().getUser().getLastName());
@@ -131,6 +141,7 @@ public class CreditEvaluationMapper {
 		);
 	}
 
+	// Groups the five score factors with their maximum point values.
 	private List<CreditRiskFactorResponse> buildFactors(
 		Integer paymentHistoryPoints,
 		Integer dtiPoints,
@@ -147,6 +158,7 @@ public class CreditEvaluationMapper {
 		);
 	}
 
+	// Converts the DTI ratio into a Low, Medium, or High band.
 	private String resolveDtiBand(BigDecimal dtiRatio) {
 		BigDecimal ratio = sanitizeRatio(dtiRatio);
 		if (ratio.compareTo(new BigDecimal("0.30")) <= 0) {
@@ -158,6 +170,7 @@ public class CreditEvaluationMapper {
 		return "High";
 	}
 
+	// Converts the utilization ratio into a Low, Medium, or High band.
 	private String resolveUtilizationBand(BigDecimal utilizationRatio) {
 		BigDecimal ratio = sanitizeRatio(utilizationRatio);
 		if (ratio.compareTo(new BigDecimal("0.40")) <= 0) {
@@ -169,10 +182,12 @@ public class CreditEvaluationMapper {
 		return "High";
 	}
 
+	// Converts a nullable ratio to zero before band checks.
 	private BigDecimal sanitizeRatio(BigDecimal value) {
 		return value == null ? BigDecimal.ZERO : value;
 	}
 
+	// Formats stored risk text into title case for display.
 	private String toTitleCase(String value) {
 		String normalized = safe(value).toLowerCase();
 		if (normalized.isBlank()) {
@@ -181,6 +196,7 @@ public class CreditEvaluationMapper {
 		return Character.toUpperCase(normalized.charAt(0)) + normalized.substring(1);
 	}
 
+	// Trims nullable text into a safe string.
 	private String safe(String value) {
 		return value == null ? "" : value.trim();
 	}

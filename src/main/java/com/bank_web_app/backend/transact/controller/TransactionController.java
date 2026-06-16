@@ -6,14 +6,22 @@ import com.bank_web_app.backend.transact.dto.request.ResendTransactionOtpRequest
 import com.bank_web_app.backend.transact.dto.request.UpdateBeneficiaryRequest;
 import com.bank_web_app.backend.transact.dto.request.VerifyTransactionOtpRequest;
 import com.bank_web_app.backend.transact.dto.response.BeneficiaryResponse;
+import com.bank_web_app.backend.transact.dto.response.CurrentBalanceResponse;
+import com.bank_web_app.backend.transact.dto.response.TransactDashboardSummaryResponse;
 import com.bank_web_app.backend.transact.dto.response.TransactionInitiateResponse;
 import com.bank_web_app.backend.transact.dto.response.TransactionResponse;
 import com.bank_web_app.backend.transact.service.TransactionService;
+import com.bank_web_app.backend.transact.service.TransactionStatementPdfService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import java.time.LocalDate;
 import jakarta.validation.Valid;
 import java.util.List;
+import org.springframework.http.CacheControl;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,6 +30,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -30,9 +39,14 @@ import org.springframework.web.bind.annotation.RestController;
 public class TransactionController {
 
 	private final TransactionService transactionService;
+	private final TransactionStatementPdfService transactionStatementPdfService;
 
-	public TransactionController(TransactionService transactionService) {
+	public TransactionController(
+		TransactionService transactionService,
+		TransactionStatementPdfService transactionStatementPdfService
+	) {
 		this.transactionService = transactionService;
+		this.transactionStatementPdfService = transactionStatementPdfService;
 	}
 
 	@PostMapping("/transactions/initiate")
@@ -82,6 +96,42 @@ public class TransactionController {
 		return ResponseEntity.ok(transactionService.resendOtp(request));
 	}
 
+	@GetMapping("/dashboard/current-balance")
+	@Operation(
+		summary = "Get current balance card data",
+		description = "Returns account number and current balance for the logged-in BANK_CUSTOMER only, using the same ownership context as /api/auth/me bankCustomerId.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Current balance returned successfully"),
+			@ApiResponse(responseCode = "401", description = "Unauthorized: bank customer authentication is required"),
+			@ApiResponse(responseCode = "403", description = "Forbidden: logged-in user is not a bank customer"),
+			@ApiResponse(responseCode = "404", description = "Account not found for logged-in bank customer")
+		}
+	)
+	public ResponseEntity<CurrentBalanceResponse> getCurrentBalance() {
+		return ResponseEntity
+			.ok()
+			.cacheControl(CacheControl.noStore().mustRevalidate())
+			.body(transactionService.getCurrentBalance());
+	}
+
+	@GetMapping("/dashboard/summary")
+	@Operation(
+		summary = "Get transact dashboard summary cards",
+		description = "Returns current-balance and transaction summary cards for the logged-in BANK_CUSTOMER only, using the same ownership context as /api/auth/me bankCustomerId. Reads account data from accounts table and totals from bank_customer_transactions table.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Dashboard summary returned successfully"),
+			@ApiResponse(responseCode = "401", description = "Unauthorized: bank customer authentication is required"),
+			@ApiResponse(responseCode = "403", description = "Forbidden: logged-in user is not a bank customer"),
+			@ApiResponse(responseCode = "404", description = "Account not found for logged-in bank customer")
+		}
+	)
+	public ResponseEntity<TransactDashboardSummaryResponse> getDashboardSummary() {
+		return ResponseEntity
+			.ok()
+			.cacheControl(CacheControl.noStore().mustRevalidate())
+			.body(transactionService.getDashboardSummary());
+	}
+
 	@GetMapping("/transactions/history")
 	@Operation(
 		summary = "Get transaction history",
@@ -94,6 +144,34 @@ public class TransactionController {
 	)
 	public ResponseEntity<List<TransactionResponse>> getHistory() {
 		return ResponseEntity.ok(transactionService.getHistory());
+	}
+
+	@GetMapping(value = "/transactions/history/report", produces = MediaType.APPLICATION_PDF_VALUE)
+	@Operation(
+		summary = "Download transaction history report as PDF",
+		description = "Returns a statement-style PDF for the logged-in BANK_CUSTOMER. Supports optional date range filters. If dates are omitted, the current month is used.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "PDF report generated successfully"),
+			@ApiResponse(responseCode = "400", description = "Invalid date range"),
+			@ApiResponse(responseCode = "401", description = "Unauthorized: bank customer authentication is required"),
+			@ApiResponse(responseCode = "403", description = "Forbidden: logged-in user is not a bank customer")
+		}
+	)
+	public ResponseEntity<byte[]> downloadHistoryReport(
+		@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+		@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate
+	) {
+		TransactionStatementPdfService.StatementPdfResult report = transactionStatementPdfService.generateStatementPdf(
+			fromDate,
+			toDate
+		);
+
+		return ResponseEntity
+			.ok()
+			.cacheControl(CacheControl.noStore().mustRevalidate())
+			.contentType(MediaType.APPLICATION_PDF)
+			.header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + report.fileName() + "\"")
+			.body(report.content());
 	}
 
 	@GetMapping("/transactions/{referenceNo}")
