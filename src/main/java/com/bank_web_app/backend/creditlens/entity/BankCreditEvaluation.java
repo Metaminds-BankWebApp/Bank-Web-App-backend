@@ -67,10 +67,10 @@ public class BankCreditEvaluation {
 	@Column(name = "total_card_outstanding", nullable = false, precision = 15, scale = 2)
 	private BigDecimal totalCardOutstanding;
 
-	@Column(name = "dti_ratio", nullable = false, precision = 6, scale = 4)
+	@Column(name = "dti_ratio", nullable = false, precision = 10, scale = 4)
 	private BigDecimal dtiRatio;
 
-	@Column(name = "credit_utilization_ratio", nullable = false, precision = 6, scale = 4)
+	@Column(name = "credit_utilization_ratio", nullable = false, precision = 10, scale = 4)
 	private BigDecimal creditUtilizationRatio;
 
 	@Column(name = "active_facilities_count", nullable = false)

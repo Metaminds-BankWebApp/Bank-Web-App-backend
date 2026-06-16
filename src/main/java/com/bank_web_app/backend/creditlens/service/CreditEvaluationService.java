@@ -40,6 +40,7 @@ import com.bank_web_app.backend.creditlens.entity.SelfCreditEvaluation;
 import com.bank_web_app.backend.creditlens.mapper.CreditEvaluationMapper;
 import com.bank_web_app.backend.creditlens.repository.BankCreditEvaluationRepository;
 import com.bank_web_app.backend.creditlens.repository.SelfCreditEvaluationRepository;
+import com.bank_web_app.backend.bankofficer.service.BankOfficerContextService;
 import com.bank_web_app.backend.publiccustomer.entity.PublicCustomerCard;
 import com.bank_web_app.backend.publiccustomer.entity.PublicCustomerFinancialRecord;
 import com.bank_web_app.backend.publiccustomer.entity.PublicCustomerIncome;
@@ -74,6 +75,7 @@ import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -88,6 +90,7 @@ public class CreditEvaluationService {
 
 	private final SelfCreditEvaluationRepository selfCreditEvaluationRepository;
 	private final BankCreditEvaluationRepository bankCreditEvaluationRepository;
+	private final BankOfficerContextService bankOfficerContextService;
 	private final PublicCustomerProfileRepository publicCustomerProfileRepository;
 	private final PublicCustomerFinancialRecordRepository publicCustomerFinancialRecordRepository;
 	private final PublicCustomerIncomeRepository publicCustomerIncomeRepository;
@@ -109,6 +112,7 @@ public class CreditEvaluationService {
 	public CreditEvaluationService(
 		SelfCreditEvaluationRepository selfCreditEvaluationRepository,
 		BankCreditEvaluationRepository bankCreditEvaluationRepository,
+		BankOfficerContextService bankOfficerContextService,
 		PublicCustomerProfileRepository publicCustomerProfileRepository,
 		PublicCustomerFinancialRecordRepository publicCustomerFinancialRecordRepository,
 		PublicCustomerIncomeRepository publicCustomerIncomeRepository,
@@ -129,6 +133,7 @@ public class CreditEvaluationService {
 	) {
 		this.selfCreditEvaluationRepository = selfCreditEvaluationRepository;
 		this.bankCreditEvaluationRepository = bankCreditEvaluationRepository;
+		this.bankOfficerContextService = bankOfficerContextService;
 		this.publicCustomerProfileRepository = publicCustomerProfileRepository;
 		this.publicCustomerFinancialRecordRepository = publicCustomerFinancialRecordRepository;
 		this.publicCustomerIncomeRepository = publicCustomerIncomeRepository;
@@ -337,7 +342,7 @@ public class CreditEvaluationService {
 		);
 	}
 
-	@Transactional
+	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public BankCreditEvaluationResponse createBankEvaluationForOfficer(
 		Long bankCustomerId,
 		CreateBankCreditEvaluationRequest request
@@ -1764,10 +1769,7 @@ public class CreditEvaluationService {
 	}
 
 	private BankOfficer resolveLoggedInBankOfficer() {
-		User user = resolveAuthenticatedUser("Bank officer authentication is required.");
-		return bankOfficerRepository
-			.findByUser_UserId(user.getUserId())
-			.orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Logged-in user is not a bank officer."));
+		return bankOfficerContextService.resolveLoggedInBankOfficer();
 	}
 
 	private User resolveAuthenticatedUser(String unauthenticatedMessage) {
