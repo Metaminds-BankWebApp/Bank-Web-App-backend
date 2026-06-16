@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -46,13 +47,13 @@ public class BrevoSmtpEmailService implements EmailService {
 		@Value("${spring.mail.username:${MAIL_USERNAME:${BREVO_SMTP_LOGIN:}}}") String smtpUsername,
 		@Value("${spring.mail.password:${MAIL_PASSWORD:${BREVO_SMTP_KEY:}}}") String smtpPassword,
 		@Value("${app.mail.smtp-fallback-enabled:true}") boolean smtpFallbackEnabled,
-		JavaMailSender javaMailSender
+		ObjectProvider<JavaMailSender> javaMailSenderProvider
 	) {
 		this.httpClient = HttpClient.newBuilder()
 			.connectTimeout(Duration.ofSeconds(15))
 			.build();
 		this.objectMapper = new ObjectMapper();
-		this.javaMailSender = javaMailSender;
+		this.javaMailSender = javaMailSenderProvider.getIfAvailable();
 		this.brevoApiKey = brevoApiKey == null ? "" : brevoApiKey.trim();
 		this.fromAddress = fromAddress == null ? "" : fromAddress.trim();
 		this.fromName = fromName == null || fromName.isBlank() ? "Primecore" : fromName.trim();
@@ -188,6 +189,12 @@ public class BrevoSmtpEmailService implements EmailService {
 	}
 
 	private void sendViaSmtpRelay(String toEmail, String subject, String body) {
+		if (javaMailSender == null) {
+			throw new EmailDeliveryException(
+				"Unable to deliver email using SMTP relay. Configure spring.mail.host so Spring can create a JavaMailSender bean.",
+				new IllegalStateException("JavaMailSender bean is not available.")
+			);
+		}
 		try {
 			SimpleMailMessage message = new SimpleMailMessage();
 			message.setFrom(fromAddress);
