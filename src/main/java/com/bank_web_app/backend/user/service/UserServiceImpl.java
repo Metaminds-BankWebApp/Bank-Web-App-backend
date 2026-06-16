@@ -11,18 +11,17 @@ import com.bank_web_app.backend.bankofficer.repository.BankOfficerRepository;
 import com.bank_web_app.backend.common.email.BankOfficerCredentialsEmailService;
 import com.bank_web_app.backend.common.email.EmailDeliveryException;
 import com.bank_web_app.backend.common.exception.DuplicateFieldsException;
-import com.bank_web_app.backend.common.email.BankCustomerCredentialsEmailService;
 import com.bank_web_app.backend.publiccustomer.entity.PublicCustomerProfile;
 import com.bank_web_app.backend.publiccustomer.repository.PublicCustomerProfileRepository;
 import com.bank_web_app.backend.user.dto.request.UserRegistrationStepOneRequest;
 import com.bank_web_app.backend.user.dto.response.BankCustomerSummaryResponse;
+import com.bank_web_app.backend.bankofficer.dto.response.BankOfficerCustomerSummaryResponse;
 import com.bank_web_app.backend.user.dto.response.GeneratedBankCustomerCredentialsResponse;
 import com.bank_web_app.backend.user.dto.response.UserRegistrationStepResponse;
 import com.bank_web_app.backend.user.entity.Role;
 import com.bank_web_app.backend.user.entity.User;
 import com.bank_web_app.backend.user.repository.RoleRepository;
 import com.bank_web_app.backend.user.repository.UserRepository;
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.LinkedHashMap;
@@ -75,6 +74,8 @@ private final BankOfficerRepository bankOfficerRepository;
 private final BankCustomerRepository bankCustomerRepository;
 private final AccountRepository accountRepository;
 private final PublicCustomerProfileRepository publicCustomerProfileRepository;
+private final BankOfficerContextService bankOfficerContextService;
+private final PortfolioService portfolioService;
 private final PasswordEncoder passwordEncoder;
 private final BankCustomerCredentialsEmailService credentialsEmailService;
 private final BankOfficerCredentialsEmailService bankOfficerCredentialsEmailService;
@@ -99,6 +100,8 @@ this.bankOfficerRepository = bankOfficerRepository;
 this.bankCustomerRepository = bankCustomerRepository;
 this.accountRepository = accountRepository;
 this.publicCustomerProfileRepository = publicCustomerProfileRepository;
+this.bankOfficerContextService = bankOfficerContextService;
+this.portfolioService = portfolioService;
 this.passwordEncoder = passwordEncoder;
 this.credentialsEmailService = credentialsEmailService;
 this.bankOfficerCredentialsEmailService = bankOfficerCredentialsEmailService;
@@ -117,8 +120,6 @@ return new UserRegistrationStepResponse(user.getUserId(), ROLE_BANK_CUSTOMER, ST
 public UserRegistrationStepResponse continueBankCustomerStepOne(UserRegistrationStepOneRequest request) {
 User user = createUserForRole(request, ROLE_BANK_CUSTOMER);
 createBankCustomerProfile(request, user, STATE_PENDING_STEP_2);
-
-credentialsEmailService.sendCredentialsEmail(user.getEmail(), user.getFirstName(), user.getUsername(), request.password());
 
 return new UserRegistrationStepResponse(
 user.getUserId(),
@@ -183,11 +184,9 @@ return new UserRegistrationStepResponse(user.getUserId(), ROLE_BANK_OFFICER, STA
 @Override
 @Transactional(readOnly = true)
 public List<BankCustomerSummaryResponse> getBankCustomersForOfficer() {
-	BankOfficer officer = resolveLoggedInBankOfficer();
-	return bankCustomerRepository
-		.findAllByOfficer_OfficerIdOrderByUpdatedAtDesc(officer.getOfficerId())
-		.stream()
-		.map(customer -> toSummary(customer.getUser(), customer.getCustomerCode()))
+	List<BankOfficerCustomerSummaryResponse> rows = portfolioService.getBankCustomersForOfficer();
+	return rows.stream()
+		.map(r -> new BankCustomerSummaryResponse(r.userId(), r.customerId(), r.fullName(), r.nic(), r.email(), r.phone(), r.status(), r.lastUpdated()))
 		.toList();
 }
 
@@ -402,27 +401,7 @@ bankCustomerRepository.save(customer);
 }
 
 private BankOfficer resolveLoggedInBankOfficer() {
-	Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-	if (
-		authentication == null ||
-		!authentication.isAuthenticated() ||
-		authentication instanceof AnonymousAuthenticationToken ||
-		authentication.getName() == null ||
-		authentication.getName().isBlank()
-	) {
-		throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Bank officer authentication is required.");
-	}
-
-	String principal = authentication.getName().trim();
-	String normalizedPrincipal = principal.toLowerCase(Locale.ROOT);
-	User officerUser = userRepository
-		.findByEmail(normalizedPrincipal)
-		.or(() -> userRepository.findByUsername(principal))
-		.or(() -> userRepository.findByUsername(normalizedPrincipal))
-		.orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Logged-in user was not found."));
-
-	return bankOfficerRepository.findByUser_UserId(officerUser.getUserId())
-		.orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Logged-in user is not a bank officer."));
+	return bankOfficerContextService.resolveLoggedInBankOfficer();
 }
 
 private String resolveAccountNumber(UserRegistrationStepOneRequest request) {
@@ -434,11 +413,6 @@ if (request.bankAccount() != null && request.bankAccount() > 0) {
 return String.valueOf(request.bankAccount());
 }
 throw new IllegalArgumentException("Account number is required for bank customer registration.");
-}
-
-private String resolveAccountType(String accountType) {
-String normalized = safeTrim(accountType).toUpperCase(Locale.ROOT);
-return normalized.isBlank() ? "SAVINGS" : normalized;
 }
 
 private User resolveOptionalAdmin(Long adminUserId) {

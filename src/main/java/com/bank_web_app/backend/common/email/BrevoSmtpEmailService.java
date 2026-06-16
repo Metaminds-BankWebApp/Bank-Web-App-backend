@@ -77,9 +77,15 @@ public class BrevoSmtpEmailService implements EmailService {
 		if (toEmail == null || toEmail.isBlank()) {
 			throw new IllegalArgumentException("Email recipient is required.");
 		}
+		if (brevoApiKey.isBlank()) {
+			throw new EmailDeliveryException(
+				"Unable to deliver credentials email: BREVO_API_KEY is required.",
+				new IllegalStateException("Brevo API key is blank.")
+			);
+		}
 		if (fromAddress == null || fromAddress.isBlank()) {
 			throw new EmailDeliveryException(
-				"Unable to deliver OTP email: APP_MAIL_FROM is required.",
+				"Unable to deliver credentials email: APP_MAIL_FROM is required.",
 				new IllegalStateException("APP_MAIL_FROM is blank.")
 			);
 		}
@@ -164,21 +170,43 @@ public class BrevoSmtpEmailService implements EmailService {
 			}
 
 			if (responseBody == null || responseBody.isBlank()) {
-				LOGGER.info("Brevo accepted OTP email for {} with status {}.", toEmail.trim(), statusCode);
+				LOGGER.info("Brevo accepted credentials email for {} with status {}.", toEmail.trim(), statusCode);
 			} else {
-				LOGGER.info("Brevo accepted OTP email for {} with status {} and response {}.", toEmail.trim(), statusCode, responseBody.trim());
+				LOGGER.info("Brevo accepted credentials email for {} with status {} and response {}.", toEmail.trim(), statusCode, responseBody.trim());
 			}
 		} catch (HttpTimeoutException ex) {
 			LOGGER.error("Brevo API timeout for {}", toEmail, ex);
-			throw new EmailDeliveryException("Unable to deliver OTP email: cannot connect to Brevo API server.", ex);
+			throw new EmailDeliveryException("Unable to deliver credentials email: cannot connect to Brevo API server.", ex);
 		} catch (InterruptedException ex) {
 			Thread.currentThread().interrupt();
 			LOGGER.error("Brevo API interrupted for {}", toEmail, ex);
-			throw new EmailDeliveryException("Unable to deliver OTP email right now. Check Brevo API settings and try again.", ex);
+			throw new EmailDeliveryException("Unable to deliver credentials email right now. Check Brevo API settings and try again.", ex);
 		} catch (IOException ex) {
 			LOGGER.error("Brevo API I/O error for {}", toEmail, ex);
-			throw new EmailDeliveryException("Unable to deliver OTP email: cannot connect to Brevo API server.", ex);
+			throw new EmailDeliveryException("Unable to deliver credentials email: cannot connect to Brevo API server.", ex);
 		}
+	}
+
+	private void sendViaSmtpRelay(String toEmail, String subject, String body) {
+		try {
+			SimpleMailMessage message = new SimpleMailMessage();
+			message.setFrom(fromAddress);
+			message.setTo(toEmail.trim());
+			message.setSubject(subject.trim());
+			message.setText(body);
+			javaMailSender.send(message);
+			LOGGER.info("SMTP relay email sent successfully to {}", toEmail.trim());
+		} catch (MailException ex) {
+			LOGGER.error("SMTP relay email delivery failed for {}", toEmail, ex);
+			throw new EmailDeliveryException(
+				"Unable to deliver email using SMTP relay. Check spring.mail.host, spring.mail.username, spring.mail.password, and APP_MAIL_FROM.",
+				ex
+			);
+		}
+	}
+
+	private boolean hasSmtpRelayCredentials() {
+		return !smtpHost.isBlank() && !smtpUsername.isBlank() && !smtpPassword.isBlank();
 	}
 
 	private void sendViaSmtpRelay(String toEmail, String subject, String body) {
@@ -212,30 +240,30 @@ public class BrevoSmtpEmailService implements EmailService {
 			raw.contains("api-key") ||
 			raw.contains("unauthorized")
 		) {
-			return "Unable to deliver OTP email: invalid Brevo API key.";
+			return "Unable to deliver credentials email: invalid Brevo API key.";
 		}
 		if (
 			raw.contains("sender") &&
 			(raw.contains("not valid") || raw.contains("not verified") || raw.contains("rejected") || raw.contains("invalid"))
 		) {
-			return "Unable to deliver OTP email: APP_MAIL_FROM must be a Brevo-verified sender email.";
+			return "Unable to deliver credentials email: APP_MAIL_FROM must be a Brevo-verified sender email.";
 		}
 		if (
 			raw.contains("recipient") ||
 			raw.contains("invalid_parameter") ||
 			raw.contains("email")
 		) {
-			return "Unable to deliver OTP email: recipient email is invalid or unreachable.";
+			return "Unable to deliver credentials email: recipient email is invalid or unreachable.";
 		}
 		if (
 			statusCode == 429 ||
 			raw.contains("rate limit")
 		) {
-			return "Unable to deliver OTP email: Brevo rate limit reached. Please try again.";
+			return "Unable to deliver credentials email: Brevo rate limit reached. Please try again.";
 		}
 		if (statusCode >= 500) {
-			return "Unable to deliver OTP email: Brevo service is currently unavailable.";
+			return "Unable to deliver credentials email: Brevo service is currently unavailable.";
 		}
-		return "Unable to deliver OTP email right now. Check Brevo API settings and try again.";
+		return "Unable to deliver credentials email right now. Check Brevo API settings and try again.";
 	}
 }
