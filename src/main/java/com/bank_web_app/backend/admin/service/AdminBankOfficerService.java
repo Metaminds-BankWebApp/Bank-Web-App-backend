@@ -1,5 +1,4 @@
 package com.bank_web_app.backend.admin.service;
-
 import com.bank_web_app.backend.admin.dto.request.AdminBankOfficerUpdateRequest;
 import com.bank_web_app.backend.admin.dto.response.AdminBankOfficerSummaryResponse;
 import com.bank_web_app.backend.admin.entity.Branch;
@@ -21,6 +20,10 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+/**
+ * Orchestrates Admin business logic, validation, and persistence workflows.
+ */
 
 @Service
 public class AdminBankOfficerService {
@@ -63,6 +66,7 @@ public class AdminBankOfficerService {
 		this.auditLogService = auditLogService;
 	}
 
+	// Creates a draft officer account preview before final submission.
 	public UserRegistrationStepResponse createDraft(UserRegistrationStepOneRequest request) {
 		UserRegistrationStepResponse response = userService.saveBankOfficerStepOneDraft(request);
 		auditLogService.logAction(
@@ -76,6 +80,7 @@ public class AdminBankOfficerService {
 		return response;
 	}
 
+	// Creates a new entity from validated request data.
 	public UserRegistrationStepResponse create(UserRegistrationStepOneRequest request) {
 		UserRegistrationStepResponse response = userService.continueBankOfficerStepOne(request);
 		auditLogService.logAction(
@@ -90,6 +95,7 @@ public class AdminBankOfficerService {
 	}
 
 	@Transactional(readOnly = true)
+	// Generates a suggested username for the Add Officer form.
 	public String generateSuggestedUsername(String firstName, String lastName) {
 		String normalizedFirst = sanitizeUsernameSegment(firstName);
 		String normalizedLast = sanitizeUsernameSegment(lastName);
@@ -124,6 +130,7 @@ public class AdminBankOfficerService {
 		return candidate;
 	}
 
+	// Generates a suggested password for the Add Officer form.
 	public String generateSuggestedPassword() {
 		char[] password = new char[GENERATED_PASSWORD_LENGTH];
 		for (int index = 0; index < GENERATED_PASSWORD_LENGTH; index++) {
@@ -134,11 +141,13 @@ public class AdminBankOfficerService {
 	}
 
 	@Transactional(readOnly = true)
+	// Returns all records needed by the admin table view.
 	public List<AdminBankOfficerSummaryResponse> getAll() {
 		return bankOfficerRepository.findAllByOrderByCreatedAtDesc().stream().map(this::toResponse).toList();
 	}
 
 	@Transactional
+	// Updates only the status field for the selected record.
 	public AdminBankOfficerSummaryResponse updateStatus(Long userId, String status) {
 		BankOfficer officer = findByUserId(userId);
 		User user = officer.getUser();
@@ -158,6 +167,7 @@ public class AdminBankOfficerService {
 	}
 
 	@Transactional
+	// Updates an existing record from validated request fields.
 	public AdminBankOfficerSummaryResponse update(Long userId, AdminBankOfficerUpdateRequest request) {
 		BankOfficer officer = findByUserId(userId);
 		User user = officer.getUser();
@@ -198,6 +208,7 @@ public class AdminBankOfficerService {
 	}
 
 	@Transactional
+	// Permanently removes the selected officer record.
 	public AdminBankOfficerSummaryResponse deletePermanently(Long userId) {
 		BankOfficer officer = findByUserId(userId);
 		Long officerId = officer.getOfficerId();

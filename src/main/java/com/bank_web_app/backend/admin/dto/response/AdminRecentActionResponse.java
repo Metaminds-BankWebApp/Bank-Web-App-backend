@@ -1,5 +1,4 @@
 package com.bank_web_app.backend.admin.dto.response;
-
 import io.swagger.v3.oas.annotations.media.Schema;
 
 @Schema(name = "AdminRecentActionResponse", description = "Single admin action entry for recent activity feeds.")

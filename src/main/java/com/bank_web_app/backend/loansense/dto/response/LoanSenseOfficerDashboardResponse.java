@@ -1,5 +1,4 @@
 package com.bank_web_app.backend.loansense.dto.response;
-
 import java.util.List;
 
 public record LoanSenseOfficerDashboardResponse(

@@ -10,6 +10,10 @@ import java.util.Set;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
+/**
+ * Safety-net interceptor that records technical request-level audit events for
+ * mutating HTTP operations when business services did not log an action.
+ */
 @Component
 public class SystemAuditLoggingInterceptor implements HandlerInterceptor {
 

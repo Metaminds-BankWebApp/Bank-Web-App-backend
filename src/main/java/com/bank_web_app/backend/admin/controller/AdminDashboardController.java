@@ -1,5 +1,4 @@
 package com.bank_web_app.backend.admin.controller;
-
 import com.bank_web_app.backend.admin.dto.response.AdminDashboardSummaryResponse;
 import com.bank_web_app.backend.admin.dto.response.AdminMonthlyUserGrowthResponse;
 import com.bank_web_app.backend.admin.dto.response.AdminRecentActionResponse;
@@ -13,6 +12,10 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+/**
+ * REST controller for admin dashboard summary, monthly growth, and recent-action endpoints.
+ */
 
 @RestController
 @RequestMapping("/api/admin/dashboard")
@@ -33,6 +36,7 @@ public class AdminDashboardController {
 			@ApiResponse(responseCode = "200", description = "Summary loaded successfully")
 		}
 	)
+	// Returns dashboard summary counts for admin overview cards.
 	public ResponseEntity<AdminDashboardSummaryResponse> getSummary() {
 		return ResponseEntity.ok(adminDashboardService.getSummary());
 	}
@@ -45,6 +49,7 @@ public class AdminDashboardController {
 			@ApiResponse(responseCode = "200", description = "Recent actions loaded successfully")
 		}
 	)
+	// Returns recent admin actions within the requested time window.
 	public ResponseEntity<List<AdminRecentActionResponse>> getRecentActions(
 		@RequestParam(defaultValue = "12") Integer hours,
 		@RequestParam(defaultValue = "20") Integer limit
@@ -60,9 +65,11 @@ public class AdminDashboardController {
 			@ApiResponse(responseCode = "200", description = "Monthly user growth loaded successfully")
 		}
 	)
+	// Returns monthly user-growth metrics for the dashboard chart.
 	public ResponseEntity<AdminMonthlyUserGrowthResponse> getMonthlyUserGrowth(
 		@RequestParam(defaultValue = "6") Integer months
 	) {
 		return ResponseEntity.ok(adminDashboardService.getMonthlyUserGrowth(months));
 	}
 }
+
