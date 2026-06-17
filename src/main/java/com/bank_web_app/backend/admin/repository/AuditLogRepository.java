@@ -1,5 +1,4 @@
 package com.bank_web_app.backend.admin.repository;
-
 import com.bank_web_app.backend.admin.entity.AuditLog;
 import java.time.LocalDateTime;
 import java.util.List;

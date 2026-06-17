@@ -1,5 +1,4 @@
 package com.bank_web_app.backend.admin.entity;
-
 import com.bank_web_app.backend.user.entity.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

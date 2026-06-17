@@ -1,5 +1,4 @@
 package com.bank_web_app.backend.admin.service;
-
 import com.bank_web_app.backend.admin.entity.LoanPolicy;
 import com.bank_web_app.backend.admin.repository.LoanPolicyRepository;
 import java.math.BigDecimal;
@@ -8,6 +7,10 @@ import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+/**
+ * Orchestrates Admin business logic, validation, and persistence workflows.
+ */
 
 @Service
 public class LoanPolicyBootstrapService {
@@ -27,6 +30,7 @@ public class LoanPolicyBootstrapService {
 
 	@EventListener(ApplicationReadyEvent.class)
 	@Transactional
+	// Ensures default loan-policy records exist when the module initializes.
 	public void ensureDefaultLoanPolicies() {
 		for (LoanPolicySeed seed : DEFAULT_POLICIES) {
 			if (loanPolicyRepository.findByLoanType(seed.loanType()).isPresent()) {

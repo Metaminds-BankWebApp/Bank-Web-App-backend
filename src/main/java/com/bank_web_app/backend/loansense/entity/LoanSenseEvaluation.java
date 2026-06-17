@@ -1,5 +1,4 @@
 package com.bank_web_app.backend.loansense.entity;
-
 import com.bank_web_app.backend.bankcustomer.entity.BankCustomer;
 import com.bank_web_app.backend.bankcustomer.entity.BankCustomerFinancialRecord;
 import com.bank_web_app.backend.creditlens.entity.BankCreditEvaluation;

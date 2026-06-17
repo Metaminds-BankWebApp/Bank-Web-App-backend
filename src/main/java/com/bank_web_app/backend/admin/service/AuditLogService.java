@@ -29,6 +29,15 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+/**
+ * Central audit-log service used by admin modules and request interceptors.
+ *
+ * Note:
+ * - The full audit-log page can include both business and technical logs.
+ * - The dashboard "recent admin actions" feed applies extra filtering to show
+ *   only human-meaningful admin activity.
+ */
+
 @Service
 public class AuditLogService {
 
@@ -52,6 +61,7 @@ public class AuditLogService {
 	}
 
 	@Transactional
+	// Records an audit action entry with actor, target, and request metadata.
 	public void logAction(
 		String actionType,
 		String title,
@@ -64,6 +74,7 @@ public class AuditLogService {
 	}
 
 	@Transactional
+	// Records an audit action entry with actor, target, and request metadata.
 	public void logAction(
 		String actionType,
 		String title,
@@ -94,6 +105,7 @@ public class AuditLogService {
 	}
 
 	@Transactional(readOnly = true)
+	// Returns paginated audit-log records with active filters.
 	public AdminAuditLogPageResponse getAuditLogs(
 		Integer page,
 		Integer size,
@@ -145,11 +157,13 @@ public class AuditLogService {
 	}
 
 	@Transactional(readOnly = true)
+	// Returns recent admin actions within the requested time window.
 	public List<AdminRecentActionResponse> getRecentActions(Integer hours, Integer limit) {
 		return getRecentActionsByActorRole(hours, limit, null);
 	}
 
 	@Transactional(readOnly = true)
+	// Returns recent actions filtered by actor role.
 	public List<AdminRecentActionResponse> getRecentActionsByActorRole(
 		Integer hours,
 		Integer limit,
@@ -235,6 +249,7 @@ public class AuditLogService {
 	}
 
 	@Transactional(readOnly = true)
+	// Returns filter option values used by the audit-log UI.
 	public AdminAuditLogFilterOptionsResponse getFilterOptions() {
 		return new AdminAuditLogFilterOptionsResponse(
 			cleanValues(auditLogRepository.findDistinctActionTypes()),
@@ -244,6 +259,7 @@ public class AuditLogService {
 		);
 	}
 
+	// Indicates whether the current request already wrote an audit entry.
 	public boolean hasLoggedActionForCurrentRequest() {
 		ServletRequestAttributes attributes = getRequestAttributes();
 		if (attributes == null) {

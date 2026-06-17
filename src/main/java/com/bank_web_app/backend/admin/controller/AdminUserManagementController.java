@@ -1,5 +1,4 @@
 package com.bank_web_app.backend.admin.controller;
-
 import com.bank_web_app.backend.admin.dto.request.AdminUserManagementUpdateRequest;
 import com.bank_web_app.backend.admin.dto.response.AdminUserManagementUserResponse;
 import com.bank_web_app.backend.admin.service.AdminUserManagementService;
@@ -18,6 +17,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+/**
+ * REST controller for admin user listing, profile edits, status changes, and user deletion.
+ */
 
 @RestController
 @RequestMapping("/api/admin/users")
@@ -39,6 +42,7 @@ public class AdminUserManagementController {
 			@ApiResponse(responseCode = "400", description = "Invalid filter parameters")
 		}
 	)
+	// Returns paginated users for the admin user-management table.
 	public ResponseEntity<List<AdminUserManagementUserResponse>> getUsers(
 		@RequestParam(defaultValue = "ALL") String customerType,
 		@RequestParam(required = false) String search
@@ -56,6 +60,7 @@ public class AdminUserManagementController {
 			@ApiResponse(responseCode = "404", description = "User not found")
 		}
 	)
+	// Updates the selected user account status.
 	public ResponseEntity<AdminUserManagementUserResponse> updateUserStatus(
 		@PathVariable Long userId,
 		@RequestParam String status
@@ -73,6 +78,7 @@ public class AdminUserManagementController {
 			@ApiResponse(responseCode = "404", description = "User not found")
 		}
 	)
+	// Updates editable user profile fields from the admin panel.
 	public ResponseEntity<AdminUserManagementUserResponse> updateUserDetails(
 		@PathVariable Long userId,
 		@Valid @RequestBody AdminUserManagementUpdateRequest request
@@ -90,7 +96,10 @@ public class AdminUserManagementController {
 			@ApiResponse(responseCode = "404", description = "User not found")
 		}
 	)
+	// Deletes the selected user account from user management.
 	public ResponseEntity<AdminUserManagementUserResponse> deleteUser(@PathVariable Long userId) {
 		return ResponseEntity.ok(adminUserManagementService.deleteUser(userId));
 	}
 }
+
+

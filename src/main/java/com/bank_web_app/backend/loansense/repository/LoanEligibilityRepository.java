@@ -1,5 +1,4 @@
 package com.bank_web_app.backend.loansense.repository;
-
 import com.bank_web_app.backend.loansense.entity.LoanSenseEvaluation;
 import java.util.List;
 import java.util.Optional;

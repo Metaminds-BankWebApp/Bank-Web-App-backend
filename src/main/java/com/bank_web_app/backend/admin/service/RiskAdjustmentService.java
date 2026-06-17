@@ -1,5 +1,4 @@
 package com.bank_web_app.backend.admin.service;
-
 import com.bank_web_app.backend.admin.dto.request.RiskAdjustmentUpdateRequest;
 import com.bank_web_app.backend.admin.dto.response.RiskAdjustmentResponse;
 import com.bank_web_app.backend.admin.entity.RiskAdjustment;
@@ -10,6 +9,10 @@ import java.util.Locale;
 import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+/**
+ * Orchestrates Admin business logic, validation, and persistence workflows.
+ */
 
 @Service
 public class RiskAdjustmentService {
@@ -28,16 +31,19 @@ public class RiskAdjustmentService {
 	}
 
 	@Transactional(readOnly = true)
+	// Returns all records needed by the admin table view.
 	public List<RiskAdjustmentResponse> getAll() {
 		return riskAdjustmentRepository.findAllByOrderByRiskLevelAsc().stream().map(this::toResponse).toList();
 	}
 
 	@Transactional(readOnly = true)
+	// Returns one record by its identifier.
 	public RiskAdjustmentResponse getById(Long adjustmentId) {
 		return toResponse(findAdjustment(adjustmentId));
 	}
 
 	@Transactional
+	// Updates an existing record from validated request fields.
 	public RiskAdjustmentResponse update(Long adjustmentId, RiskAdjustmentUpdateRequest request) {
 		RiskAdjustment adjustment = findAdjustment(adjustmentId);
 		String riskLevel = normalizeRiskLevel(request.riskLevel());

@@ -1,5 +1,4 @@
 package com.bank_web_app.backend.admin.repository;
-
 import java.util.List;
 import java.util.Optional;
 

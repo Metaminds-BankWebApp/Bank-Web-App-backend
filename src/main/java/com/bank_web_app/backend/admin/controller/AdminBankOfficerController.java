@@ -1,5 +1,4 @@
 package com.bank_web_app.backend.admin.controller;
-
 import com.bank_web_app.backend.admin.dto.request.AdminBankOfficerUpdateRequest;
 import com.bank_web_app.backend.admin.dto.request.AdminBankOfficerUsernameGenerationRequest;
 import com.bank_web_app.backend.admin.dto.response.AdminBankOfficerGeneratedPasswordResponse;
@@ -26,6 +25,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * REST controller for bank-officer onboarding, listing, updates, and lifecycle actions.
+ */
+
 @RestController
 @RequestMapping("/api/admin/bank-officers")
 @Tag(name = "Admin Bank Officers", description = "Admin-owned bank officer onboarding endpoints")
@@ -47,6 +50,7 @@ public class AdminBankOfficerController {
 			@ApiResponse(responseCode = "409", description = "Conflict: NIC, email, or username already in use")
 		}
 	)
+	// Creates a draft officer account preview before final submission.
 	public ResponseEntity<UserRegistrationStepResponse> createDraft(@Valid @RequestBody UserRegistrationStepOneRequest request) {
 		return ResponseEntity.ok(adminBankOfficerService.createDraft(request));
 	}
@@ -61,6 +65,7 @@ public class AdminBankOfficerController {
 			@ApiResponse(responseCode = "409", description = "Conflict: NIC, email, or username already in use")
 		}
 	)
+	// Creates a new entity from validated request data.
 	public ResponseEntity<UserRegistrationStepResponse> create(@Valid @RequestBody UserRegistrationStepOneRequest request) {
 		return ResponseEntity.ok(adminBankOfficerService.create(request));
 	}
@@ -74,6 +79,7 @@ public class AdminBankOfficerController {
 			@ApiResponse(responseCode = "400", description = "Validation failed")
 		}
 	)
+	// Generates a unique username for officer onboarding.
 	public ResponseEntity<AdminBankOfficerGeneratedUsernameResponse> generateUsername(
 		@Valid @RequestBody AdminBankOfficerUsernameGenerationRequest request
 	) {
@@ -89,6 +95,7 @@ public class AdminBankOfficerController {
 			@ApiResponse(responseCode = "200", description = "Password generated successfully")
 		}
 	)
+	// Generates a strong temporary password for officer onboarding.
 	public ResponseEntity<AdminBankOfficerGeneratedPasswordResponse> generatePassword() {
 		String password = adminBankOfficerService.generateSuggestedPassword();
 		return ResponseEntity.ok(new AdminBankOfficerGeneratedPasswordResponse(password));
@@ -96,6 +103,7 @@ public class AdminBankOfficerController {
 
 	@GetMapping
 	@Operation(summary = "Get all bank officers", description = "Returns all bank officers.")
+	// Returns all records needed by the admin table view.
 	public ResponseEntity<List<AdminBankOfficerSummaryResponse>> getAll() {
 		return ResponseEntity.ok(adminBankOfficerService.getAll());
 	}
@@ -105,6 +113,7 @@ public class AdminBankOfficerController {
 		summary = "Update bank officer status",
 		description = "Updates user status of a bank officer to ACTIVE, INACTIVE, or LOCKED."
 	)
+	// Updates only the status field for the selected record.
 	public ResponseEntity<AdminBankOfficerSummaryResponse> updateStatus(
 		@PathVariable Long userId,
 		@RequestParam String status
@@ -114,6 +123,7 @@ public class AdminBankOfficerController {
 
 	@PutMapping("/{userId}")
 	@Operation(summary = "Update bank officer details", description = "Updates editable profile details of a bank officer.")
+	// Updates an existing record from validated request fields.
 	public ResponseEntity<AdminBankOfficerSummaryResponse> update(
 		@PathVariable Long userId,
 		@Valid @RequestBody AdminBankOfficerUpdateRequest request
@@ -126,7 +136,9 @@ public class AdminBankOfficerController {
 		summary = "Delete bank officer permanently",
 		description = "Permanently deletes a bank officer and linked user account when no dependent records exist."
 	)
+	// Deletes the selected record after validation and permission checks.
 	public ResponseEntity<AdminBankOfficerSummaryResponse> delete(@PathVariable Long userId) {
 		return ResponseEntity.status(HttpStatus.OK).body(adminBankOfficerService.deletePermanently(userId));
 	}
 }
+
