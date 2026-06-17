@@ -59,9 +59,12 @@ public class BankCustomerCredentialsEmailService {
 		try {
 			emailService.sendPlainText(normalizedRecipient, subject, body);
 			LOGGER.info("Credentials email sent successfully to {} for username={}", normalizedRecipient, normalizedUsername);
+		} catch (EmailDeliveryException ex) {
+			LOGGER.error("Credentials email delivery failed for {} (username={}): {}", normalizedRecipient, normalizedUsername, ex.getMessage(), ex);
+			throw new EmailDeliveryException("Unable to deliver credentials email: " + ex.getMessage(), ex);
 		} catch (RuntimeException ex) {
 			LOGGER.error("Credentials email failed for {} (username={})", normalizedRecipient, normalizedUsername, ex);
-			throw ex;
+			throw new EmailDeliveryException("Unable to deliver credentials email right now.", ex);
 		}
 	}
 

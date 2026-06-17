@@ -68,6 +68,7 @@ public class BankCustomerFinancialRecordService {
 	private final BankCustomerCribRequestRepository cribRequestRepository;
 	private final CribDatasetService cribDatasetService;
 	private final BankCustomerFinancialRecordMapper financialRecordMapper;
+	private final com.bank_web_app.backend.bankofficer.service.BankOfficerContextService bankOfficerContextService;
 	private final UserRepository userRepository;
 	private final BankOfficerRepository bankOfficerRepository;
     private final com.bank_web_app.backend.creditlens.service.CreditEvaluationService creditEvaluationService;
@@ -83,6 +84,7 @@ public class BankCustomerFinancialRecordService {
 		BankCustomerCribRequestRepository cribRequestRepository,
 		CribDatasetService cribDatasetService,
 		BankCustomerFinancialRecordMapper financialRecordMapper,
+		com.bank_web_app.backend.bankofficer.service.BankOfficerContextService bankOfficerContextService,
 		UserRepository userRepository,
 		BankOfficerRepository bankOfficerRepository,
         com.bank_web_app.backend.creditlens.service.CreditEvaluationService creditEvaluationService
@@ -97,6 +99,7 @@ public class BankCustomerFinancialRecordService {
 		this.cribRequestRepository = cribRequestRepository;
 		this.cribDatasetService = cribDatasetService;
 		this.financialRecordMapper = financialRecordMapper;
+		this.bankOfficerContextService = bankOfficerContextService;
 		this.userRepository = userRepository;
 		this.bankOfficerRepository = bankOfficerRepository;
 		this.creditEvaluationService = creditEvaluationService;
@@ -258,8 +261,6 @@ public class BankCustomerFinancialRecordService {
 			if (ex.getStatusCode().value() != HttpStatus.NOT_FOUND.value()) {
 				throw ex;
 			}
-			requestStatus = "FAILED";
-			reportStatus = "FAILED";
 			responseMessage = "ID not found in CRIB. Continued with manual financial capture.";
 		}
 
@@ -337,7 +338,7 @@ public class BankCustomerFinancialRecordService {
 
 		BankCustomerCribRequest saved = cribRequestRepository.save(cribRequest);
 
-		customer.setAccessStatus("PENDING_STEP_8");
+		customer.setAccessStatus(STATUS_PENDING_STEP_7);
 		bankCustomerRepository.save(customer);
 
 		return new BankCustomerCribStepResponse(
@@ -355,7 +356,7 @@ public class BankCustomerFinancialRecordService {
 
 	@Transactional
 	public BankCustomerCribStepResponse completeCribReviewAndOnboarding(Long bankCustomerId) {
-		BankCustomer customer = resolveOwnedBankCustomer(bankCustomerId, STATUS_PENDING_STEP_7);
+		BankCustomer customer = resolveOwnedBankCustomerForFinalReview(bankCustomerId);
 		customer.setAccessStatus(STATUS_COMPLETED);
 		bankCustomerRepository.save(customer);
 		BankCustomerCribRequest latest = cribRequestRepository
@@ -577,6 +578,15 @@ public class BankCustomerFinancialRecordService {
 		};
 	}
 
+	private BankCustomer resolveOwnedBankCustomerForFinalReview(Long bankCustomerId) {
+		BankCustomer customer = resolveOwnedBankCustomer(bankCustomerId);
+		String accessStatus = normalizeAccessStatus(customer.getAccessStatus());
+		if (!STATUS_PENDING_STEP_7.equals(accessStatus) && !"PENDING_STEP_8".equals(accessStatus)) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Bank customer is not at the expected onboarding step.");
+		}
+		return customer;
+	}
+
 	private String normalizeAccessStatus(String accessStatus) {
 		return accessStatus == null ? "" : accessStatus.trim().toUpperCase(Locale.ROOT);
 	}
@@ -606,26 +616,6 @@ public class BankCustomerFinancialRecordService {
 	}
 
 	private BankOfficer resolveLoggedInBankOfficer() {
-		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-		if (
-			authentication == null ||
-			!authentication.isAuthenticated() ||
-			authentication instanceof AnonymousAuthenticationToken ||
-			authentication.getName() == null ||
-			authentication.getName().isBlank()
-		) {
-			throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Bank officer authentication is required.");
-		}
-
-		String principal = authentication.getName().trim();
-		String normalizedPrincipal = principal.toLowerCase(Locale.ROOT);
-		User officerUser = userRepository
-			.findByEmail(normalizedPrincipal)
-			.or(() -> userRepository.findByUsername(principal))
-			.or(() -> userRepository.findByUsername(normalizedPrincipal))
-			.orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Logged-in user was not found."));
-
-		return bankOfficerRepository.findByUser_UserId(officerUser.getUserId())
-			.orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Logged-in user is not a bank officer."));
+		return bankOfficerContextService.resolveLoggedInBankOfficer();
 	}
 }
