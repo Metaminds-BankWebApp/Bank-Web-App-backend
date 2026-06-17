@@ -8,6 +8,9 @@ import com.bank_web_app.backend.bankcustomer.repository.AccountRepository;
 import com.bank_web_app.backend.bankcustomer.repository.BankCustomerRepository;
 import com.bank_web_app.backend.bankofficer.entity.BankOfficer;
 import com.bank_web_app.backend.bankofficer.repository.BankOfficerRepository;
+import com.bank_web_app.backend.bankofficer.service.BankOfficerContextService;
+import com.bank_web_app.backend.bankofficer.service.PortfolioService;
+import com.bank_web_app.backend.common.email.BankCustomerCredentialsEmailService;
 import com.bank_web_app.backend.common.email.BankOfficerCredentialsEmailService;
 import com.bank_web_app.backend.common.email.EmailDeliveryException;
 import com.bank_web_app.backend.common.exception.DuplicateFieldsException;
@@ -89,6 +92,8 @@ BankOfficerRepository bankOfficerRepository,
 BankCustomerRepository bankCustomerRepository,
 AccountRepository accountRepository,
 PublicCustomerProfileRepository publicCustomerProfileRepository,
+BankOfficerContextService bankOfficerContextService,
+PortfolioService portfolioService,
 PasswordEncoder passwordEncoder,
 BankCustomerCredentialsEmailService credentialsEmailService,
 BankOfficerCredentialsEmailService bankOfficerCredentialsEmailService
