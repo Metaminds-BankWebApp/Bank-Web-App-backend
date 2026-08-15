@@ -1,5 +1,6 @@
 package com.bank_web_app.backend.common.email;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.net.URI;
@@ -40,7 +41,7 @@ public class BrevoSmtpEmailService implements EmailService {
 	private final boolean smtpFallbackEnabled;
 
 	public BrevoSmtpEmailService(
-		@Value("${spring.mail.brevo.api.key:${BREVO_API_KEY:${spring.mail.password:${MAIL_PASSWORD:${BREVO_SMTP_KEY:}}}}}") String brevoApiKey,
+		@Value("${spring.mail.brevo.api.key:${spring.mail.brevo.key:${BREVO_API_KEY:${spring.mail.password:${MAIL_PASSWORD:${BREVO_SMTP_KEY:}}}}}}") String brevoApiKey,
 		@Value("${app.mail.from:${spring.mail.app.email.from:${APP_MAIL_FROM:}}}") String fromAddress,
 		@Value("${app.mail.name:${spring.mail.app.email.name:${APP_MAIL_NAME:Primecore}}}") String fromName,
 		@Value("${spring.mail.host:${MAIL_HOST:}}") String smtpHost,
@@ -125,8 +126,8 @@ public class BrevoSmtpEmailService implements EmailService {
 		String requestBody;
 		try {
 			requestBody = objectMapper.writeValueAsString(payload);
-		} catch (Exception ex) {
-			throw new EmailDeliveryException("Unable to deliver OTP email right now. Failed to serialize Brevo payload.", ex);
+		} catch (JsonProcessingException ex) {
+			throw new EmailDeliveryException("Unable to deliver credentials email right now. Failed to serialize Brevo payload.", ex);
 		}
 
 		try {

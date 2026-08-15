@@ -10,9 +10,7 @@ import com.bank_web_app.backend.bankofficer.entity.BankOfficer;
 import com.bank_web_app.backend.bankofficer.repository.BankOfficerRepository;
 import com.bank_web_app.backend.bankofficer.service.BankOfficerContextService;
 import com.bank_web_app.backend.bankofficer.service.PortfolioService;
-import com.bank_web_app.backend.common.email.BankCustomerCredentialsEmailService;
 import com.bank_web_app.backend.common.email.BankOfficerCredentialsEmailService;
-import com.bank_web_app.backend.common.email.EmailDeliveryException;
 import com.bank_web_app.backend.common.exception.DuplicateFieldsException;
 import com.bank_web_app.backend.publiccustomer.entity.PublicCustomerProfile;
 import com.bank_web_app.backend.publiccustomer.repository.PublicCustomerProfileRepository;
@@ -33,12 +31,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.authentication.AnonymousAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -47,7 +40,6 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class UserServiceImpl implements UserService {
 
-private static final Logger LOGGER = LoggerFactory.getLogger(UserServiceImpl.class);
 private static final String ROLE_BANK_CUSTOMER = "BANK_CUSTOMER";
 private static final String ROLE_PUBLIC_CUSTOMER = "PUBLIC_CUSTOMER";
 private static final String ROLE_BANK_OFFICER = "BANK_OFFICER";
@@ -80,7 +72,6 @@ private final PublicCustomerProfileRepository publicCustomerProfileRepository;
 private final BankOfficerContextService bankOfficerContextService;
 private final PortfolioService portfolioService;
 private final PasswordEncoder passwordEncoder;
-private final BankCustomerCredentialsEmailService credentialsEmailService;
 private final BankOfficerCredentialsEmailService bankOfficerCredentialsEmailService;
 private static final java.security.SecureRandom SECURE_RANDOM = new java.security.SecureRandom();
 
@@ -95,7 +86,6 @@ PublicCustomerProfileRepository publicCustomerProfileRepository,
 BankOfficerContextService bankOfficerContextService,
 PortfolioService portfolioService,
 PasswordEncoder passwordEncoder,
-BankCustomerCredentialsEmailService credentialsEmailService,
 BankOfficerCredentialsEmailService bankOfficerCredentialsEmailService
 ) {
 this.userRepository = userRepository;
@@ -108,7 +98,6 @@ this.publicCustomerProfileRepository = publicCustomerProfileRepository;
 this.bankOfficerContextService = bankOfficerContextService;
 this.portfolioService = portfolioService;
 this.passwordEncoder = passwordEncoder;
-this.credentialsEmailService = credentialsEmailService;
 this.bankOfficerCredentialsEmailService = bankOfficerCredentialsEmailService;
 }
 
@@ -176,14 +165,8 @@ return new UserRegistrationStepResponse(user.getUserId(), ROLE_BANK_OFFICER, STA
 public UserRegistrationStepResponse continueBankOfficerStepOne(UserRegistrationStepOneRequest request) {
 User user = createUserForRole(request, ROLE_BANK_OFFICER);
 createBankOfficerProfile(request, user);
-String responseMessage = "Bank officer registration completed successfully.";
-try {
 bankOfficerCredentialsEmailService.sendCredentialsEmail(user.getEmail(), user.getFirstName(), user.getUsername(), request.password());
-} catch (EmailDeliveryException ex) {
-LOGGER.warn("Bank officer created, but credentials email delivery failed for {}: {}", user.getEmail(), ex.getMessage());
-responseMessage = "Bank officer registration completed, but credentials email could not be delivered.";
-}
-return new UserRegistrationStepResponse(user.getUserId(), ROLE_BANK_OFFICER, STATE_SUCCESS, responseMessage);
+return new UserRegistrationStepResponse(user.getUserId(), ROLE_BANK_OFFICER, STATE_SUCCESS, "Bank officer registration completed successfully and credentials email was sent.");
 }
 
 @Override
