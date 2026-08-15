@@ -1,4 +1,13 @@
 package com.bank_web_app.backend.admin.service;
+import java.security.SecureRandom;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import java.util.regex.Pattern;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.bank_web_app.backend.admin.dto.request.AdminBankOfficerUpdateRequest;
 import com.bank_web_app.backend.admin.dto.response.AdminBankOfficerSummaryResponse;
 import com.bank_web_app.backend.admin.entity.Branch;
@@ -8,18 +17,11 @@ import com.bank_web_app.backend.bankcustomer.repository.BankCustomerRepository;
 import com.bank_web_app.backend.bankofficer.entity.BankOfficer;
 import com.bank_web_app.backend.bankofficer.repository.BankOfficerRepository;
 import com.bank_web_app.backend.creditlens.repository.BankCreditEvaluationRepository;
-import com.bank_web_app.backend.user.entity.User;
 import com.bank_web_app.backend.user.dto.request.UserRegistrationStepOneRequest;
 import com.bank_web_app.backend.user.dto.response.UserRegistrationStepResponse;
+import com.bank_web_app.backend.user.entity.User;
 import com.bank_web_app.backend.user.repository.UserRepository;
 import com.bank_web_app.backend.user.service.UserService;
-import java.security.SecureRandom;
-import java.util.List;
-import java.util.Locale;
-import java.util.Set;
-import java.util.regex.Pattern;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Orchestrates Admin business logic, validation, and persistence workflows.
@@ -88,7 +90,7 @@ public class AdminBankOfficerService {
 			"Created Bank Officer: \"" + safe(request.firstName()) + " " + safe(request.lastName()) + "\"",
 			"BANK_OFFICER",
 			response.userId() == null ? null : String.valueOf(response.userId()),
-			"Bank officer account was created successfully.",
+			"Bank officer account was created successfully and credentials email was sent.",
 			"SUCCESS"
 		);
 		return response;
