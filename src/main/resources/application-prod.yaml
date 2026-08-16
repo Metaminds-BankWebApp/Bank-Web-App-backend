@@ -33,13 +33,13 @@ spring:
     baseline-on-migrate: false
     clean-disabled: true
 
-# Do not attempt a local CRIB connection from a deployed instance. Set all three
-# CRIB_DB_* variables only when the separate CRIB dataset is also hosted remotely.
+# Do not attempt a local CRIB connection from a deployed instance.
 crib:
   datasource:
     url: ${CRIB_DB_URL:}
-    username: ${CRIB_DB_USERNAME:}
-    password: ${CRIB_DB_PASSWORD:}
+    # A separately created Neon database can normally reuse the project's role.
+    username: ${CRIB_DB_USERNAME:${DB_USERNAME}}
+    password: ${CRIB_DB_PASSWORD:${DB_PASSWORD}}
 
 jwt:
   # Production must not fall back to the development JWT secret.

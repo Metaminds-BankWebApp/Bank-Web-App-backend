@@ -99,7 +99,8 @@ Verify the import with:
 psql "postgresql://<role>:<password>@<direct-neon-host>/<database>?sslmode=require&channel_binding=require" -c "SELECT count(*) FROM users;"
 ```
 
-`crib.datasource` is a separate database connection. It remains local unless
-you also import `Crib_Dataset.sql` into a Neon database and set
-`CRIB_DB_URL`, `CRIB_DB_USERNAME`, and `CRIB_DB_PASSWORD` as deployment
-secrets.
+`crib.datasource` is a separate database connection. Import
+`src/main/resources/db/crib/Crib_Dataset.sql` into the Neon `Crib_DB` database,
+then set `CRIB_DB_URL` to its pooled JDBC URL. By default it reuses
+`DB_USERNAME` and `DB_PASSWORD`; set `CRIB_DB_USERNAME` and
+`CRIB_DB_PASSWORD` only if the CRIB database uses a different Neon role.
