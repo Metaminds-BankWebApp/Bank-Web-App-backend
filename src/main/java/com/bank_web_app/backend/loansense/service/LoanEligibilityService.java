@@ -33,6 +33,8 @@ import com.bank_web_app.backend.loansense.entity.LoanEligibilityResult;
 import com.bank_web_app.backend.loansense.entity.LoanSenseEvaluation;
 import com.bank_web_app.backend.loansense.mapper.LoanEligibilityMapper;
 import com.bank_web_app.backend.loansense.repository.LoanEligibilityRepository;
+import com.bank_web_app.backend.notification.event.NotificationEventPublisher;
+import com.bank_web_app.backend.notification.event.NotificationEventType;
 import com.bank_web_app.backend.user.entity.User;
 import com.bank_web_app.backend.user.repository.UserRepository;
 import java.math.BigDecimal;
@@ -91,6 +93,7 @@ public class LoanEligibilityService {
 	private final UserRepository userRepository;
 	private final CreditEvaluationService creditEvaluationService;
 	private final LoanEligibilityMapper loanEligibilityMapper;
+	private final NotificationEventPublisher notificationEventPublisher;
 
 	public LoanEligibilityService(
 		LoanEligibilityRepository loanEligibilityRepository,
@@ -106,7 +109,8 @@ public class LoanEligibilityService {
 		RiskAdjustmentRepository riskAdjustmentRepository,
 		UserRepository userRepository,
 		CreditEvaluationService creditEvaluationService,
-		LoanEligibilityMapper loanEligibilityMapper
+		LoanEligibilityMapper loanEligibilityMapper,
+		NotificationEventPublisher notificationEventPublisher
 	) {
 		this.loanEligibilityRepository = loanEligibilityRepository;
 		this.bankCustomerRepository = bankCustomerRepository;
@@ -122,6 +126,7 @@ public class LoanEligibilityService {
 		this.userRepository = userRepository;
 		this.creditEvaluationService = creditEvaluationService;
 		this.loanEligibilityMapper = loanEligibilityMapper;
+		this.notificationEventPublisher = notificationEventPublisher;
 	}
 
 	@Transactional
@@ -164,9 +169,18 @@ public class LoanEligibilityService {
 		BankCustomer bankCustomer = resolveOwnedBankCustomer(bankCustomerId, officer);
 		BankCustomerFinancialRecord latestRecord = resolveLatestBankFinancialRecord(bankCustomer.getBankCustomerId());
 		BankCreditEvaluation bankCreditEvaluation = resolveCurrentBankCreditEvaluation(bankCustomer);
-		return loanEligibilityMapper.toEvaluationResponse(
-			createEvaluation(bankCustomer, latestRecord, bankCreditEvaluation, parseRequestedLoanInputs(request))
+		String previousStatus = loanEligibilityRepository
+			.findTopByBankCustomer_BankCustomerIdOrderByCreatedAtDesc(bankCustomerId)
+			.map(LoanSenseEvaluation::getOverallStatus)
+			.orElse(null);
+		LoanSenseEvaluation evaluation = createEvaluation(
+			bankCustomer,
+			latestRecord,
+			bankCreditEvaluation,
+			parseRequestedLoanInputs(request)
 		);
+		publishLoanSenseEvaluationNotification(bankCustomer, officer, evaluation, previousStatus);
+		return loanEligibilityMapper.toEvaluationResponse(evaluation);
 	}
 
 	@Transactional
@@ -492,6 +506,29 @@ public class LoanEligibilityService {
 		evaluation.setOverallStatus(resolveOverallStatus(results));
 		evaluation.setRemarks(buildRemarks(evaluation.getOverallStatus(), availableEmiCapacity, riskAdjustment));
 		return loanEligibilityRepository.save(evaluation);
+	}
+
+	private void publishLoanSenseEvaluationNotification(
+		BankCustomer bankCustomer,
+		BankOfficer officer,
+		LoanSenseEvaluation evaluation,
+		String previousStatus
+	) {
+		Map<String, String> metadata = new java.util.LinkedHashMap<>();
+		metadata.put("evaluationId", String.valueOf(evaluation.getLoansenseEvaluationId()));
+		metadata.put("customerId", String.valueOf(bankCustomer.getBankCustomerId()));
+		metadata.put("officerUserId", String.valueOf(officer.getUser().getUserId()));
+		metadata.put("overallStatus", normalizeText(evaluation.getOverallStatus()));
+		if (previousStatus != null && !previousStatus.isBlank()) {
+			metadata.put("previousStatus", previousStatus);
+		}
+		notificationEventPublisher.publish(
+			NotificationEventType.LOANSENSE_EVALUATED,
+			bankCustomer.getUser().getUserId(),
+			officer.getUser().getUserId(),
+			evaluation.getLoansenseEvaluationId(),
+			metadata
+		);
 	}
 
 	private LoanEligibilityResult buildLoanResult(
