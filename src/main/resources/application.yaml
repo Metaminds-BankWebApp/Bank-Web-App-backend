@@ -11,16 +11,6 @@ spring:
     username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD:}
     driver-class-name: org.postgresql.Driver
-  mail:
-    brevo:
-      api:
-        key: ${BREVO_API_KEY:}
-    properties:
-      mail:
-        smtp:
-          auth: ${SPRING_MAIL_SMTP_AUTH:true}
-          starttls:
-            enable: ${SPRING_MAIL_SMTP_STARTTLS_ENABLE:true}
   jpa:
     hibernate:
       ddl-auto: update
@@ -47,9 +37,6 @@ jwt:
   refresh-token-expiration-ms: ${JWT_REFRESH_TOKEN_EXPIRATION_MS:1209600000}
 
 app:
-  mail:
-    from: ${APP_MAIL_FROM:dshnz029@gmail.com}
-    name: ${APP_MAIL_NAME:metaminds}
   transact:
     otp:
       fail-open-enabled: ${APP_TRANSACT_OTP_FAIL_OPEN_ENABLED:false}

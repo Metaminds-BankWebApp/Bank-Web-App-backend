@@ -34,10 +34,13 @@ Important:
 - Demo user emails use `@primecore.local`, which is non-routable for real inbox delivery.
 - For local OTP testing with a real inbox, set:
   - `APP_TRANSACT_OTP_OVERRIDE_RECIPIENT_EMAIL=<your-real-email>`
-- Ensure Brevo sender is verified:
+- Verify the sender email address in Brevo, then set:
   - `APP_MAIL_FROM=<brevo-verified-sender-email>`
-- Ensure Brevo API key is valid:
-  - `BREVO_API_KEY`
+- Create a Brevo API key and set it only in `.env` or your deployment's secret
+  store:
+  - `BREVO_API_KEY=...`
+- `APP_MAIL_NAME=Primecore` is optional. The application sends plain-text
+  transactional messages directly through Brevo; no Brevo template is needed.
 
 ## Deploying with Neon PostgreSQL
 
@@ -82,6 +85,13 @@ cannot be added accidentally to a production deployment.
 | PUBLIC_CUSTOMER | `public.customer.mock@example.test` | `Demo@1234` |
 
 Remove or change these known-password accounts before public access.
+
+To add linked beneficiaries and completed transactions for the five additional
+mock bank customers, run `src/main/resources/db/seed/mock-bank-customer-transactions.sql`
+after creating those customers and their accounts.
+
+For linked Bank Customer financial records (income, loans, cards, liabilities,
+and missed payments), run `src/main/resources/db/seed/mock-bank-customer-financial-records.sql`.
 
 To move the existing local `webapp` database, install PostgreSQL client tools
 (`pg_dump` and `pg_restore`) and run the following in PowerShell. Paste the
