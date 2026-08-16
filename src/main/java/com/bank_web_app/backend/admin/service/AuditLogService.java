@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
@@ -51,6 +52,21 @@ public class AuditLogService {
 	private static final int MAX_LIMIT = 100;
 	private static final int MAX_PAGE_SIZE = 200;
 	private static final int RECENT_ACTION_FETCH_MULTIPLIER = 5;
+	private static final Set<String> CUSTOMER_ROLES = Set.of("PUBLIC_CUSTOMER", "BANK_CUSTOMER");
+	private static final Set<String> IMPORTANT_CUSTOMER_TARGET_TYPES = Set.of(
+		"PROFILE",
+		"PASSWORD",
+		"FINANCIAL_APPLICATION",
+		"TRANSACTION",
+		"BENEFICIARY",
+		"EVALUATION",
+		"SUPPORT_REQUEST"
+	);
+	private static final Set<String> NON_AUDIT_TARGET_TYPES = Set.of(
+		"NOTIFICATION",
+		"READ",
+		"READ_ALL"
+	);
 
 	private final AuditLogRepository auditLogRepository;
 	private final UserRepository userRepository;
@@ -86,10 +102,15 @@ public class AuditLogService {
 	) {
 		try {
 			Optional<User> actor = resolveAuthenticatedUser();
+			String actorRole = resolveActorRole(actor.orElse(null));
+			if (!shouldRetainAuditLog(actorRole, targetType)) {
+				return;
+			}
+
 			AuditLog log = new AuditLog();
 			log.setActorUser(actor.orElse(null));
 			log.setActorName(trimToLength(resolveActorDisplayName(actor.orElse(null)), 150));
-			log.setActorRole(normalizeNullable(resolveActorRole(actor.orElse(null)), 60));
+			log.setActorRole(normalizeNullable(actorRole, 60));
 			log.setActionType(normalize(actionType, "ACTION", 80));
 			log.setTitle(normalize(title, "Admin action", 255));
 			log.setTargetType(normalizeNullable(targetType, 50));
@@ -136,15 +157,17 @@ public class AuditLogService {
 		String normalizedActorName = normalizeNullable(actorName, 150);
 		String normalizedQuery = normalizeNullable(query, 100);
 
-		Specification<AuditLog> spec = buildSearchSpecification(
-			fromDateTime,
-			toDateTime,
-			normalizedTone,
-			normalizedActionType,
-			normalizedActorRole,
-			normalizedTargetType,
-			normalizedActorName,
-			normalizedQuery
+		Specification<AuditLog> spec = buildAuditLogVisibilitySpecification().and(
+			buildSearchSpecification(
+				fromDateTime,
+				toDateTime,
+				normalizedTone,
+				normalizedActionType,
+				normalizedActorRole,
+				normalizedTargetType,
+				normalizedActorName,
+				normalizedQuery
+			)
 		);
 
 		Page<AuditLog> result = auditLogRepository.findAll(
@@ -197,6 +220,7 @@ public class AuditLogService {
 
 		return logs
 			.stream()
+			.filter(this::isVisibleInAdminAuditLog)
 			.filter(log -> !isSystemRequestLog(log))
 			.limit(normalizedLimit)
 			.map(this::toResponse)
@@ -255,6 +279,30 @@ public class AuditLogService {
 		}
 
 		return false;
+	}
+
+	private boolean isVisibleInAdminAuditLog(AuditLog log) {
+		return log != null && shouldRetainAuditLog(log.getActorRole(), log.getTargetType());
+	}
+
+	private boolean shouldRetainAuditLog(String actorRole, String targetType) {
+		if (isNonAuditTargetType(targetType)) {
+			return false;
+		}
+		String normalizedRole = normalizeRole(actorRole);
+		return !CUSTOMER_ROLES.contains(normalizedRole) || isImportantCustomerTargetType(targetType);
+	}
+
+	private boolean isNonAuditTargetType(String targetType) {
+		return NON_AUDIT_TARGET_TYPES.contains(normalizeRole(targetType));
+	}
+
+	private boolean isImportantCustomerTargetType(String targetType) {
+		return IMPORTANT_CUSTOMER_TARGET_TYPES.contains(normalizeRole(targetType));
+	}
+
+	private String normalizeRole(String value) {
+		return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
 	}
 
 	@Transactional(readOnly = true)
@@ -397,6 +445,17 @@ public class AuditLogService {
 			}
 
 			return cb.and(predicates.toArray(Predicate[]::new));
+		};
+	}
+
+	private Specification<AuditLog> buildAuditLogVisibilitySpecification() {
+		return (root, ignoredQuery, cb) -> {
+			Expression<String> actorRole = cb.upper(cb.coalesce(root.get("actorRole"), ""));
+			Expression<String> targetType = cb.upper(cb.coalesce(root.get("targetType"), ""));
+			Predicate staffOrSystemActor = cb.not(actorRole.in(CUSTOMER_ROLES));
+			Predicate importantCustomerTarget = targetType.in(IMPORTANT_CUSTOMER_TARGET_TYPES);
+			Predicate nonAuditTarget = targetType.in(NON_AUDIT_TARGET_TYPES);
+			return cb.and(cb.not(nonAuditTarget), cb.or(staffOrSystemActor, importantCustomerTarget));
 		};
 	}
 
