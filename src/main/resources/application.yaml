@@ -1,0 +1,66 @@
+spring:
+  # Loads an ignored local .env file (KEY=value) when present. Deployment
+  # platforms supply the same values as environment variables instead.
+  config:
+    import: optional:file:.env[.properties]
+  application:
+    name: backend
+  datasource:
+    # Configure credentials through environment variables or deployment secrets.
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/webapp}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:}
+    driver-class-name: org.postgresql.Driver
+  mail:
+    brevo:
+      api:
+        key: ${BREVO_API_KEY:}
+    properties:
+      mail:
+        smtp:
+          auth: ${SPRING_MAIL_SMTP_AUTH:true}
+          starttls:
+            enable: ${SPRING_MAIL_SMTP_STARTTLS_ENABLE:true}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    clean-disabled: true
+    locations: classpath:db/migration
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+jwt:
+  # Required in every environment; generate a unique 32+ character value.
+  secret: ${JWT_SECRET}
+  access-token-expiration-ms: ${JWT_ACCESS_TOKEN_EXPIRATION_MS:3600000}
+  refresh-token-expiration-ms: ${JWT_REFRESH_TOKEN_EXPIRATION_MS:1209600000}
+
+app:
+  mail:
+    from: ${APP_MAIL_FROM:dshnz029@gmail.com}
+    name: ${APP_MAIL_NAME:metaminds}
+  transact:
+    otp:
+      fail-open-enabled: ${APP_TRANSACT_OTP_FAIL_OPEN_ENABLED:false}
+      log-plain-enabled: ${APP_TRANSACT_OTP_LOG_PLAIN_ENABLED:false}
+      override-recipient-email: ${APP_TRANSACT_OTP_OVERRIDE_RECIPIENT_EMAIL:}
+
+crib:
+  datasource:
+    # Secondary datasource used only by CRIB linking/retrieval flow.
+    url: ${CRIB_DB_URL:jdbc:postgresql://localhost:5432/Crib_Dataset}
+    username: ${CRIB_DB_USERNAME:postgres}
+    password: ${CRIB_DB_PASSWORD:}
+    driver-class-name: ${CRIB_DB_DRIVER_CLASS_NAME:org.postgresql.Driver}
+    schema: ${CRIB_DB_SCHEMA:public}

@@ -1,0 +1,46 @@
+# Activate with SPRING_PROFILES_ACTIVE=prod in the deployment environment.
+# Store every value below as a deployment secret; do not commit the Neon URL or password.
+spring:
+  datasource:
+    # DB_URL should use the Neon pooled endpoint for normal application traffic.
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    hikari:
+      pool-name: bank-web-app-pool
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:10}
+      minimum-idle: ${DB_POOL_MIN_IDLE:2}
+      connection-timeout: ${DB_CONNECTION_TIMEOUT_MS:30000}
+      validation-timeout: ${DB_VALIDATION_TIMEOUT_MS:5000}
+      max-lifetime: ${DB_MAX_LIFETIME_MS:1800000}
+      keepalive-time: ${DB_KEEPALIVE_TIME_MS:300000}
+      data-source-properties:
+        reWriteBatchedInserts: true
+  jpa:
+    hibernate:
+      # Flyway owns schema changes in production. This prevents Hibernate from
+      # silently modifying the remote schema on an application restart.
+      ddl-auto: ${HIBERNATE_DDL_AUTO:validate}
+    open-in-view: false
+  flyway:
+    # Run Flyway once in a release/migration job, not in every scaled app instance.
+    enabled: ${FLYWAY_ENABLED:false}
+    # Use a direct, non-pooler Neon URL for migrations.
+    url: ${FLYWAY_DB_URL:${DB_URL}}
+    user: ${FLYWAY_DB_USERNAME:${DB_USERNAME}}
+    password: ${FLYWAY_DB_PASSWORD:${DB_PASSWORD}}
+    connect-retries: 10
+    baseline-on-migrate: false
+    clean-disabled: true
+
+# Do not attempt a local CRIB connection from a deployed instance. Set all three
+# CRIB_DB_* variables only when the separate CRIB dataset is also hosted remotely.
+crib:
+  datasource:
+    url: ${CRIB_DB_URL:}
+    username: ${CRIB_DB_USERNAME:}
+    password: ${CRIB_DB_PASSWORD:}
+
+jwt:
+  # Production must not fall back to the development JWT secret.
+  secret: ${JWT_SECRET}
