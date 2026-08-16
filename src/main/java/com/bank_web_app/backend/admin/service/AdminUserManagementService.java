@@ -313,6 +313,7 @@ public class AdminUserManagementService {
 		AdminUserManagementUserResponse response = toResponse(user, bankCodesByUserId, publicCodesByUserId);
 
 		// Remove direct user dependencies so their foreign keys cannot block the permanent account deletion.
+		auditLogService.detachActorForDeletedUser(userId);
 		notificationRepository.deleteByRecipient_UserId(userId);
 		refreshTokenRepository.deleteByUser_UserId(userId);
 		deleteSpendiqData(userId);

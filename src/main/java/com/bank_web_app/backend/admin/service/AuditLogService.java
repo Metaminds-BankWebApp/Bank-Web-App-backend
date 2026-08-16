@@ -104,6 +104,15 @@ public class AuditLogService {
 		}
 	}
 
+	@Transactional
+	// Keeps audit history while removing a foreign-key reference to an account being permanently deleted.
+	public void detachActorForDeletedUser(Long userId) {
+		if (userId == null || userId <= 0) {
+			return;
+		}
+		auditLogRepository.clearActorUserByUserId(userId);
+	}
+
 	@Transactional(readOnly = true)
 	// Returns paginated audit-log records with active filters.
 	public AdminAuditLogPageResponse getAuditLogs(
