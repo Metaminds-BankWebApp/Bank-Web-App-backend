@@ -58,6 +58,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+/**
+ * Core LoanSense domain service.
+ *
+ * Responsibilities:
+ * - Build and persist loan eligibility evaluations from latest customer financial data.
+ * - Reuse the latest evaluation when upstream dependencies have not changed.
+ * - Provide customer/officer views, loan-type details, and history projections.
+ */
 @Service
 public class LoanEligibilityService {
 
@@ -117,12 +125,14 @@ public class LoanEligibilityService {
 	}
 
 	@Transactional
+	// Returns the latest eligibility evaluation for the logged-in customer.
 	public LoanSenseEvaluationResponse getCurrentEvaluation() {
 		BankCustomer bankCustomer = resolveLoggedInBankCustomer();
 		return loanEligibilityMapper.toEvaluationResponse(getOrCreateLatestEvaluation(bankCustomer));
 	}
 
 	@Transactional
+	// Returns detailed metrics for one loan type in the latest evaluation.
 	public LoanTypeDetailResponse getCurrentLoanTypeDetail(String loanType) {
 		BankCustomer bankCustomer = resolveLoggedInBankCustomer();
 		LoanSenseEvaluation evaluation = getOrCreateLatestEvaluation(bankCustomer);
@@ -130,6 +140,7 @@ public class LoanEligibilityService {
 	}
 
 	@Transactional
+	// Returns eligibility history for the logged-in customer.
 	public List<LoanSenseHistoryItemResponse> getHistory(String loanType, Integer months) {
 		BankCustomer bankCustomer = resolveLoggedInBankCustomer();
 		getOrCreateLatestEvaluation(bankCustomer);
@@ -137,6 +148,7 @@ public class LoanEligibilityService {
 	}
 
 	@Transactional(readOnly = true)
+	// Returns one evaluation record by id for the logged-in customer.
 	public LoanSenseEvaluationResponse getEvaluationById(Long loansenseEvaluationId) {
 		BankCustomer bankCustomer = resolveLoggedInBankCustomer();
 		LoanSenseEvaluation evaluation = loanEligibilityRepository
@@ -146,6 +158,7 @@ public class LoanEligibilityService {
 	}
 
 	@Transactional
+	// Creates a LoanSense evaluation for a customer managed by the logged-in officer.
 	public LoanSenseEvaluationResponse createEvaluationForOfficer(Long bankCustomerId, CreateLoanSenseEvaluationRequest request) {
 		BankOfficer officer = resolveLoggedInBankOfficer();
 		BankCustomer bankCustomer = resolveOwnedBankCustomer(bankCustomerId, officer);
@@ -157,6 +170,7 @@ public class LoanEligibilityService {
 	}
 
 	@Transactional
+	// Returns the latest evaluation for an officer-managed customer.
 	public LoanSenseEvaluationResponse getCurrentEvaluationForOfficer(Long bankCustomerId) {
 		BankOfficer officer = resolveLoggedInBankOfficer();
 		BankCustomer bankCustomer = resolveOwnedBankCustomer(bankCustomerId, officer);
@@ -164,6 +178,7 @@ public class LoanEligibilityService {
 	}
 
 	@Transactional
+	// Returns eligibility history for an officer-managed customer.
 	public List<LoanSenseHistoryItemResponse> getHistoryForOfficer(Long bankCustomerId, String loanType, Integer months) {
 		BankOfficer officer = resolveLoggedInBankOfficer();
 		BankCustomer bankCustomer = resolveOwnedBankCustomer(bankCustomerId, officer);
@@ -172,6 +187,7 @@ public class LoanEligibilityService {
 	}
 
 	@Transactional(readOnly = true)
+	// Returns one evaluation record by id for an officer-managed customer.
 	public LoanSenseEvaluationResponse getEvaluationByIdForOfficer(Long bankCustomerId, Long loansenseEvaluationId) {
 		BankOfficer officer = resolveLoggedInBankOfficer();
 		BankCustomer bankCustomer = resolveOwnedBankCustomer(bankCustomerId, officer);
@@ -182,6 +198,7 @@ public class LoanEligibilityService {
 	}
 
 	@Transactional
+	// Returns loan-type detail for an officer-managed customer.
 	public LoanTypeDetailResponse getLoanTypeDetailForOfficer(Long bankCustomerId, String loanType) {
 		BankOfficer officer = resolveLoggedInBankOfficer();
 		BankCustomer bankCustomer = resolveOwnedBankCustomer(bankCustomerId, officer);
@@ -190,6 +207,7 @@ public class LoanEligibilityService {
 	}
 
 	@Transactional
+	// Returns LoanSense dashboard rows for the logged-in officer.
 	public LoanSenseOfficerDashboardResponse getOfficerDashboard() {
 		BankOfficer officer = resolveLoggedInBankOfficer();
 		List<LoanSenseOfficerCustomerRowResponse> rows = bankCustomerRepository
@@ -903,3 +921,4 @@ public class LoanEligibilityService {
 		}
 	}
 }
+

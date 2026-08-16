@@ -1,5 +1,4 @@
 package com.bank_web_app.backend.admin.service;
-
 import com.bank_web_app.backend.admin.dto.request.AdminUserManagementUpdateRequest;
 import com.bank_web_app.backend.admin.dto.response.AdminUserManagementUserResponse;
 import com.bank_web_app.backend.bankcustomer.entity.BankCustomer;
@@ -39,6 +38,10 @@ import java.util.Map;
 import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+/**
+ * Orchestrates Admin business logic, validation, and persistence workflows.
+ */
 
 @Service
 public class AdminUserManagementService {
@@ -143,6 +146,7 @@ public class AdminUserManagementService {
 	}
 
 	@Transactional(readOnly = true)
+	// Returns paginated users for the admin user-management table.
 	public List<AdminUserManagementUserResponse> getUsers(String customerType, String search) {
 		String normalizedType = normalizeCustomerType(customerType);
 		String normalizedSearch = normalizeSearch(search);
@@ -186,6 +190,7 @@ public class AdminUserManagementService {
 	}
 
 	@Transactional
+	// Updates the selected user account status.
 	public AdminUserManagementUserResponse updateUserStatus(Long userId, String status) {
 		if (userId == null || userId <= 0) {
 			throw new IllegalArgumentException("User id must be a positive number.");
@@ -225,6 +230,7 @@ public class AdminUserManagementService {
 	}
 
 	@Transactional
+	// Updates editable user profile fields from the admin panel.
 	public AdminUserManagementUserResponse updateUserDetails(Long userId, AdminUserManagementUpdateRequest request) {
 		if (userId == null || userId <= 0) {
 			throw new IllegalArgumentException("User id must be a positive number.");
@@ -274,6 +280,7 @@ public class AdminUserManagementService {
 	}
 
 	@Transactional
+	// Deletes the selected user account from user management.
 	public AdminUserManagementUserResponse deleteUser(Long userId) {
 		if (userId == null || userId <= 0) {
 			throw new IllegalArgumentException("User id must be a positive number.");
@@ -530,3 +537,4 @@ public class AdminUserManagementService {
 			.ifPresent(publicCustomerMissedPaymentRepository::delete);
 	}
 }
+

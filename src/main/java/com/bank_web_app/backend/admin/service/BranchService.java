@@ -1,5 +1,4 @@
 package com.bank_web_app.backend.admin.service;
-
 import java.util.List;
 import java.util.Locale;
 import org.slf4j.Logger;
@@ -15,6 +14,10 @@ import com.bank_web_app.backend.admin.entity.BranchStatus;
 import com.bank_web_app.backend.admin.repository.BranchRepository;
 import com.bank_web_app.backend.bankcustomer.repository.BankCustomerRepository;
 import com.bank_web_app.backend.bankofficer.repository.BankOfficerRepository;
+
+/**
+ * Orchestrates Admin business logic, validation, and persistence workflows.
+ */
 
 @Service
 public class BranchService {
@@ -39,6 +42,7 @@ public class BranchService {
 	}
 
 	@Transactional
+	// Creates a new entity from validated request data.
 	public BranchResponse create(BranchRequest request) {
 		Branch branch = new Branch();
 		branch.setBranchCode(generateBranchCode());
@@ -62,16 +66,19 @@ public class BranchService {
 	}
 
 	@Transactional(readOnly = true)
+	// Returns all records needed by the admin table view.
 	public List<BranchResponse> getAll() {
 		return branchRepository.findAllByOrderByCreatedAtDesc().stream().map(this::toResponse).toList();
 	}
 
 	@Transactional(readOnly = true)
+	// Returns one record by its identifier.
 	public BranchResponse getById(Long branchId) {
 		return toResponse(findBranch(branchId));
 	}
 
 	@Transactional
+	// Updates an existing record from validated request fields.
 	public BranchResponse update(Long branchId, BranchRequest request) {
 		Branch branch = findBranch(branchId);
 
@@ -95,6 +102,7 @@ public class BranchService {
 	}
 
 	@Transactional
+	// Updates only the status field for the selected record.
 	public BranchResponse updateStatus(Long branchId, String status) {
 		Branch branch = findBranch(branchId);
 		branch.setStatus(normalizeStatus(status));
@@ -113,6 +121,7 @@ public class BranchService {
 	}
 
 	@Transactional
+	// Deletes the selected record after validation and permission checks.
 	public BranchResponse delete(Long branchId) {
 		Branch branch = findBranch(branchId);
 		if (

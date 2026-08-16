@@ -1,5 +1,4 @@
 package com.bank_web_app.backend.loansense.dto.request;
-
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import java.math.BigDecimal;

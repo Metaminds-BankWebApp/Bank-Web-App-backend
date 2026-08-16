@@ -1,5 +1,4 @@
 package com.bank_web_app.backend.admin.service;
-
 import com.bank_web_app.backend.admin.dto.request.BulkLoanPolicyInterestRateUpdateRequest;
 import com.bank_web_app.backend.admin.dto.request.LoanPolicyUpdateRequest;
 import com.bank_web_app.backend.admin.dto.response.LoanPolicyResponse;
@@ -16,6 +15,10 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Orchestrates Admin business logic, validation, and persistence workflows.
+ */
+
 @Service
 public class LoanPolicyService {
 
@@ -30,16 +33,19 @@ public class LoanPolicyService {
 	}
 
 	@Transactional(readOnly = true)
+	// Returns all records needed by the admin table view.
 	public List<LoanPolicyResponse> getAll() {
 		return loanPolicyRepository.findAllByOrderByLoanTypeAsc().stream().map(this::toResponse).toList();
 	}
 
 	@Transactional(readOnly = true)
+	// Returns one record by its identifier.
 	public LoanPolicyResponse getById(Long policyId) {
 		return toResponse(findPolicy(policyId));
 	}
 
 	@Transactional
+	// Updates an existing record from validated request fields.
 	public LoanPolicyResponse update(Long policyId, LoanPolicyUpdateRequest request) {
 		LoanPolicy policy = findPolicy(policyId);
 		String loanType = normalizeLoanType(request.loanType());
@@ -75,6 +81,7 @@ public class LoanPolicyService {
 	}
 
 	@Transactional
+	// Bulk-updates base interest rates for loan policy records.
 	public List<LoanPolicyResponse> updateInterestRates(BulkLoanPolicyInterestRateUpdateRequest request) {
 		if (request == null || request.policies() == null || request.policies().isEmpty()) {
 			throw new IllegalArgumentException("At least one policy update is required.");

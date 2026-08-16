@@ -1,5 +1,4 @@
 package com.bank_web_app.backend.loansense.mapper;
-
 import com.bank_web_app.backend.admin.entity.LoanPolicy;
 import com.bank_web_app.backend.admin.entity.RiskAdjustment;
 import com.bank_web_app.backend.loansense.dto.response.LoanSenseEvaluationResponse;

@@ -1,5 +1,4 @@
 package com.bank_web_app.backend.admin.dto.request;
-
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;

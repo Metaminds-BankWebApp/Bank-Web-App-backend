@@ -1,5 +1,4 @@
 package com.bank_web_app.backend.admin.controller;
-
 import com.bank_web_app.backend.admin.dto.response.AdminAuditLogFilterOptionsResponse;
 import com.bank_web_app.backend.admin.dto.response.AdminAuditLogPageResponse;
 import com.bank_web_app.backend.admin.dto.response.AdminRecentActionResponse;
@@ -15,6 +14,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * REST controller for audit-log search, recent actions, and filter metadata endpoints.
+ */
+
 @RestController
 @RequestMapping("/api/admin/audit-logs")
 @Tag(name = "Admin Audit Logs", description = "Admin audit-log endpoints")
@@ -28,6 +31,7 @@ public class AuditLogController {
 
 	@GetMapping
 	@Operation(summary = "Search audit logs with pagination and filters")
+	// Returns paginated audit-log records with active filters.
 	public ResponseEntity<AdminAuditLogPageResponse> getAuditLogs(
 		@RequestParam(defaultValue = "1") Integer page,
 		@RequestParam(defaultValue = "20") Integer size,
@@ -58,6 +62,7 @@ public class AuditLogController {
 
 	@GetMapping("/recent")
 	@Operation(summary = "Get recent admin actions within a time window")
+	// Returns recent activity entries.
 	public ResponseEntity<List<AdminRecentActionResponse>> getRecent(
 		@RequestParam(defaultValue = "12") Integer hours,
 		@RequestParam(defaultValue = "20") Integer limit
@@ -67,7 +72,9 @@ public class AuditLogController {
 
 	@GetMapping("/filters")
 	@Operation(summary = "Get audit-log filter options")
+	// Returns filter option values used by the audit-log UI.
 	public ResponseEntity<AdminAuditLogFilterOptionsResponse> getFilterOptions() {
 		return ResponseEntity.ok(auditLogService.getFilterOptions());
 	}
 }
+

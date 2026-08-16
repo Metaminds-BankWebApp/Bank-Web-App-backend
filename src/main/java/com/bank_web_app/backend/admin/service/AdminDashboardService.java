@@ -20,6 +20,11 @@ import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Aggregates admin dashboard widgets:
+ * summary counters, recent actions, and monthly user-growth series.
+ */
+
 @Service
 public class AdminDashboardService {
 
@@ -51,6 +56,7 @@ public class AdminDashboardService {
 	}
 
 	@Transactional(readOnly = true)
+	// Returns dashboard summary counts for admin overview cards.
 	public AdminDashboardSummaryResponse getSummary() {
 		long totalUsers = userRepository.countByRole_RoleNameIn(List.of(ROLE_BANK_CUSTOMER, ROLE_PUBLIC_CUSTOMER));
 		long totalBranches = branchRepository.count();
@@ -61,11 +67,13 @@ public class AdminDashboardService {
 	}
 
 	@Transactional(readOnly = true)
+	// Returns recent admin actions within the requested time window.
 	public List<AdminRecentActionResponse> getRecentActions(Integer hours, Integer limit) {
 		return auditLogService.getRecentActionsByActorRole(hours, limit, ROLE_ADMIN);
 	}
 
 	@Transactional(readOnly = true)
+	// Returns monthly user-growth metrics for the dashboard chart.
 	public AdminMonthlyUserGrowthResponse getMonthlyUserGrowth(Integer months) {
 		int monthWindow = sanitizeMonthWindow(months);
 		YearMonth latestMonth = YearMonth.now();
