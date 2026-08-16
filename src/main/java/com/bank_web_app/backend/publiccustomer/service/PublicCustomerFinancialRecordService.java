@@ -5,6 +5,7 @@ import com.bank_web_app.backend.publiccustomer.dto.request.PublicCustomerIncomeS
 import com.bank_web_app.backend.publiccustomer.dto.request.PublicCustomerLiabilityStepRequest;
 import com.bank_web_app.backend.publiccustomer.dto.request.PublicCustomerLoanStepRequest;
 import com.bank_web_app.backend.bankcustomer.repository.BankCustomerCardRepository;
+import com.bank_web_app.backend.notification.service.NotificationService;
 import com.bank_web_app.backend.publiccustomer.dto.response.PublicCustomerCardProviderOptionResponse;
 import com.bank_web_app.backend.publiccustomer.dto.response.PublicCustomerMeResponse;
 import com.bank_web_app.backend.publiccustomer.dto.response.PublicCustomerFinancialRecordResponse;
@@ -54,6 +55,7 @@ public class PublicCustomerFinancialRecordService {
 	private final PublicCustomerMissedPaymentRepository missedPaymentRepository;
 	private final PublicCustomerFinancialRecordMapper financialRecordMapper;
 	private final UserRepository userRepository;
+	private final NotificationService notificationService;
 
 	public PublicCustomerFinancialRecordService(
 		PublicCustomerProfileRepository publicCustomerProfileRepository,
@@ -65,7 +67,8 @@ public class PublicCustomerFinancialRecordService {
 		PublicCustomerLiabilityRepository liabilityRepository,
 		PublicCustomerMissedPaymentRepository missedPaymentRepository,
 		PublicCustomerFinancialRecordMapper financialRecordMapper,
-		UserRepository userRepository
+		UserRepository userRepository,
+		NotificationService notificationService
 	) {
 		this.publicCustomerProfileRepository = publicCustomerProfileRepository;
 		this.financialRecordRepository = financialRecordRepository;
@@ -77,6 +80,7 @@ public class PublicCustomerFinancialRecordService {
 		this.missedPaymentRepository = missedPaymentRepository;
 		this.financialRecordMapper = financialRecordMapper;
 		this.userRepository = userRepository;
+		this.notificationService = notificationService;
 	}
 
 	private static final List<String> DEFAULT_CARD_PROVIDER_BANK_NAMES = List.of(
@@ -208,6 +212,9 @@ public class PublicCustomerFinancialRecordService {
 		missedPaymentRepository.save(missedPayment);
 
 		touchRecord(currentRecord);
+		notificationService.resolveFinancialDetailsMissing(
+			currentRecord.getPublicCustomer().getUser().getUserId()
+		);
 		return new PublicCustomerFinancialStepResponse(
 			recordId,
 			publicCustomerId,

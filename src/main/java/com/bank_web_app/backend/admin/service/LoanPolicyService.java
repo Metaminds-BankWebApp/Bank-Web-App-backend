@@ -4,6 +4,8 @@ import com.bank_web_app.backend.admin.dto.request.LoanPolicyUpdateRequest;
 import com.bank_web_app.backend.admin.dto.response.LoanPolicyResponse;
 import com.bank_web_app.backend.admin.entity.LoanPolicy;
 import com.bank_web_app.backend.admin.repository.LoanPolicyRepository;
+import com.bank_web_app.backend.notification.event.NotificationEventPublisher;
+import com.bank_web_app.backend.notification.event.NotificationEventType;
 import java.math.BigDecimal;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -26,10 +28,16 @@ public class LoanPolicyService {
 
 	private final LoanPolicyRepository loanPolicyRepository;
 	private final AuditLogService auditLogService;
+	private final NotificationEventPublisher notificationEventPublisher;
 
-	public LoanPolicyService(LoanPolicyRepository loanPolicyRepository, AuditLogService auditLogService) {
+	public LoanPolicyService(
+		LoanPolicyRepository loanPolicyRepository,
+		AuditLogService auditLogService,
+		NotificationEventPublisher notificationEventPublisher
+	) {
 		this.loanPolicyRepository = loanPolicyRepository;
 		this.auditLogService = auditLogService;
+		this.notificationEventPublisher = notificationEventPublisher;
 	}
 
 	@Transactional(readOnly = true)
@@ -77,6 +85,7 @@ public class LoanPolicyService {
 			"Updated policy parameters and status for " + response.loanType() + ".",
 			"INFO"
 		);
+		publishPolicyChanged(response);
 		return response;
 	}
 
@@ -122,7 +131,21 @@ public class LoanPolicyService {
 			"Updated base interest rates for " + responses.size() + " loan policy records.",
 			"INFO"
 		);
+		responses.forEach(this::publishPolicyChanged);
 		return responses;
+	}
+
+	private void publishPolicyChanged(LoanPolicyResponse policy) {
+		notificationEventPublisher.publish(
+			NotificationEventType.LOAN_POLICY_CHANGED,
+			null,
+			null,
+			policy.policyId(),
+			Map.of(
+				"policyId", String.valueOf(policy.policyId()),
+				"loanType", policy.loanType()
+			)
+		);
 	}
 
 	private LoanPolicy findPolicy(Long policyId) {

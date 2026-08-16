@@ -2,6 +2,7 @@ package com.bank_web_app.backend.admin.service;
 import java.security.SecureRandom;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -17,6 +18,8 @@ import com.bank_web_app.backend.bankcustomer.repository.BankCustomerRepository;
 import com.bank_web_app.backend.bankofficer.entity.BankOfficer;
 import com.bank_web_app.backend.bankofficer.repository.BankOfficerRepository;
 import com.bank_web_app.backend.creditlens.repository.BankCreditEvaluationRepository;
+import com.bank_web_app.backend.notification.event.NotificationEventPublisher;
+import com.bank_web_app.backend.notification.event.NotificationEventType;
 import com.bank_web_app.backend.user.dto.request.UserRegistrationStepOneRequest;
 import com.bank_web_app.backend.user.dto.response.UserRegistrationStepResponse;
 import com.bank_web_app.backend.user.entity.User;
@@ -47,6 +50,7 @@ public class AdminBankOfficerService {
 	private final BankCustomerFinancialRecordRepository bankCustomerFinancialRecordRepository;
 	private final BankCreditEvaluationRepository bankCreditEvaluationRepository;
 	private final AuditLogService auditLogService;
+	private final NotificationEventPublisher notificationEventPublisher;
 
 	public AdminBankOfficerService(
 		UserService userService,
@@ -56,7 +60,8 @@ public class AdminBankOfficerService {
 		BankCustomerRepository bankCustomerRepository,
 		BankCustomerFinancialRecordRepository bankCustomerFinancialRecordRepository,
 		BankCreditEvaluationRepository bankCreditEvaluationRepository,
-		AuditLogService auditLogService
+		AuditLogService auditLogService,
+		NotificationEventPublisher notificationEventPublisher
 	) {
 		this.userService = userService;
 		this.bankOfficerRepository = bankOfficerRepository;
@@ -66,6 +71,7 @@ public class AdminBankOfficerService {
 		this.bankCustomerFinancialRecordRepository = bankCustomerFinancialRecordRepository;
 		this.bankCreditEvaluationRepository = bankCreditEvaluationRepository;
 		this.auditLogService = auditLogService;
+		this.notificationEventPublisher = notificationEventPublisher;
 	}
 
 	// Creates a draft officer account preview before final submission.
@@ -164,6 +170,13 @@ public class AdminBankOfficerService {
 			safe(response.employeeCode()),
 			"Updated officer user status.",
 			"ACTIVE".equals(normalizedStatus) ? "SUCCESS" : "WARNING"
+		);
+		notificationEventPublisher.publish(
+			NotificationEventType.OFFICER_STATUS_CHANGED,
+			user.getUserId(),
+			null,
+			user.getUserId(),
+			Map.of("status", normalizedStatus)
 		);
 		return response;
 	}

@@ -12,6 +12,8 @@ import com.bank_web_app.backend.bankofficer.service.BankOfficerContextService;
 import com.bank_web_app.backend.bankofficer.service.PortfolioService;
 import com.bank_web_app.backend.common.email.BankOfficerCredentialsEmailService;
 import com.bank_web_app.backend.common.exception.DuplicateFieldsException;
+import com.bank_web_app.backend.notification.event.NotificationEventPublisher;
+import com.bank_web_app.backend.notification.event.NotificationEventType;
 import com.bank_web_app.backend.publiccustomer.entity.PublicCustomerProfile;
 import com.bank_web_app.backend.publiccustomer.repository.PublicCustomerProfileRepository;
 import com.bank_web_app.backend.user.dto.request.UserRegistrationStepOneRequest;
@@ -28,6 +30,7 @@ import java.time.format.DateTimeParseException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
@@ -73,6 +76,7 @@ private final BankOfficerContextService bankOfficerContextService;
 private final PortfolioService portfolioService;
 private final PasswordEncoder passwordEncoder;
 private final BankOfficerCredentialsEmailService bankOfficerCredentialsEmailService;
+private final NotificationEventPublisher notificationEventPublisher;
 private static final java.security.SecureRandom SECURE_RANDOM = new java.security.SecureRandom();
 
 public UserServiceImpl(
@@ -86,7 +90,8 @@ PublicCustomerProfileRepository publicCustomerProfileRepository,
 BankOfficerContextService bankOfficerContextService,
 PortfolioService portfolioService,
 PasswordEncoder passwordEncoder,
-BankOfficerCredentialsEmailService bankOfficerCredentialsEmailService
+BankOfficerCredentialsEmailService bankOfficerCredentialsEmailService,
+NotificationEventPublisher notificationEventPublisher
 ) {
 this.userRepository = userRepository;
 this.roleRepository = roleRepository;
@@ -99,13 +104,15 @@ this.bankOfficerContextService = bankOfficerContextService;
 this.portfolioService = portfolioService;
 this.passwordEncoder = passwordEncoder;
 this.bankOfficerCredentialsEmailService = bankOfficerCredentialsEmailService;
+this.notificationEventPublisher = notificationEventPublisher;
 }
 
 @Override
 @Transactional
 public UserRegistrationStepResponse saveBankCustomerStepOneDraft(UserRegistrationStepOneRequest request) {
 User user = createUserForRole(request, ROLE_BANK_CUSTOMER);
-createBankCustomerProfile(request, user, STATE_DRAFT);
+BankCustomer customer = createBankCustomerProfile(request, user, STATE_DRAFT);
+publishBankCustomerCreated(user, customer);
 return new UserRegistrationStepResponse(user.getUserId(), ROLE_BANK_CUSTOMER, STATE_DRAFT, "Bank customer draft saved successfully.");
 }
 
@@ -113,7 +120,8 @@ return new UserRegistrationStepResponse(user.getUserId(), ROLE_BANK_CUSTOMER, ST
 @Transactional
 public UserRegistrationStepResponse continueBankCustomerStepOne(UserRegistrationStepOneRequest request) {
 User user = createUserForRole(request, ROLE_BANK_CUSTOMER);
-createBankCustomerProfile(request, user, STATE_PENDING_STEP_2);
+BankCustomer customer = createBankCustomerProfile(request, user, STATE_PENDING_STEP_2);
+publishBankCustomerCreated(user, customer);
 
 return new UserRegistrationStepResponse(
 user.getUserId(),
@@ -136,6 +144,7 @@ public GeneratedBankCustomerCredentialsResponse generateBankCustomerCredentials(
 public UserRegistrationStepResponse savePublicCustomerStepOneDraft(UserRegistrationStepOneRequest request) {
 User user = createUserForRole(request, ROLE_PUBLIC_CUSTOMER);
 createPublicCustomerProfile(request, user);
+publishCustomerRegistration(user, ROLE_PUBLIC_CUSTOMER, null);
 return new UserRegistrationStepResponse(user.getUserId(), ROLE_PUBLIC_CUSTOMER, STATE_DRAFT, "Public customer draft saved successfully.");
 }
 
@@ -144,6 +153,8 @@ return new UserRegistrationStepResponse(user.getUserId(), ROLE_PUBLIC_CUSTOMER, 
 public UserRegistrationStepResponse continuePublicCustomerStepOne(UserRegistrationStepOneRequest request) {
 User user = createUserForRole(request, ROLE_PUBLIC_CUSTOMER);
 createPublicCustomerProfile(request, user);
+publishCustomerRegistration(user, ROLE_PUBLIC_CUSTOMER, null);
+publishPublicFinancialDetailsRequired(user);
 return new UserRegistrationStepResponse(
 user.getUserId(),
 ROLE_PUBLIC_CUSTOMER,
@@ -355,7 +366,7 @@ private char randomChar(String source) {
 	return source.charAt(SECURE_RANDOM.nextInt(source.length()));
 }
 
-private void createBankCustomerProfile(UserRegistrationStepOneRequest request, User user, String accessStatus) {
+private BankCustomer createBankCustomerProfile(UserRegistrationStepOneRequest request, User user, String accessStatus) {
 	BankOfficer loggedOfficer = resolveLoggedInBankOfficer();
 	if (request.officerId() != null && !loggedOfficer.getOfficerId().equals(request.officerId())) {
 		throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Step-1 officer id does not match the logged-in bank officer.");
@@ -385,7 +396,47 @@ customer.setCustomerCode(customerCode);
 	customer.setBranch(loggedOfficer.getBranch());
 customer.setAccount(savedAccount);
 customer.setAccessStatus(accessStatus);
-bankCustomerRepository.save(customer);
+return bankCustomerRepository.save(customer);
+}
+
+private void publishBankCustomerCreated(User user, BankCustomer customer) {
+	Long officerUserId = customer.getOfficer().getUser().getUserId();
+	publishCustomerRegistration(user, ROLE_BANK_CUSTOMER, officerUserId);
+	notificationEventPublisher.publish(
+		NotificationEventType.BANK_CUSTOMER_ASSIGNED,
+		officerUserId,
+		officerUserId,
+		customer.getBankCustomerId(),
+		Map.of(
+			"customerId", String.valueOf(customer.getBankCustomerId()),
+			"customerName", buildFullName(user)
+		)
+	);
+}
+
+private void publishCustomerRegistration(User user, String roleName, Long actorUserId) {
+	notificationEventPublisher.publish(
+		NotificationEventType.ADMIN_NEW_CUSTOMER,
+		null,
+		actorUserId,
+		user.getUserId(),
+		Map.of("role", roleName)
+	);
+}
+
+private void publishPublicFinancialDetailsRequired(User user) {
+	notificationEventPublisher.publish(
+		NotificationEventType.PUBLIC_FINANCIAL_DETAILS_REQUIRED,
+		user.getUserId(),
+		user.getUserId(),
+		user.getUserId(),
+		Map.of()
+	);
+}
+
+private String buildFullName(User user) {
+	String fullName = (safeTrim(user.getFirstName()) + " " + safeTrim(user.getLastName())).trim();
+	return fullName.isBlank() ? user.getUsername() : fullName;
 }
 
 private BankOfficer resolveLoggedInBankOfficer() {
