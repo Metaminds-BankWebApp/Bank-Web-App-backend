@@ -22,19 +22,47 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long>, JpaSp
 		Pageable pageable
 	);
 
-	@Query("SELECT DISTINCT a.actionType FROM AuditLog a WHERE a.actionType IS NOT NULL ORDER BY a.actionType ASC")
+	@Query("""
+		SELECT DISTINCT a.actionType FROM AuditLog a
+		WHERE a.actionType IS NOT NULL
+		  AND UPPER(COALESCE(a.targetType, '')) NOT IN ('NOTIFICATION', 'READ', 'READ_ALL')
+		  AND (UPPER(COALESCE(a.actorRole, '')) NOT IN ('PUBLIC_CUSTOMER', 'BANK_CUSTOMER')
+		       OR UPPER(COALESCE(a.targetType, '')) IN ('PROFILE', 'PASSWORD', 'FINANCIAL_APPLICATION', 'TRANSACTION', 'BENEFICIARY', 'EVALUATION', 'SUPPORT_REQUEST'))
+		ORDER BY a.actionType ASC
+		""")
 	List<String> findDistinctActionTypes();
 
-	@Query("SELECT DISTINCT a.tone FROM AuditLog a WHERE a.tone IS NOT NULL ORDER BY a.tone ASC")
+	@Query("""
+		SELECT DISTINCT a.tone FROM AuditLog a
+		WHERE a.tone IS NOT NULL
+		  AND UPPER(COALESCE(a.targetType, '')) NOT IN ('NOTIFICATION', 'READ', 'READ_ALL')
+		  AND (UPPER(COALESCE(a.actorRole, '')) NOT IN ('PUBLIC_CUSTOMER', 'BANK_CUSTOMER')
+		       OR UPPER(COALESCE(a.targetType, '')) IN ('PROFILE', 'PASSWORD', 'FINANCIAL_APPLICATION', 'TRANSACTION', 'BENEFICIARY', 'EVALUATION', 'SUPPORT_REQUEST'))
+		ORDER BY a.tone ASC
+		""")
 	List<String> findDistinctTones();
 
-	@Query("SELECT DISTINCT a.actorRole FROM AuditLog a WHERE a.actorRole IS NOT NULL ORDER BY a.actorRole ASC")
+	@Query("""
+		SELECT DISTINCT a.actorRole FROM AuditLog a
+		WHERE a.actorRole IS NOT NULL
+		  AND UPPER(COALESCE(a.targetType, '')) NOT IN ('NOTIFICATION', 'READ', 'READ_ALL')
+		  AND (UPPER(COALESCE(a.actorRole, '')) NOT IN ('PUBLIC_CUSTOMER', 'BANK_CUSTOMER')
+		       OR UPPER(COALESCE(a.targetType, '')) IN ('PROFILE', 'PASSWORD', 'FINANCIAL_APPLICATION', 'TRANSACTION', 'BENEFICIARY', 'EVALUATION', 'SUPPORT_REQUEST'))
+		ORDER BY a.actorRole ASC
+		""")
 	List<String> findDistinctActorRoles();
 
 	@Modifying
 	@Query("UPDATE AuditLog a SET a.actorUser = NULL WHERE a.actorUser.userId = :userId")
 	int clearActorUserByUserId(@Param("userId") Long userId);
 
-	@Query("SELECT DISTINCT a.targetType FROM AuditLog a WHERE a.targetType IS NOT NULL ORDER BY a.targetType ASC")
+	@Query("""
+		SELECT DISTINCT a.targetType FROM AuditLog a
+		WHERE a.targetType IS NOT NULL
+		  AND UPPER(COALESCE(a.targetType, '')) NOT IN ('NOTIFICATION', 'READ', 'READ_ALL')
+		  AND (UPPER(COALESCE(a.actorRole, '')) NOT IN ('PUBLIC_CUSTOMER', 'BANK_CUSTOMER')
+		       OR UPPER(COALESCE(a.targetType, '')) IN ('PROFILE', 'PASSWORD', 'FINANCIAL_APPLICATION', 'TRANSACTION', 'BENEFICIARY', 'EVALUATION', 'SUPPORT_REQUEST'))
+		ORDER BY a.targetType ASC
+		""")
 	List<String> findDistinctTargetTypes();
 }
