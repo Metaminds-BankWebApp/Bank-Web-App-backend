@@ -43,3 +43,4 @@ src/.DS_Store
 
 ### Local Uploads ###
 uploads/profile-images/
+src/main/resources/application.yaml
