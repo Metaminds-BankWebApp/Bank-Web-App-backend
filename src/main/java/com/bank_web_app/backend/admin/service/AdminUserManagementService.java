@@ -1,6 +1,7 @@
 package com.bank_web_app.backend.admin.service;
 import com.bank_web_app.backend.admin.dto.request.AdminUserManagementUpdateRequest;
 import com.bank_web_app.backend.admin.dto.response.AdminUserManagementUserResponse;
+import com.bank_web_app.backend.auth.repository.RefreshTokenRepository;
 import com.bank_web_app.backend.bankcustomer.entity.BankCustomer;
 import com.bank_web_app.backend.bankcustomer.repository.AccountRepository;
 import com.bank_web_app.backend.bankcustomer.repository.BankCustomerCardRepository;
@@ -15,6 +16,7 @@ import com.bank_web_app.backend.creditlens.repository.BankCreditEvaluationReposi
 import com.bank_web_app.backend.creditlens.repository.SelfCreditEvaluationRepository;
 import com.bank_web_app.backend.loansense.repository.LoanEligibilityRepository;
 import com.bank_web_app.backend.loansense.repository.LoanEligibilityResultRepository;
+import com.bank_web_app.backend.notification.repository.NotificationRepository;
 import com.bank_web_app.backend.publiccustomer.entity.PublicCustomerProfile;
 import com.bank_web_app.backend.publiccustomer.repository.PublicCustomerCardRepository;
 import com.bank_web_app.backend.publiccustomer.repository.PublicCustomerFinancialRecordRepository;
@@ -54,6 +56,8 @@ public class AdminUserManagementService {
 	private static final Set<String> ALLOWED_STATUSES = Set.of("ACTIVE", "INACTIVE", "LOCKED");
 
 	private final UserRepository userRepository;
+	private final RefreshTokenRepository refreshTokenRepository;
+	private final NotificationRepository notificationRepository;
 	private final BankCustomerRepository bankCustomerRepository;
 	private final PublicCustomerProfileRepository publicCustomerProfileRepository;
 	private final AccountRepository accountRepository;
@@ -85,6 +89,8 @@ public class AdminUserManagementService {
 
 	public AdminUserManagementService(
 		UserRepository userRepository,
+		RefreshTokenRepository refreshTokenRepository,
+		NotificationRepository notificationRepository,
 		BankCustomerRepository bankCustomerRepository,
 		PublicCustomerProfileRepository publicCustomerProfileRepository,
 		AccountRepository accountRepository,
@@ -115,6 +121,8 @@ public class AdminUserManagementService {
 		AuditLogService auditLogService
 	) {
 		this.userRepository = userRepository;
+		this.refreshTokenRepository = refreshTokenRepository;
+		this.notificationRepository = notificationRepository;
 		this.bankCustomerRepository = bankCustomerRepository;
 		this.publicCustomerProfileRepository = publicCustomerProfileRepository;
 		this.accountRepository = accountRepository;
@@ -304,6 +312,9 @@ public class AdminUserManagementService {
 		Map<Long, String> publicCodesByUserId = publicCode == null ? Map.of() : Map.of(userId, publicCode);
 		AdminUserManagementUserResponse response = toResponse(user, bankCodesByUserId, publicCodesByUserId);
 
+		// Remove direct user dependencies so their foreign keys cannot block the permanent account deletion.
+		notificationRepository.deleteByRecipient_UserId(userId);
+		refreshTokenRepository.deleteByUser_UserId(userId);
 		deleteSpendiqData(userId);
 		if (ROLE_BANK_CUSTOMER.equals(roleName)) {
 			deleteBankCustomerData(userId);

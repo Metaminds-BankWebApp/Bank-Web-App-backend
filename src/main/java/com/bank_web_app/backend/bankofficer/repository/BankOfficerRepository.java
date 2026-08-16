@@ -13,6 +13,8 @@ public interface BankOfficerRepository extends JpaRepository<BankOfficer, Long> 
 
 	List<BankOfficer> findAllByOrderByCreatedAtDesc();
 
+	List<BankOfficer> findAllByBranch_BranchId(Long branchId);
+
 	boolean existsByEmployeeCode(String employeeCode);
 
 	boolean existsByBranch_BranchId(Long branchId);

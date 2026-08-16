@@ -25,11 +25,15 @@ import com.bank_web_app.backend.creditlens.entity.SelfCreditEvaluation;
 import com.bank_web_app.backend.creditlens.mapper.CreditEvaluationMapper;
 import com.bank_web_app.backend.creditlens.repository.BankCreditEvaluationRepository;
 import com.bank_web_app.backend.creditlens.repository.SelfCreditEvaluationRepository;
+import com.bank_web_app.backend.notification.event.NotificationEventPublisher;
+import com.bank_web_app.backend.notification.event.NotificationEventType;
 import com.bank_web_app.backend.publiccustomer.entity.PublicCustomerFinancialRecord;
 import com.bank_web_app.backend.publiccustomer.entity.PublicCustomerProfile;
 import com.bank_web_app.backend.user.entity.User;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import org.springframework.http.HttpStatus;
@@ -57,6 +61,7 @@ public class CreditEvaluationService {
 	private final CreditEvaluationScoringService creditEvaluationScoringService;
 	private final CreditEvaluationViewMapper creditEvaluationViewMapper;
 	private final CreditEvaluationResponseService creditEvaluationResponseService;
+	private final NotificationEventPublisher notificationEventPublisher;
 
 	// Wires the collaborators used to orchestrate CreditLens workflows.
 	public CreditEvaluationService(
@@ -69,7 +74,8 @@ public class CreditEvaluationService {
 		CreditEvaluationRecordService creditEvaluationRecordService,
 		CreditEvaluationScoringService creditEvaluationScoringService,
 		CreditEvaluationViewMapper creditEvaluationViewMapper,
-		CreditEvaluationResponseService creditEvaluationResponseService
+		CreditEvaluationResponseService creditEvaluationResponseService,
+		NotificationEventPublisher notificationEventPublisher
 	) {
 		this.selfCreditEvaluationRepository = selfCreditEvaluationRepository;
 		this.bankCreditEvaluationRepository = bankCreditEvaluationRepository;
@@ -81,6 +87,7 @@ public class CreditEvaluationService {
 		this.creditEvaluationScoringService = creditEvaluationScoringService;
 		this.creditEvaluationViewMapper = creditEvaluationViewMapper;
 		this.creditEvaluationResponseService = creditEvaluationResponseService;
+		this.notificationEventPublisher = notificationEventPublisher;
 	}
 
 	@Transactional
@@ -359,7 +366,13 @@ public class CreditEvaluationService {
 		BankCustomerFinancialRecord record = creditEvaluationRecordService.resolveLatestBankFinancialRecord(bankCustomer.getBankCustomerId());
 		String evaluationSource = normalizeBankEvaluationSource(request == null ? null : request.evaluationSource());
 		String remarks = normalizeOptionalText(request == null ? null : request.remarks());
-		return creditEvaluationMapper.toBankResponse(createBankEvaluation(bankCustomer, record, officer, evaluationSource, remarks));
+		String previousRiskLevel = bankCreditEvaluationRepository
+			.findTopByBankCustomer_BankCustomerIdOrderByCreatedAtDesc(bankCustomerId)
+			.map(BankCreditEvaluation::getRiskLevel)
+			.orElse(null);
+		BankCreditEvaluation evaluation = createBankEvaluation(bankCustomer, record, officer, evaluationSource, remarks);
+		publishBankEvaluationNotification(bankCustomer, officer, evaluation, previousRiskLevel);
+		return creditEvaluationMapper.toBankResponse(evaluation);
 	}
 
 	@Transactional
@@ -557,6 +570,29 @@ public class CreditEvaluationService {
 		evaluation.setRemarks(remarks);
 		creditEvaluationScoringService.applyCommonMetricsToBankEvaluation(evaluation, metrics);
 		return bankCreditEvaluationRepository.save(evaluation);
+	}
+
+	private void publishBankEvaluationNotification(
+		BankCustomer bankCustomer,
+		BankOfficer officer,
+		BankCreditEvaluation evaluation,
+		String previousRiskLevel
+	) {
+		Map<String, String> metadata = new LinkedHashMap<>();
+		metadata.put("evaluationId", String.valueOf(evaluation.getBankEvaluationId()));
+		metadata.put("customerId", String.valueOf(bankCustomer.getBankCustomerId()));
+		metadata.put("officerUserId", String.valueOf(officer.getUser().getUserId()));
+		metadata.put("riskLevel", safe(evaluation.getRiskLevel()));
+		if (previousRiskLevel != null && !previousRiskLevel.isBlank()) {
+			metadata.put("previousRiskLevel", previousRiskLevel);
+		}
+		notificationEventPublisher.publish(
+			NotificationEventType.CREDITLENS_EVALUATED,
+			bankCustomer.getUser().getUserId(),
+			officer.getUser().getUserId(),
+			evaluation.getBankEvaluationId(),
+			metadata
+		);
 	}
 
 	// Normalizes and validates the source used for a bank evaluation.
