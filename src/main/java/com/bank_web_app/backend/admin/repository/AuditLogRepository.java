@@ -5,7 +5,9 @@ import java.util.List;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface AuditLogRepository extends JpaRepository<AuditLog, Long>, JpaSpecificationExecutor<AuditLog> {
 
@@ -28,6 +30,10 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long>, JpaSp
 
 	@Query("SELECT DISTINCT a.actorRole FROM AuditLog a WHERE a.actorRole IS NOT NULL ORDER BY a.actorRole ASC")
 	List<String> findDistinctActorRoles();
+
+	@Modifying
+	@Query("UPDATE AuditLog a SET a.actorUser = NULL WHERE a.actorUser.userId = :userId")
+	int clearActorUserByUserId(@Param("userId") Long userId);
 
 	@Query("SELECT DISTINCT a.targetType FROM AuditLog a WHERE a.targetType IS NOT NULL ORDER BY a.targetType ASC")
 	List<String> findDistinctTargetTypes();

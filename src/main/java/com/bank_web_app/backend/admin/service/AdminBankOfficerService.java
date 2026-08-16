@@ -252,6 +252,7 @@ public class AdminBankOfficerService {
 		AdminBankOfficerSummaryResponse response = toResponse(officer);
 		User user = officer.getUser();
 		bankOfficerRepository.delete(officer);
+		auditLogService.detachActorForDeletedUser(userId);
 		notificationRepository.deleteByRecipient_UserId(userId);
 		refreshTokenRepository.deleteByUser_UserId(userId);
 		userRepository.delete(user);
