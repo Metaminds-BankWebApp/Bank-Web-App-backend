@@ -13,6 +13,7 @@ import com.bank_web_app.backend.admin.dto.request.AdminBankOfficerUpdateRequest;
 import com.bank_web_app.backend.admin.dto.response.AdminBankOfficerSummaryResponse;
 import com.bank_web_app.backend.admin.entity.Branch;
 import com.bank_web_app.backend.admin.repository.BranchRepository;
+import com.bank_web_app.backend.auth.repository.RefreshTokenRepository;
 import com.bank_web_app.backend.bankcustomer.repository.BankCustomerFinancialRecordRepository;
 import com.bank_web_app.backend.bankcustomer.repository.BankCustomerRepository;
 import com.bank_web_app.backend.bankofficer.entity.BankOfficer;
@@ -20,6 +21,7 @@ import com.bank_web_app.backend.bankofficer.repository.BankOfficerRepository;
 import com.bank_web_app.backend.creditlens.repository.BankCreditEvaluationRepository;
 import com.bank_web_app.backend.notification.event.NotificationEventPublisher;
 import com.bank_web_app.backend.notification.event.NotificationEventType;
+import com.bank_web_app.backend.notification.repository.NotificationRepository;
 import com.bank_web_app.backend.user.dto.request.UserRegistrationStepOneRequest;
 import com.bank_web_app.backend.user.dto.response.UserRegistrationStepResponse;
 import com.bank_web_app.backend.user.entity.User;
@@ -46,6 +48,8 @@ public class AdminBankOfficerService {
 	private final BankOfficerRepository bankOfficerRepository;
 	private final BranchRepository branchRepository;
 	private final UserRepository userRepository;
+	private final RefreshTokenRepository refreshTokenRepository;
+	private final NotificationRepository notificationRepository;
 	private final BankCustomerRepository bankCustomerRepository;
 	private final BankCustomerFinancialRecordRepository bankCustomerFinancialRecordRepository;
 	private final BankCreditEvaluationRepository bankCreditEvaluationRepository;
@@ -57,6 +61,8 @@ public class AdminBankOfficerService {
 		BankOfficerRepository bankOfficerRepository,
 		BranchRepository branchRepository,
 		UserRepository userRepository,
+		RefreshTokenRepository refreshTokenRepository,
+		NotificationRepository notificationRepository,
 		BankCustomerRepository bankCustomerRepository,
 		BankCustomerFinancialRecordRepository bankCustomerFinancialRecordRepository,
 		BankCreditEvaluationRepository bankCreditEvaluationRepository,
@@ -67,6 +73,8 @@ public class AdminBankOfficerService {
 		this.bankOfficerRepository = bankOfficerRepository;
 		this.branchRepository = branchRepository;
 		this.userRepository = userRepository;
+		this.refreshTokenRepository = refreshTokenRepository;
+		this.notificationRepository = notificationRepository;
 		this.bankCustomerRepository = bankCustomerRepository;
 		this.bankCustomerFinancialRecordRepository = bankCustomerFinancialRecordRepository;
 		this.bankCreditEvaluationRepository = bankCreditEvaluationRepository;
@@ -244,6 +252,8 @@ public class AdminBankOfficerService {
 		AdminBankOfficerSummaryResponse response = toResponse(officer);
 		User user = officer.getUser();
 		bankOfficerRepository.delete(officer);
+		notificationRepository.deleteByRecipient_UserId(userId);
+		refreshTokenRepository.deleteByUser_UserId(userId);
 		userRepository.delete(user);
 		auditLogService.logAction(
 			"BANK_OFFICER_DELETED",
