@@ -35,6 +35,24 @@ public class PublicCustomerFinancialRecord {
 	@Column(name = "record_status", nullable = false, length = 20)
 	private String recordStatus = "CURRENT";
 
+	@Column(name = "income_step_status", nullable = false, length = 20, columnDefinition = "varchar(20) default 'PENDING'")
+	private String incomeStepStatus = "PENDING";
+
+	@Column(name = "loan_step_status", nullable = false, length = 20, columnDefinition = "varchar(20) default 'PENDING'")
+	private String loanStepStatus = "PENDING";
+
+	@Column(name = "card_step_status", nullable = false, length = 20, columnDefinition = "varchar(20) default 'PENDING'")
+	private String cardStepStatus = "PENDING";
+
+	@Column(name = "liability_step_status", nullable = false, length = 20, columnDefinition = "varchar(20) default 'PENDING'")
+	private String liabilityStepStatus = "PENDING";
+
+	@Column(name = "review_step_status", nullable = false, length = 20, columnDefinition = "varchar(20) default 'PENDING'")
+	private String reviewStepStatus = "PENDING";
+
+	@Column(name = "application_submitted_at")
+	private LocalDateTime applicationSubmittedAt;
+
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private LocalDateTime createdAt;
 

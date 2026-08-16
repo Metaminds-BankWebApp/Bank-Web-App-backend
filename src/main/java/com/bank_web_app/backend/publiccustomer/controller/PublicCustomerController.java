@@ -7,6 +7,7 @@ import com.bank_web_app.backend.publiccustomer.dto.request.PublicCustomerLoanSte
 import com.bank_web_app.backend.publiccustomer.dto.response.PublicCustomerFinancialRecordResponse;
 import com.bank_web_app.backend.publiccustomer.dto.response.PublicCustomerFinancialRecordSummaryResponse;
 import com.bank_web_app.backend.publiccustomer.dto.response.PublicCustomerFinancialStepResponse;
+import com.bank_web_app.backend.publiccustomer.dto.response.PublicCustomerApplicationProgressResponse;
 import com.bank_web_app.backend.publiccustomer.dto.response.PublicCustomerCardProviderOptionResponse;
 import com.bank_web_app.backend.publiccustomer.dto.response.PublicCustomerMeResponse;
 import com.bank_web_app.backend.publiccustomer.service.PublicCustomerService;
@@ -170,6 +171,40 @@ public class PublicCustomerController {
 		@Valid @RequestBody PublicCustomerLiabilityStepRequest request
 	) {
 		return ResponseEntity.ok(publicCustomerService.saveLiabilityStep(publicCustomerId, request));
+	}
+
+	@GetMapping("/{publicCustomerId}/financial-records/progress")
+	@Operation(
+		summary = "Get financial application progress",
+		description = "Returns backend-persisted completion and skipped state for all public-customer application steps."
+	)
+	public ResponseEntity<PublicCustomerApplicationProgressResponse> getApplicationProgress(
+		@PathVariable Long publicCustomerId
+	) {
+		return ResponseEntity.ok(publicCustomerService.getApplicationProgress(publicCustomerId));
+	}
+
+	@PutMapping("/{publicCustomerId}/financial-records/steps/{stepCode}/skip")
+	@Operation(
+		summary = "Skip a financial application step",
+		description = "Marks the selected section as skipped and removes any previously saved rows for that section."
+	)
+	public ResponseEntity<PublicCustomerApplicationProgressResponse> skipApplicationStep(
+		@PathVariable Long publicCustomerId,
+		@PathVariable String stepCode
+	) {
+		return ResponseEntity.ok(publicCustomerService.skipApplicationStep(publicCustomerId, stepCode));
+	}
+
+	@PutMapping("/{publicCustomerId}/financial-records/submit")
+	@Operation(
+		summary = "Submit the public-customer financial application",
+		description = "Persists completion of the final review step after the application has been submitted."
+	)
+	public ResponseEntity<PublicCustomerApplicationProgressResponse> submitApplication(
+		@PathVariable Long publicCustomerId
+	) {
+		return ResponseEntity.ok(publicCustomerService.submitApplication(publicCustomerId));
 	}
 
 	@GetMapping("/{publicCustomerId}/financial-records/current")

@@ -5,7 +5,9 @@ import com.bank_web_app.backend.publiccustomer.dto.request.PublicCustomerIncomeS
 import com.bank_web_app.backend.publiccustomer.dto.request.PublicCustomerLiabilityStepRequest;
 import com.bank_web_app.backend.publiccustomer.dto.request.PublicCustomerLoanStepRequest;
 import com.bank_web_app.backend.bankcustomer.repository.BankCustomerCardRepository;
+import com.bank_web_app.backend.creditlens.repository.SelfCreditEvaluationRepository;
 import com.bank_web_app.backend.notification.service.NotificationService;
+import com.bank_web_app.backend.publiccustomer.dto.response.PublicCustomerApplicationProgressResponse;
 import com.bank_web_app.backend.publiccustomer.dto.response.PublicCustomerCardProviderOptionResponse;
 import com.bank_web_app.backend.publiccustomer.dto.response.PublicCustomerMeResponse;
 import com.bank_web_app.backend.publiccustomer.dto.response.PublicCustomerFinancialRecordResponse;
@@ -45,6 +47,11 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class PublicCustomerFinancialRecordService {
 
+	private static final String PENDING = "PENDING";
+	private static final String COMPLETED = "COMPLETED";
+	private static final String SKIPPED = "SKIPPED";
+	private static final int TOTAL_APPLICATION_STEPS = 5;
+
 	private final PublicCustomerProfileRepository publicCustomerProfileRepository;
 	private final PublicCustomerFinancialRecordRepository financialRecordRepository;
 	private final PublicCustomerIncomeRepository incomeRepository;
@@ -54,6 +61,7 @@ public class PublicCustomerFinancialRecordService {
 	private final PublicCustomerLiabilityRepository liabilityRepository;
 	private final PublicCustomerMissedPaymentRepository missedPaymentRepository;
 	private final PublicCustomerFinancialRecordMapper financialRecordMapper;
+	private final SelfCreditEvaluationRepository selfCreditEvaluationRepository;
 	private final UserRepository userRepository;
 	private final NotificationService notificationService;
 
@@ -67,6 +75,7 @@ public class PublicCustomerFinancialRecordService {
 		PublicCustomerLiabilityRepository liabilityRepository,
 		PublicCustomerMissedPaymentRepository missedPaymentRepository,
 		PublicCustomerFinancialRecordMapper financialRecordMapper,
+		SelfCreditEvaluationRepository selfCreditEvaluationRepository,
 		UserRepository userRepository,
 		NotificationService notificationService
 	) {
@@ -79,6 +88,7 @@ public class PublicCustomerFinancialRecordService {
 		this.liabilityRepository = liabilityRepository;
 		this.missedPaymentRepository = missedPaymentRepository;
 		this.financialRecordMapper = financialRecordMapper;
+		this.selfCreditEvaluationRepository = selfCreditEvaluationRepository;
 		this.userRepository = userRepository;
 		this.notificationService = notificationService;
 	}
@@ -125,6 +135,13 @@ public class PublicCustomerFinancialRecordService {
 
 	@Transactional
 	public PublicCustomerFinancialStepResponse saveIncomeStep(Long publicCustomerId, PublicCustomerIncomeStepRequest request) {
+		if (request.incomes().isEmpty()) {
+			throw new ResponseStatusException(
+				HttpStatus.BAD_REQUEST,
+				"Add at least one income source, or use Skip if you do not want to provide this section."
+			);
+		}
+
 		PublicCustomerFinancialRecord currentRecord = getOrCreateCurrentRecord(publicCustomerId);
 		Long recordId = currentRecord.getRecordId();
 
@@ -142,12 +159,21 @@ public class PublicCustomerFinancialRecordService {
 			incomeRepository.save(income);
 		}
 
+		currentRecord.setIncomeStepStatus(COMPLETED);
+		resetReviewStep(currentRecord);
 		touchRecord(currentRecord);
 		return new PublicCustomerFinancialStepResponse(recordId, publicCustomerId, "INCOME", "Income step saved successfully.");
 	}
 
 	@Transactional
 	public PublicCustomerFinancialStepResponse saveLoanStep(Long publicCustomerId, PublicCustomerLoanStepRequest request) {
+		if (request.loans().isEmpty()) {
+			throw new ResponseStatusException(
+				HttpStatus.BAD_REQUEST,
+				"Add at least one loan, or use Skip if you have no loan details to provide."
+			);
+		}
+
 		PublicCustomerFinancialRecord currentRecord = getOrCreateCurrentRecord(publicCustomerId);
 		Long recordId = currentRecord.getRecordId();
 
@@ -162,12 +188,21 @@ public class PublicCustomerFinancialRecordService {
 			loanRepository.save(loan);
 		}
 
+		currentRecord.setLoanStepStatus(COMPLETED);
+		resetReviewStep(currentRecord);
 		touchRecord(currentRecord);
 		return new PublicCustomerFinancialStepResponse(recordId, publicCustomerId, "LOANS", "Loan step saved successfully.");
 	}
 
 	@Transactional
 	public PublicCustomerFinancialStepResponse saveCardStep(Long publicCustomerId, PublicCustomerCardStepRequest request) {
+		if (request.cards().isEmpty()) {
+			throw new ResponseStatusException(
+				HttpStatus.BAD_REQUEST,
+				"Add at least one credit card, or use Skip if you have no card details to provide."
+			);
+		}
+
 		PublicCustomerFinancialRecord currentRecord = getOrCreateCurrentRecord(publicCustomerId);
 		Long recordId = currentRecord.getRecordId();
 
@@ -182,12 +217,21 @@ public class PublicCustomerFinancialRecordService {
 			cardRepository.save(card);
 		}
 
+		currentRecord.setCardStepStatus(COMPLETED);
+		resetReviewStep(currentRecord);
 		touchRecord(currentRecord);
 		return new PublicCustomerFinancialStepResponse(recordId, publicCustomerId, "CARDS", "Card step saved successfully.");
 	}
 
 	@Transactional
 	public PublicCustomerFinancialStepResponse saveLiabilityStep(Long publicCustomerId, PublicCustomerLiabilityStepRequest request) {
+		if (request.liabilities().isEmpty() && request.missedPayments() == 0) {
+			throw new ResponseStatusException(
+				HttpStatus.BAD_REQUEST,
+				"Add a liability or missed payment, or use Skip if you have no liability details to provide."
+			);
+		}
+
 		PublicCustomerFinancialRecord currentRecord = getOrCreateCurrentRecord(publicCustomerId);
 		Long recordId = currentRecord.getRecordId();
 
@@ -211,6 +255,8 @@ public class PublicCustomerFinancialRecordService {
 		missedPayment.setMissedPayments(request.missedPayments());
 		missedPaymentRepository.save(missedPayment);
 
+		currentRecord.setLiabilityStepStatus(COMPLETED);
+		resetReviewStep(currentRecord);
 		touchRecord(currentRecord);
 		notificationService.resolveFinancialDetailsMissing(
 			currentRecord.getPublicCustomer().getUser().getUserId()
@@ -221,6 +267,77 @@ public class PublicCustomerFinancialRecordService {
 			"LIABILITIES",
 			"Liability and missed-payment step saved successfully."
 		);
+	}
+
+	@Transactional
+	public PublicCustomerApplicationProgressResponse getApplicationProgress(Long publicCustomerId) {
+		resolveOwnedPublicCustomerProfile(publicCustomerId);
+
+		return financialRecordRepository
+			.findByPublicCustomer_PublicCustomerIdAndRecordStatus(publicCustomerId, "CURRENT")
+			.map(record -> toApplicationProgress(reconcileLegacyProgress(record)))
+			.orElseGet(() -> emptyApplicationProgress(publicCustomerId));
+	}
+
+	@Transactional
+	public PublicCustomerApplicationProgressResponse skipApplicationStep(Long publicCustomerId, String stepCode) {
+		PublicCustomerFinancialRecord currentRecord = getOrCreateCurrentRecord(publicCustomerId);
+		Long recordId = currentRecord.getRecordId();
+		String normalizedStep = normalizeApplicationStep(stepCode);
+
+		switch (normalizedStep) {
+			case "INCOME" -> {
+				incomeRepository.deleteByFinancialRecord_RecordId(recordId);
+				currentRecord.setIncomeStepStatus(SKIPPED);
+			}
+			case "LOANS" -> {
+				loanRepository.deleteByFinancialRecord_RecordId(recordId);
+				currentRecord.setLoanStepStatus(SKIPPED);
+			}
+			case "CARDS" -> {
+				cardRepository.deleteByFinancialRecord_RecordId(recordId);
+				currentRecord.setCardStepStatus(SKIPPED);
+			}
+			case "LIABILITIES" -> {
+				liabilityRepository.deleteByFinancialRecord_RecordId(recordId);
+				missedPaymentRepository.findByFinancialRecord_RecordId(recordId).ifPresent(missedPaymentRepository::delete);
+				currentRecord.setLiabilityStepStatus(SKIPPED);
+			}
+			default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported application step.");
+		}
+
+		resetReviewStep(currentRecord);
+		touchRecord(currentRecord);
+		return toApplicationProgress(currentRecord);
+	}
+
+	@Transactional
+	public PublicCustomerApplicationProgressResponse submitApplication(Long publicCustomerId) {
+		resolveOwnedPublicCustomerProfile(publicCustomerId);
+		PublicCustomerFinancialRecord currentRecord = financialRecordRepository
+			.findByPublicCustomer_PublicCustomerIdAndRecordStatus(publicCustomerId, "CURRENT")
+			.orElseThrow(() -> new ResponseStatusException(
+				HttpStatus.BAD_REQUEST,
+				"Complete or skip the financial sections before submitting the application."
+			));
+		currentRecord = reconcileLegacyProgress(currentRecord);
+
+		if (
+			PENDING.equals(currentRecord.getIncomeStepStatus()) ||
+			PENDING.equals(currentRecord.getLoanStepStatus()) ||
+			PENDING.equals(currentRecord.getCardStepStatus()) ||
+			PENDING.equals(currentRecord.getLiabilityStepStatus())
+		) {
+			throw new ResponseStatusException(
+				HttpStatus.BAD_REQUEST,
+				"Complete or skip every financial section before submitting the application."
+			);
+		}
+
+		currentRecord.setReviewStepStatus(COMPLETED);
+		currentRecord.setApplicationSubmittedAt(LocalDateTime.now());
+		touchRecord(currentRecord);
+		return toApplicationProgress(currentRecord);
 	}
 
 	@Transactional(readOnly = true)
@@ -294,8 +411,7 @@ public class PublicCustomerFinancialRecordService {
 	}
 
 	private PublicCustomerFinancialRecord getOrCreateCurrentRecord(Long publicCustomerId) {
-		PublicCustomerProfile profile = publicCustomerProfileRepository.findById(publicCustomerId)
-			.orElseThrow(() -> new IllegalArgumentException("Public customer not found."));
+		PublicCustomerProfile profile = resolveOwnedPublicCustomerProfile(publicCustomerId);
 
 		return financialRecordRepository
 			.findByPublicCustomer_PublicCustomerIdAndRecordStatus(publicCustomerId, "CURRENT")
@@ -310,6 +426,134 @@ public class PublicCustomerFinancialRecordService {
 	private void touchRecord(PublicCustomerFinancialRecord record) {
 		record.setUpdatedAt(LocalDateTime.now());
 		financialRecordRepository.save(record);
+	}
+
+	private PublicCustomerFinancialRecord reconcileLegacyProgress(PublicCustomerFinancialRecord record) {
+		Long recordId = record.getRecordId();
+		boolean changed = false;
+
+		if (PENDING.equals(record.getIncomeStepStatus()) && !incomeRepository.findAllByFinancialRecord_RecordId(recordId).isEmpty()) {
+			record.setIncomeStepStatus(COMPLETED);
+			changed = true;
+		}
+		if (PENDING.equals(record.getLoanStepStatus()) && !loanRepository.findAllByFinancialRecord_RecordId(recordId).isEmpty()) {
+			record.setLoanStepStatus(COMPLETED);
+			changed = true;
+		}
+		if (PENDING.equals(record.getCardStepStatus()) && !cardRepository.findAllByFinancialRecord_RecordId(recordId).isEmpty()) {
+			record.setCardStepStatus(COMPLETED);
+			changed = true;
+		}
+		if (
+			PENDING.equals(record.getLiabilityStepStatus()) &&
+			(
+				!liabilityRepository.findAllByFinancialRecord_RecordId(recordId).isEmpty() ||
+				missedPaymentRepository.findByFinancialRecord_RecordId(recordId).isPresent()
+			)
+		) {
+			record.setLiabilityStepStatus(COMPLETED);
+			changed = true;
+		}
+		if (PENDING.equals(record.getReviewStepStatus())) {
+			var latestEvaluation = selfCreditEvaluationRepository.findTopByPublicRecord_RecordIdOrderByCreatedAtDesc(recordId);
+			if (
+				latestEvaluation.isPresent() &&
+				(
+					record.getUpdatedAt() == null ||
+					!latestEvaluation.get().getCreatedAt().isBefore(record.getUpdatedAt())
+				)
+			) {
+				record.setReviewStepStatus(COMPLETED);
+				record.setApplicationSubmittedAt(latestEvaluation.get().getCreatedAt());
+				changed = true;
+			}
+		}
+
+		return changed ? financialRecordRepository.save(record) : record;
+	}
+
+	private void resetReviewStep(PublicCustomerFinancialRecord record) {
+		record.setReviewStepStatus(PENDING);
+		record.setApplicationSubmittedAt(null);
+	}
+
+	private String normalizeApplicationStep(String stepCode) {
+		String normalized = stepCode == null ? "" : stepCode.trim().toUpperCase(Locale.ROOT);
+		if (!Set.of("INCOME", "LOANS", "CARDS", "LIABILITIES").contains(normalized)) {
+			throw new ResponseStatusException(
+				HttpStatus.BAD_REQUEST,
+				"Application step must be INCOME, LOANS, CARDS, or LIABILITIES."
+			);
+		}
+		return normalized;
+	}
+
+	private PublicCustomerApplicationProgressResponse emptyApplicationProgress(Long publicCustomerId) {
+		List<PublicCustomerApplicationProgressResponse.ApplicationStep> steps = List.of(
+			applicationStep("INCOME", "Income Details", PENDING),
+			applicationStep("LOANS", "Loan Details", PENDING),
+			applicationStep("CARDS", "Credit Card Details", PENDING),
+			applicationStep("LIABILITIES", "Liability Details", PENDING),
+			applicationStep("REVIEW", "Review Details", PENDING)
+		);
+		return new PublicCustomerApplicationProgressResponse(
+			publicCustomerId,
+			null,
+			0,
+			0,
+			TOTAL_APPLICATION_STEPS,
+			"NOT_STARTED",
+			null,
+			steps
+		);
+	}
+
+	private PublicCustomerApplicationProgressResponse toApplicationProgress(PublicCustomerFinancialRecord record) {
+		List<PublicCustomerApplicationProgressResponse.ApplicationStep> steps = List.of(
+			applicationStep("INCOME", "Income Details", record.getIncomeStepStatus()),
+			applicationStep("LOANS", "Loan Details", record.getLoanStepStatus()),
+			applicationStep("CARDS", "Credit Card Details", record.getCardStepStatus()),
+			applicationStep("LIABILITIES", "Liability Details", record.getLiabilityStepStatus()),
+			applicationStep("REVIEW", "Review Details", record.getReviewStepStatus())
+		);
+		int completedSteps = (int) steps.stream()
+			.filter(PublicCustomerApplicationProgressResponse.ApplicationStep::completed)
+			.count();
+		int completionPercentage = completedSteps * 100 / TOTAL_APPLICATION_STEPS;
+		String overallStatus = completedSteps == TOTAL_APPLICATION_STEPS ? "COMPLETED" : "IN_PROGRESS";
+
+		return new PublicCustomerApplicationProgressResponse(
+			record.getPublicCustomer().getPublicCustomerId(),
+			record.getRecordId(),
+			completionPercentage,
+			completedSteps,
+			TOTAL_APPLICATION_STEPS,
+			overallStatus,
+			record.getApplicationSubmittedAt(),
+			steps
+		);
+	}
+
+	private PublicCustomerApplicationProgressResponse.ApplicationStep applicationStep(
+		String code,
+		String label,
+		String status
+	) {
+		String normalizedStatus = status == null || status.isBlank() ? PENDING : status;
+		return new PublicCustomerApplicationProgressResponse.ApplicationStep(
+			code,
+			label,
+			normalizedStatus,
+			COMPLETED.equals(normalizedStatus)
+		);
+	}
+
+	private PublicCustomerProfile resolveOwnedPublicCustomerProfile(Long publicCustomerId) {
+		PublicCustomerProfile loggedInProfile = resolveLoggedInPublicCustomerProfile();
+		if (!loggedInProfile.getPublicCustomerId().equals(publicCustomerId)) {
+			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You can only access your own application data.");
+		}
+		return loggedInProfile;
 	}
 
 	private PublicCustomerProfile resolveLoggedInPublicCustomerProfile() {
