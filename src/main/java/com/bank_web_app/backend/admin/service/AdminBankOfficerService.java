@@ -1,25 +1,32 @@
 package com.bank_web_app.backend.admin.service;
+import java.security.SecureRandom;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.regex.Pattern;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.bank_web_app.backend.admin.dto.request.AdminBankOfficerUpdateRequest;
 import com.bank_web_app.backend.admin.dto.response.AdminBankOfficerSummaryResponse;
 import com.bank_web_app.backend.admin.entity.Branch;
 import com.bank_web_app.backend.admin.repository.BranchRepository;
+import com.bank_web_app.backend.auth.repository.RefreshTokenRepository;
 import com.bank_web_app.backend.bankcustomer.repository.BankCustomerFinancialRecordRepository;
 import com.bank_web_app.backend.bankcustomer.repository.BankCustomerRepository;
 import com.bank_web_app.backend.bankofficer.entity.BankOfficer;
 import com.bank_web_app.backend.bankofficer.repository.BankOfficerRepository;
 import com.bank_web_app.backend.creditlens.repository.BankCreditEvaluationRepository;
-import com.bank_web_app.backend.user.entity.User;
+import com.bank_web_app.backend.notification.event.NotificationEventPublisher;
+import com.bank_web_app.backend.notification.event.NotificationEventType;
+import com.bank_web_app.backend.notification.repository.NotificationRepository;
 import com.bank_web_app.backend.user.dto.request.UserRegistrationStepOneRequest;
 import com.bank_web_app.backend.user.dto.response.UserRegistrationStepResponse;
+import com.bank_web_app.backend.user.entity.User;
 import com.bank_web_app.backend.user.repository.UserRepository;
 import com.bank_web_app.backend.user.service.UserService;
-import java.security.SecureRandom;
-import java.util.List;
-import java.util.Locale;
-import java.util.Set;
-import java.util.regex.Pattern;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Orchestrates Admin business logic, validation, and persistence workflows.
@@ -41,29 +48,38 @@ public class AdminBankOfficerService {
 	private final BankOfficerRepository bankOfficerRepository;
 	private final BranchRepository branchRepository;
 	private final UserRepository userRepository;
+	private final RefreshTokenRepository refreshTokenRepository;
+	private final NotificationRepository notificationRepository;
 	private final BankCustomerRepository bankCustomerRepository;
 	private final BankCustomerFinancialRecordRepository bankCustomerFinancialRecordRepository;
 	private final BankCreditEvaluationRepository bankCreditEvaluationRepository;
 	private final AuditLogService auditLogService;
+	private final NotificationEventPublisher notificationEventPublisher;
 
 	public AdminBankOfficerService(
 		UserService userService,
 		BankOfficerRepository bankOfficerRepository,
 		BranchRepository branchRepository,
 		UserRepository userRepository,
+		RefreshTokenRepository refreshTokenRepository,
+		NotificationRepository notificationRepository,
 		BankCustomerRepository bankCustomerRepository,
 		BankCustomerFinancialRecordRepository bankCustomerFinancialRecordRepository,
 		BankCreditEvaluationRepository bankCreditEvaluationRepository,
-		AuditLogService auditLogService
+		AuditLogService auditLogService,
+		NotificationEventPublisher notificationEventPublisher
 	) {
 		this.userService = userService;
 		this.bankOfficerRepository = bankOfficerRepository;
 		this.branchRepository = branchRepository;
 		this.userRepository = userRepository;
+		this.refreshTokenRepository = refreshTokenRepository;
+		this.notificationRepository = notificationRepository;
 		this.bankCustomerRepository = bankCustomerRepository;
 		this.bankCustomerFinancialRecordRepository = bankCustomerFinancialRecordRepository;
 		this.bankCreditEvaluationRepository = bankCreditEvaluationRepository;
 		this.auditLogService = auditLogService;
+		this.notificationEventPublisher = notificationEventPublisher;
 	}
 
 	// Creates a draft officer account preview before final submission.
@@ -88,7 +104,7 @@ public class AdminBankOfficerService {
 			"Created Bank Officer: \"" + safe(request.firstName()) + " " + safe(request.lastName()) + "\"",
 			"BANK_OFFICER",
 			response.userId() == null ? null : String.valueOf(response.userId()),
-			"Bank officer account was created successfully.",
+			"Bank officer account was created successfully and credentials email was sent.",
 			"SUCCESS"
 		);
 		return response;
@@ -163,6 +179,13 @@ public class AdminBankOfficerService {
 			"Updated officer user status.",
 			"ACTIVE".equals(normalizedStatus) ? "SUCCESS" : "WARNING"
 		);
+		notificationEventPublisher.publish(
+			NotificationEventType.OFFICER_STATUS_CHANGED,
+			user.getUserId(),
+			null,
+			user.getUserId(),
+			Map.of("status", normalizedStatus)
+		);
 		return response;
 	}
 
@@ -229,6 +252,8 @@ public class AdminBankOfficerService {
 		AdminBankOfficerSummaryResponse response = toResponse(officer);
 		User user = officer.getUser();
 		bankOfficerRepository.delete(officer);
+		notificationRepository.deleteByRecipient_UserId(userId);
+		refreshTokenRepository.deleteByUser_UserId(userId);
 		userRepository.delete(user);
 		auditLogService.logAction(
 			"BANK_OFFICER_DELETED",

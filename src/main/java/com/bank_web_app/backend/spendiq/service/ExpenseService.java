@@ -28,6 +28,8 @@ import com.bank_web_app.backend.spendiq.service.SpendIqReportPdfExportService.Sc
 import com.bank_web_app.backend.spendiq.service.SpendIqReportPdfExportService.SpendIqReportPdfModel;
 import com.bank_web_app.backend.spendiq.service.SpendIqReportPdfExportService.SuggestionRow;
 import com.bank_web_app.backend.spendiq.service.SpendIqReportPdfExportService.SummaryRow;
+import com.bank_web_app.backend.notification.event.NotificationEventPublisher;
+import com.bank_web_app.backend.notification.event.NotificationEventType;
 import com.bank_web_app.backend.user.entity.User;
 import com.bank_web_app.backend.user.repository.UserRepository;
 import java.math.BigDecimal;
@@ -75,6 +77,7 @@ public class ExpenseService {
 	private final BudgetLimitRepository budgetLimitRepository;
 	private final UserRepository userRepository;
 	private final SpendIqReportPdfExportService spendIqReportPdfExportService;
+	private final NotificationEventPublisher notificationEventPublisher;
 
 	public ExpenseService(
 		ExpenseCategoryRepository expenseCategoryRepository,
@@ -82,7 +85,8 @@ public class ExpenseService {
 		IncomeRecordRepository incomeRecordRepository,
 		BudgetLimitRepository budgetLimitRepository,
 		UserRepository userRepository,
-		SpendIqReportPdfExportService spendIqReportPdfExportService
+		SpendIqReportPdfExportService spendIqReportPdfExportService,
+		NotificationEventPublisher notificationEventPublisher
 	) {
 		this.expenseCategoryRepository = expenseCategoryRepository;
 		this.expenseRepository = expenseRepository;
@@ -90,6 +94,7 @@ public class ExpenseService {
 		this.budgetLimitRepository = budgetLimitRepository;
 		this.userRepository = userRepository;
 		this.spendIqReportPdfExportService = spendIqReportPdfExportService;
+		this.notificationEventPublisher = notificationEventPublisher;
 	}
 
 	@Transactional
@@ -152,7 +157,18 @@ public class ExpenseService {
 		expense.setPaymentType(DEFAULT_TRANSFER_PAYMENT_TYPE);
 		expense.setTrackingSource(SOURCE_TRANSACT);
 		expense.setTrackingReference(normalizedReferenceNo);
-		expenseRepository.save(expense);
+		Expense savedExpense = expenseRepository.save(expense);
+		notificationEventPublisher.publish(
+			NotificationEventType.SPENDIQ_TRANSFER_IMPORTED,
+			bankCustomer.getUser().getUserId(),
+			null,
+			savedExpense.getExpenseId(),
+			Map.of(
+				"expenseId", String.valueOf(savedExpense.getExpenseId()),
+				"referenceNo", normalizedReferenceNo
+			)
+		);
+		publishBudgetThresholdIfReached(bankCustomer.getUser(), savedExpense);
 	}
 
 	@Transactional
@@ -189,7 +205,9 @@ public class ExpenseService {
 		expense.setAmount(amount);
 		expense.setExpenseDate(expenseDate);
 		expense.setPaymentType(paymentType);
-		return toExpenseResponse(expenseRepository.save(expense));
+		Expense savedExpense = expenseRepository.save(expense);
+		publishBudgetThresholdIfReached(user, savedExpense);
+		return toExpenseResponse(savedExpense);
 	}
 
 	@Transactional
@@ -217,7 +235,9 @@ public class ExpenseService {
 		expense.setAmount(amount);
 		expense.setExpenseDate(expenseDate);
 		expense.setPaymentType(paymentType);
-		return toExpenseResponse(expenseRepository.save(expense));
+		Expense savedExpense = expenseRepository.save(expense);
+		publishBudgetThresholdIfReached(user, savedExpense);
+		return toExpenseResponse(savedExpense);
 	}
 
 	@Transactional
@@ -789,6 +809,54 @@ public class ExpenseService {
 		if (!categoriesToCreate.isEmpty()) {
 			expenseCategoryRepository.saveAll(categoriesToCreate);
 		}
+	}
+
+	private void publishBudgetThresholdIfReached(User user, Expense expense) {
+		int month = expense.getExpenseDate().getMonthValue();
+		int year = expense.getExpenseDate().getYear();
+		BudgetLimit budget = budgetLimitRepository
+			.findByUser_UserIdAndCategory_CategoryIdAndMonthAndYear(
+				user.getUserId(),
+				expense.getCategory().getCategoryId(),
+				month,
+				year
+			)
+			.orElse(null);
+		if (budget == null || budget.getBudgetAmount() == null || budget.getBudgetAmount().compareTo(BigDecimal.ZERO) <= 0) {
+			return;
+		}
+
+		BigDecimal categoryTotal = expenseRepository
+			.findAllByUser_UserIdAndExpenseDateBetweenOrderByExpenseDateDescCreatedAtDesc(
+				user.getUserId(),
+				expense.getExpenseDate().withDayOfMonth(1),
+				expense.getExpenseDate().withDayOfMonth(expense.getExpenseDate().lengthOfMonth())
+			)
+			.stream()
+			.filter(item -> item.getCategory().getCategoryId().equals(expense.getCategory().getCategoryId()))
+			.map(Expense::getAmount)
+			.reduce(BigDecimal.ZERO, BigDecimal::add);
+		BigDecimal usage = categoryTotal
+			.divide(budget.getBudgetAmount(), 4, RoundingMode.HALF_UP)
+			.multiply(new BigDecimal("100"));
+		String threshold = usage.compareTo(new BigDecimal("100")) >= 0
+			? "100"
+			: usage.compareTo(new BigDecimal("80")) >= 0 ? "80" : null;
+		if (threshold == null) return;
+
+		notificationEventPublisher.publish(
+			NotificationEventType.SPENDIQ_BUDGET_THRESHOLD,
+			user.getUserId(),
+			user.getUserId(),
+			budget.getBudgetId(),
+			Map.of(
+				"categoryId", String.valueOf(expense.getCategory().getCategoryId()),
+				"categoryName", expense.getCategory().getCategoryName(),
+				"month", String.valueOf(month),
+				"year", String.valueOf(year),
+				"threshold", threshold
+			)
+		);
 	}
 
 	private record DefaultCategorySeed(String name, String type) {}

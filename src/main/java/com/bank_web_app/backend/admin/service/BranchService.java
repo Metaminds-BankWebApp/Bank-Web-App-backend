@@ -1,6 +1,7 @@
 package com.bank_web_app.backend.admin.service;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -14,6 +15,8 @@ import com.bank_web_app.backend.admin.entity.BranchStatus;
 import com.bank_web_app.backend.admin.repository.BranchRepository;
 import com.bank_web_app.backend.bankcustomer.repository.BankCustomerRepository;
 import com.bank_web_app.backend.bankofficer.repository.BankOfficerRepository;
+import com.bank_web_app.backend.notification.event.NotificationEventPublisher;
+import com.bank_web_app.backend.notification.event.NotificationEventType;
 
 /**
  * Orchestrates Admin business logic, validation, and persistence workflows.
@@ -28,17 +31,20 @@ public class BranchService {
 	private final BankOfficerRepository bankOfficerRepository;
 	private final BankCustomerRepository bankCustomerRepository;
 	private final AuditLogService auditLogService;
+	private final NotificationEventPublisher notificationEventPublisher;
 
 	public BranchService(
 		BranchRepository branchRepository,
 		BankOfficerRepository bankOfficerRepository,
 		BankCustomerRepository bankCustomerRepository,
-		AuditLogService auditLogService
+		AuditLogService auditLogService,
+		NotificationEventPublisher notificationEventPublisher
 	) {
 		this.branchRepository = branchRepository;
 		this.bankOfficerRepository = bankOfficerRepository;
 		this.bankCustomerRepository = bankCustomerRepository;
 		this.auditLogService = auditLogService;
+		this.notificationEventPublisher = notificationEventPublisher;
 	}
 
 	@Transactional
@@ -81,6 +87,7 @@ public class BranchService {
 	// Updates an existing record from validated request fields.
 	public BranchResponse update(Long branchId, BranchRequest request) {
 		Branch branch = findBranch(branchId);
+		String previousStatus = branch.getStatus() == null ? null : branch.getStatus().name();
 
 		branch.setBranchName(normalizeRequired(request.branchName(), "Branch name is required."));
 		branch.setBranchEmail(normalizeOptional(request.branchEmail()));
@@ -98,6 +105,10 @@ public class BranchService {
 			"Updated branch profile details and status.",
 			"INFO"
 		);
+		String currentStatus = saved.getStatus() == null ? null : saved.getStatus().name();
+		if (currentStatus != null && !currentStatus.equals(previousStatus)) {
+			publishBranchStatusChanged(saved, currentStatus);
+		}
 		return response;
 	}
 
@@ -117,6 +128,7 @@ public class BranchService {
 			"Branch status changed to " + normalizedStatus + ".",
 			"ACTIVE".equals(normalizedStatus) ? "SUCCESS" : "WARNING"
 		);
+		publishBranchStatusChanged(saved, normalizedStatus);
 		return response;
 	}
 
@@ -149,6 +161,19 @@ public class BranchService {
 	private Branch findBranch(Long branchId) {
 		return branchRepository.findById(branchId)
 			.orElseThrow(() -> new IllegalArgumentException("Branch not found."));
+	}
+
+	private void publishBranchStatusChanged(Branch branch, String status) {
+		notificationEventPublisher.publish(
+			NotificationEventType.BRANCH_STATUS_CHANGED,
+			null,
+			null,
+			branch.getBranchId(),
+			Map.of(
+				"branchName", safe(branch.getBranchName()),
+				"status", status
+			)
+		);
 	}
 
 	private String generateBranchCode() {

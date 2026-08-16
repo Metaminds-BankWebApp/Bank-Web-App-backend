@@ -17,6 +17,8 @@ public interface BankCustomerRepository extends JpaRepository<BankCustomer, Long
 
 	List<BankCustomer> findAllByOfficer_OfficerId(Long officerId);
 
+	List<BankCustomer> findAllByBranch_BranchId(Long branchId);
+
 	List<BankCustomer> findAllByUser_UserIdIn(List<Long> userIds);
 
 	boolean existsByCustomerCode(String customerCode);

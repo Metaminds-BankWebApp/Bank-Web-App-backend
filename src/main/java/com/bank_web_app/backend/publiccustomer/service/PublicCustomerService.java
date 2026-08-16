@@ -7,6 +7,7 @@ import com.bank_web_app.backend.publiccustomer.dto.request.PublicCustomerLoanSte
 import com.bank_web_app.backend.publiccustomer.dto.response.PublicCustomerFinancialRecordResponse;
 import com.bank_web_app.backend.publiccustomer.dto.response.PublicCustomerFinancialRecordSummaryResponse;
 import com.bank_web_app.backend.publiccustomer.dto.response.PublicCustomerFinancialStepResponse;
+import com.bank_web_app.backend.publiccustomer.dto.response.PublicCustomerApplicationProgressResponse;
 import com.bank_web_app.backend.publiccustomer.dto.response.PublicCustomerCardProviderOptionResponse;
 import com.bank_web_app.backend.publiccustomer.dto.response.PublicCustomerMeResponse;
 import com.bank_web_app.backend.user.dto.request.UserRegistrationStepOneRequest;
@@ -77,7 +78,18 @@ public class PublicCustomerService {
 		return financialRecordService.saveLiabilityStep(publicCustomerId, request);
 	}
 
-	// Returns current financial snapshot.
+	public PublicCustomerApplicationProgressResponse getApplicationProgress(Long publicCustomerId) {
+		return financialRecordService.getApplicationProgress(publicCustomerId);
+	}
+
+	public PublicCustomerApplicationProgressResponse skipApplicationStep(Long publicCustomerId, String stepCode) {
+		return financialRecordService.skipApplicationStep(publicCustomerId, stepCode);
+	}
+
+	public PublicCustomerApplicationProgressResponse submitApplication(Long publicCustomerId) {
+		return financialRecordService.submitApplication(publicCustomerId);
+	}
+
 	public PublicCustomerFinancialRecordResponse getCurrentFinancialRecord(Long publicCustomerId) {
 		return financialRecordService.getCurrentFinancialRecord(publicCustomerId);
 	}

@@ -15,6 +15,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -128,6 +129,14 @@ public class GlobalExceptionHandler {
 		HttpServletRequest request
 	) {
 		return build(HttpStatus.NOT_FOUND, "Resource not found.", request.getRequestURI());
+	}
+
+	@ExceptionHandler(MaxUploadSizeExceededException.class)
+	public ResponseEntity<ApiErrorResponse> handleMaxUploadSizeExceeded(
+		MaxUploadSizeExceededException ex,
+		HttpServletRequest request
+	) {
+		return build(HttpStatus.CONTENT_TOO_LARGE, "Profile image must not exceed 5 MB.", request.getRequestURI());
 	}
 
 	@ExceptionHandler(Exception.class)
