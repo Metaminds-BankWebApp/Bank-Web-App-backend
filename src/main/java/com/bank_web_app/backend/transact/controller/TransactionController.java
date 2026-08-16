@@ -56,7 +56,7 @@ public class TransactionController {
 	@PostMapping("/transactions/initiate")
 	@Operation(
 		summary = "Initiate transfer transaction",
-		description = "Creates a transaction for the logged-in BANK_CUSTOMER and issues a 6-digit OTP (valid for 5 minutes) via Brevo SMTP email. Sender ownership is resolved from authenticated context (/api/auth/me bankCustomerId). Validates receiver account existence, transfer amount <= Rs.100,000.00, and minimum remaining sender balance Rs.1,000.00.",
+		description = "Creates a transaction for the logged-in BANK_CUSTOMER and issues a 6-digit OTP (valid for 5 minutes) via transactional email. Sender ownership is resolved from authenticated context (/api/auth/me bankCustomerId). Validates receiver account existence, transfer amount <= Rs.100,000.00, and minimum remaining sender balance Rs.1,000.00.",
 		responses = {
 			@ApiResponse(responseCode = "200", description = "Transaction initiated and OTP issued"),
 			@ApiResponse(responseCode = "400", description = "Validation failed or account/amount is invalid"),
