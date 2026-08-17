@@ -70,15 +70,16 @@ public class AuthServiceImpl implements AuthService {
 	@Override
 	@Transactional
 	public LoginResponse login(LoginRequest request) {
-		String email = request.email().trim().toLowerCase(Locale.ROOT);
+		String identifier = request.identifier().trim();
 		String password = request.password();
 
 		User user = userRepository
-			.findByEmail(email)
-			.orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password."));
+			.findByEmailIgnoreCase(identifier)
+			.or(() -> userRepository.findByUsernameIgnoreCase(identifier))
+			.orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials."));
 
 		if (!matchesPasswordAndUpgradeIfNeeded(user, password)) {
-			throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password.");
+			throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials.");
 		}
 
 		if ("INACTIVE".equalsIgnoreCase(user.getStatus())) {
