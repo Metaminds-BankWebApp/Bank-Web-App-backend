@@ -294,10 +294,10 @@ public class PublicCustomerFinancialRecordService {
 		String normalizedStep = normalizeApplicationStep(stepCode);
 
 		switch (normalizedStep) {
-			case "INCOME" -> {
-				incomeRepository.deleteByFinancialRecord_RecordId(recordId);
-				currentRecord.setIncomeStepStatus(SKIPPED);
-			}
+			case "INCOME" -> throw new ResponseStatusException(
+				HttpStatus.BAD_REQUEST,
+				"Income details are required and cannot be skipped."
+			);
 			case "LOANS" -> {
 				loanRepository.deleteByFinancialRecord_RecordId(recordId);
 				currentRecord.setLoanStepStatus(SKIPPED);
@@ -329,6 +329,13 @@ public class PublicCustomerFinancialRecordService {
 				"Complete or skip the financial sections before submitting the application."
 			));
 		currentRecord = reconcileLegacyProgress(currentRecord);
+
+		if (!COMPLETED.equals(currentRecord.getIncomeStepStatus())) {
+			throw new ResponseStatusException(
+				HttpStatus.BAD_REQUEST,
+				"Complete the required income section before submitting the application."
+			);
+		}
 
 		if (
 			PENDING.equals(currentRecord.getIncomeStepStatus()) ||
