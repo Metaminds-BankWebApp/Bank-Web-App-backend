@@ -7,11 +7,14 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 /**
- * Safety-net interceptor that records technical request-level audit events for
+ * Safety-net interceptor that records meaningful request-level audit events for
  * mutating HTTP operations when business services did not log an action.
  */
 @Component
@@ -19,10 +22,12 @@ public class SystemAuditLoggingInterceptor implements HandlerInterceptor {
 
 	private static final String AUDIT_ELIGIBLE_ATTR = "primecore.audit.eligible";
 	private static final Set<String> AUDITED_HTTP_METHODS = Set.of("POST", "PUT", "PATCH", "DELETE");
+	private static final Set<String> CUSTOMER_ROLES = Set.of("PUBLIC_CUSTOMER", "BANK_CUSTOMER");
 	private static final Set<String> EXCLUDED_PATH_PREFIXES = Set.of(
 		"/swagger-ui",
 		"/swagger-ui.html",
-		"/v3/api-docs"
+		"/v3/api-docs",
+		"/api/notifications"
 	);
 	private static final Set<String> NON_TARGET_SEGMENTS = Set.of(
 		"api",
@@ -55,7 +60,10 @@ public class SystemAuditLoggingInterceptor implements HandlerInterceptor {
 
 	@Override
 	public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
-		request.setAttribute(AUDIT_ELIGIBLE_ATTR, shouldAudit(request.getMethod(), request.getRequestURI()));
+		request.setAttribute(
+			AUDIT_ELIGIBLE_ATTR,
+			shouldAudit(request.getMethod(), request.getRequestURI(), resolveAuthenticatedActorRole())
+		);
 		return true;
 	}
 
@@ -79,12 +87,12 @@ public class SystemAuditLoggingInterceptor implements HandlerInterceptor {
 		String path = request.getRequestURI();
 		String targetType = deriveTargetType(path);
 		String targetId = deriveTargetId(path);
-		String actionType = method + "_" + (targetType == null ? "ACTION" : targetType);
+		AuditAction action = describeAction(method, path, targetType);
 		boolean failed = ex != null || response.getStatus() >= 400;
 
 		auditLogService.logAction(
-			failed ? actionType + "_FAILED" : actionType,
-			(failed ? "Failed " : "Executed ") + method + " on " + path,
+			failed ? action.actionType() + "_FAILED" : action.actionType(),
+			failed ? action.failureTitle() : action.successTitle(),
 			targetType,
 			targetId,
 			buildDetails(handler, response.getStatus(), ex),
@@ -92,7 +100,7 @@ public class SystemAuditLoggingInterceptor implements HandlerInterceptor {
 		);
 	}
 
-	private boolean shouldAudit(String method, String path) {
+	private boolean shouldAudit(String method, String path, String actorRole) {
 		if (method == null || path == null) {
 			return false;
 		}
@@ -108,10 +116,43 @@ public class SystemAuditLoggingInterceptor implements HandlerInterceptor {
 			}
 		}
 
-		return true;
+		// Staff and system write operations are fully audited. Customer audit entries
+		// are intentionally limited to high-value security, application, and payment events.
+		return !CUSTOMER_ROLES.contains(actorRole) || isImportantCustomerAction(path);
+	}
+
+	private boolean isImportantCustomerAction(String path) {
+		String normalizedPath = path.toLowerCase(Locale.ROOT);
+		return normalizedPath.equals("/api/users/profile")
+			|| normalizedPath.endsWith("/financial-records/submit")
+			|| normalizedPath.equals("/api/creditlens/public/evaluations")
+			|| normalizedPath.equals("/api/bank-customers/transact/transactions/verify-otp")
+			|| normalizedPath.startsWith("/api/bank-customers/transact/beneficiaries")
+			|| normalizedPath.equals("/api/support/requests");
+	}
+
+	private String resolveAuthenticatedActorRole() {
+		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+		if (authentication == null || !authentication.isAuthenticated()) {
+			return "SYSTEM";
+		}
+
+		return authentication
+			.getAuthorities()
+			.stream()
+			.map(GrantedAuthority::getAuthority)
+			.filter(authority -> authority != null && authority.startsWith("ROLE_"))
+			.map(authority -> authority.substring("ROLE_".length()).toUpperCase(Locale.ROOT))
+			.findFirst()
+			.orElse("SYSTEM");
 	}
 
 	private String deriveTargetType(String path) {
+		String normalizedPath = path == null ? "" : path.toLowerCase(Locale.ROOT);
+		if (normalizedPath.endsWith("/financial-records/submit")) {
+			return "FINANCIAL_APPLICATION";
+		}
+
 		String[] segments = splitPath(path);
 		for (int i = segments.length - 1; i >= 0; i--) {
 			String normalized = normalizeSegment(segments[i]);
@@ -133,6 +174,48 @@ public class SystemAuditLoggingInterceptor implements HandlerInterceptor {
 		}
 
 		return "SYSTEM";
+	}
+
+	private AuditAction describeAction(String method, String path, String targetType) {
+		String normalizedPath = path == null ? "" : path.toLowerCase(Locale.ROOT);
+		if (normalizedPath.endsWith("/login")) {
+			return new AuditAction("LOGIN", "Signed in", "Sign-in failed");
+		}
+		if (normalizedPath.endsWith("/logout")) {
+			return new AuditAction("LOGOUT", "Signed out", "Sign-out failed");
+		}
+		if (normalizedPath.endsWith("/financial-records/submit")) {
+			return new AuditAction(
+				"SUBMIT_FINANCIAL_APPLICATION",
+				"Submitted financial application",
+				"Financial application submission failed"
+			);
+		}
+		if (normalizedPath.endsWith("/transactions/verify-otp")) {
+			return new AuditAction("CONFIRM_TRANSACTION", "Confirmed transfer", "Transfer confirmation failed");
+		}
+
+		String action = switch (method == null ? "" : method.toUpperCase(Locale.ROOT)) {
+			case "POST" -> "CREATE";
+			case "PUT", "PATCH" -> "UPDATE";
+			case "DELETE" -> "DELETE";
+			default -> "RECORD";
+		};
+		String targetLabel = toDisplayLabel(targetType == null ? "ACTION" : targetType);
+		return switch (action) {
+			case "CREATE" -> new AuditAction("CREATE_" + targetType, "Created " + targetLabel, "Failed to create " + targetLabel);
+			case "UPDATE" -> new AuditAction("UPDATE_" + targetType, "Updated " + targetLabel, "Failed to update " + targetLabel);
+			case "DELETE" -> new AuditAction("DELETE_" + targetType, "Deleted " + targetLabel, "Failed to delete " + targetLabel);
+			default -> new AuditAction("RECORDED_" + targetType, "Recorded " + targetLabel, "Failed to record " + targetLabel);
+		};
+	}
+
+	private String toDisplayLabel(String value) {
+		String normalized = value == null ? "action" : value.trim().replace('_', ' ').toLowerCase(Locale.ROOT);
+		if (normalized.isBlank()) {
+			return "action";
+		}
+		return Character.toUpperCase(normalized.charAt(0)) + normalized.substring(1);
 	}
 
 	private String deriveTargetId(String path) {
@@ -205,6 +288,8 @@ public class SystemAuditLoggingInterceptor implements HandlerInterceptor {
 		return value.length() <= maxLength ? value : value.substring(0, maxLength);
 	}
 
+	private record AuditAction(String actionType, String successTitle, String failureTitle) {}
+
 	private static Map<String, String> createResourceTypeMap() {
 		Map<String, String> mapping = new HashMap<>();
 		mapping.put("branches", "BRANCH");
@@ -223,6 +308,7 @@ public class SystemAuditLoggingInterceptor implements HandlerInterceptor {
 		mapping.put("evaluations", "EVALUATION");
 		mapping.put("profile", "PROFILE");
 		mapping.put("financial-records", "FINANCIAL_RECORD");
+		mapping.put("requests", "SUPPORT_REQUEST");
 		mapping.put("loan-eligibility", "LOAN_ELIGIBILITY");
 		mapping.put("otp", "OTP");
 		mapping.put("password", "PASSWORD");
