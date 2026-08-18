@@ -67,14 +67,11 @@ public class CreditEvaluationAuthService {
 			.orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Logged-in user is not a bank officer."));
 	}
 
-	// Makes sure the requested bank customer belongs to the logged-in officer.
+	// Resolves a bank customer for a logged-in officer. All BANK_OFFICER users may access bank customers.
 	BankCustomer resolveOwnedBankCustomer(Long bankCustomerId, BankOfficer officer) {
 		BankCustomer bankCustomer = bankCustomerRepository
 			.findById(bankCustomerId)
 			.orElseThrow(() -> new IllegalArgumentException("Bank customer not found."));
-		if (!bankCustomer.getOfficer().getOfficerId().equals(officer.getOfficerId())) {
-			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This bank customer is not assigned to the logged-in officer.");
-		}
 		return bankCustomer;
 	}
 

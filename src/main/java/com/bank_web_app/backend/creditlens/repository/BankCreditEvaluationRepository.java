@@ -27,4 +27,11 @@ public interface BankCreditEvaluationRepository extends JpaRepository<BankCredit
 
 	BankCreditEvaluation[] findAllByBankCustomer_Officer_OfficerIdOrderByBankCustomer_BankCustomerIdAscCreatedAtDesc(
 			Long officerId);
+
+	// Lists the complete evaluation activity feed for customers assigned to one officer.
+	List<BankCreditEvaluation> findAllByBankCustomer_Officer_OfficerIdOrderByCreatedAtDesc(Long officerId);
+
+	List<BankCreditEvaluation> findAllByOrderByBankCustomer_BankCustomerIdAscCreatedAtDesc();
+
+	List<BankCreditEvaluation> findAllByOrderByCreatedAtDesc();
 }

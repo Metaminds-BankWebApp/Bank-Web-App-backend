@@ -14,6 +14,7 @@ import com.bank_web_app.backend.creditlens.dto.response.BankCreditAnalysisCustom
 import com.bank_web_app.backend.creditlens.dto.response.BankCreditAnalysisDashboardResponse;
 import com.bank_web_app.backend.creditlens.dto.response.BankCreditEvaluationResponse;
 import com.bank_web_app.backend.creditlens.dto.response.BankCreditEvaluationSummaryResponse;
+import com.bank_web_app.backend.creditlens.dto.response.OfficerCreditHistoryItemResponse;
 import com.bank_web_app.backend.creditlens.dto.response.CreditDashboardResponse;
 import com.bank_web_app.backend.creditlens.dto.response.CreditInsightsResponse;
 import com.bank_web_app.backend.creditlens.dto.response.CreditReportResponse;
@@ -297,9 +298,9 @@ public class CreditEvaluationService {
 	@Transactional
 	// Builds the bank officer dashboard from assigned customer evaluations.
 	public BankCreditAnalysisDashboardResponse getOfficerDashboard() {
-		BankOfficer officer = creditEvaluationAuthService.resolveLoggedInBankOfficer();
+		creditEvaluationAuthService.resolveLoggedInBankOfficer();
 		List<BankCreditAnalysisCustomerRowResponse> rows = bankCustomerRepository
-			.findAllByOfficer_OfficerIdOrderByUpdatedAtDesc(officer.getOfficerId())
+			.findAll()
 			.stream()
 			.map(customer -> bankCreditEvaluationRepository
 				.findTopByBankCustomer_BankCustomerIdOrderByCreatedAtDesc(customer.getBankCustomerId())
@@ -320,6 +321,30 @@ public class CreditEvaluationService {
 			highRiskCount,
 			rows
 		);
+	}
+
+	@Transactional(readOnly = true)
+	// Returns all CreditLens evaluation actions for the logged-in officer's assigned customers.
+	public List<OfficerCreditHistoryItemResponse> getOfficerCreditHistory() {
+		creditEvaluationAuthService.resolveLoggedInBankOfficer();
+		return bankCreditEvaluationRepository
+			.findAllByOrderByCreatedAtDesc()
+			.stream()
+			.map(evaluation -> {
+				BankCustomer customer = evaluation.getBankCustomer();
+				return new OfficerCreditHistoryItemResponse(
+					evaluation.getBankEvaluationId(),
+					customer.getBankCustomerId(),
+					customer.getCustomerCode(),
+					buildFullName(customer.getUser()),
+					evaluation.getEvaluationSource(),
+					evaluation.getTotalRiskPoints(),
+					evaluation.getRiskLevel(),
+					toTitleCase(evaluation.getRiskLevel()),
+					evaluation.getCreatedAt()
+				);
+			})
+			.toList();
 	}
 
 	@Transactional

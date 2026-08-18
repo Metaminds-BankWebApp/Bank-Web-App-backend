@@ -225,7 +225,7 @@ public class LoanEligibilityService {
 	public LoanSenseOfficerDashboardResponse getOfficerDashboard() {
 		BankOfficer officer = resolveLoggedInBankOfficer();
 		List<LoanSenseOfficerCustomerRowResponse> rows = bankCustomerRepository
-			.findAllByOfficer_OfficerIdOrderByUpdatedAtDesc(officer.getOfficerId())
+			.findAll()
 			.stream()
 			.map(this::toOfficerCustomerRow)
 			.toList();
@@ -866,13 +866,11 @@ public class LoanEligibilityService {
 			.orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Logged-in user is not a bank officer."));
 	}
 
+	// BANK_OFFICER access is role-based; customer assignment does not limit access.
 	private BankCustomer resolveOwnedBankCustomer(Long bankCustomerId, BankOfficer officer) {
 		BankCustomer bankCustomer = bankCustomerRepository
 			.findById(bankCustomerId)
 			.orElseThrow(() -> new IllegalArgumentException("Bank customer not found."));
-		if (bankCustomer.getOfficer() == null || !bankCustomer.getOfficer().getOfficerId().equals(officer.getOfficerId())) {
-			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This bank customer is not assigned to the logged-in bank officer.");
-		}
 		return bankCustomer;
 	}
 
