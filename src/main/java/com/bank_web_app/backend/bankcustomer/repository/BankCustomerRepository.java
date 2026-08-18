@@ -9,6 +9,8 @@ public interface BankCustomerRepository extends JpaRepository<BankCustomer, Long
 
 	Optional<BankCustomer> findByUser_UserId(Long userId);
 
+	Optional<BankCustomer> findByUser_Nic(String nic);
+
 	Optional<BankCustomer> findByUser_UserIdAndOfficer_OfficerId(Long userId, Long officerId);
 
 	Optional<BankCustomer> findByUser_NicAndOfficer_OfficerId(String nic, Long officerId);

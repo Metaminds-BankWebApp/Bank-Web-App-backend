@@ -38,15 +38,15 @@ public class PortfolioService {
 
 	@Transactional(readOnly = true)
 	public List<BankOfficerCustomerSummaryResponse> getBankCustomersForOfficer(BankOfficerCustomerFilterRequest filters) {
-		BankOfficer officer = bankOfficerContextService.resolveLoggedInBankOfficer();
-		Map<Long, BankCreditEvaluation> latestEvaluationByCustomerId = loadLatestEvaluations(officer.getOfficerId());
+		bankOfficerContextService.resolveLoggedInBankOfficer();
+		Map<Long, BankCreditEvaluation> latestEvaluationByCustomerId = loadLatestEvaluations();
 		String normalizedSearch = normalize(filters == null ? null : filters.search());
 		String normalizedStatus = normalize(filters == null ? null : filters.status());
 		String normalizedRiskLevel = normalize(filters == null ? null : filters.riskLevel());
 		String normalizedSortBy = normalize(filters == null ? null : filters.sortBy());
 
 		List<CustomerSummaryView> rows = bankCustomerRepository
-			.findAllByOfficer_OfficerId(officer.getOfficerId())
+			.findAll()
 			.stream()
 			.map(customer -> toSummary(customer, latestEvaluationByCustomerId.get(customer.getBankCustomerId())))
 			// Apply server-side filters and sorting here. These filters use the
@@ -93,12 +93,12 @@ public class PortfolioService {
 		);
 	}
 
-	private Map<Long, BankCreditEvaluation> loadLatestEvaluations(Long officerId) {
+	private Map<Long, BankCreditEvaluation> loadLatestEvaluations() {
 		// Retrieve evaluations ordered by customer id and newest createdAt so
 		// we can pick the first entry per customer as the latest evaluation.
 		Map<Long, BankCreditEvaluation> latestEvaluations = new LinkedHashMap<>();
 		for (BankCreditEvaluation evaluation : bankCreditEvaluationRepository
-				.findAllByBankCustomer_Officer_OfficerIdOrderByBankCustomer_BankCustomerIdAscCreatedAtDesc(officerId)) {
+				.findAllByOrderByBankCustomer_BankCustomerIdAscCreatedAtDesc()) {
 			Long bankCustomerId = evaluation.getBankCustomer().getBankCustomerId();
 			latestEvaluations.putIfAbsent(bankCustomerId, evaluation);
 		}

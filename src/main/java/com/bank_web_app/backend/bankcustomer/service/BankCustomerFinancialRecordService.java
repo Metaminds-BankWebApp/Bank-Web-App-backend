@@ -107,10 +107,10 @@ public class BankCustomerFinancialRecordService {
 
 	@Transactional(readOnly = true)
 	public BankOfficerCustomerIdentityResponse getOwnedBankCustomerIdentityByUserId(Long userId) {
-		BankOfficer officer = resolveLoggedInBankOfficer();
+		resolveLoggedInBankOfficer();
 		BankCustomer customer = bankCustomerRepository
-			.findByUser_UserIdAndOfficer_OfficerId(userId, officer.getOfficerId())
-			.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Bank customer not found for this officer."));
+			.findByUser_UserId(userId)
+			.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Bank customer not found."));
 
 		return new BankOfficerCustomerIdentityResponse(
 			customer.getBankCustomerId(),
@@ -596,13 +596,9 @@ public class BankCustomerFinancialRecordService {
 	}
 
 	private BankCustomer resolveOwnedBankCustomer(Long bankCustomerId, String expectedAccessStatus) {
-		BankOfficer officer = resolveLoggedInBankOfficer();
+		resolveLoggedInBankOfficer();
 		BankCustomer customer = bankCustomerRepository.findById(bankCustomerId)
 			.orElseThrow(() -> new IllegalArgumentException("Bank customer not found."));
-
-		if (!customer.getOfficer().getOfficerId().equals(officer.getOfficerId())) {
-			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This bank customer is not assigned to the logged-in officer.");
-		}
 
 		String accessStatus = normalizeAccessStatus(customer.getAccessStatus());
 		if ("DRAFT".equals(accessStatus)) {

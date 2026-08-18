@@ -5,6 +5,7 @@ import com.bank_web_app.backend.creditlens.dto.response.BankCreditAnalysisCustom
 import com.bank_web_app.backend.creditlens.dto.response.BankCreditAnalysisDashboardResponse;
 import com.bank_web_app.backend.creditlens.dto.response.BankCreditEvaluationResponse;
 import com.bank_web_app.backend.creditlens.dto.response.BankCreditEvaluationSummaryResponse;
+import com.bank_web_app.backend.creditlens.dto.response.OfficerCreditHistoryItemResponse;
 import com.bank_web_app.backend.creditlens.dto.response.CreditDashboardResponse;
 import com.bank_web_app.backend.creditlens.dto.response.CreditInsightsResponse;
 import com.bank_web_app.backend.creditlens.dto.response.CreditReportResponse;
@@ -249,6 +250,12 @@ public class CreditEvaluationController {
 	// Returns the officer CreditLens dashboard with assigned customer risk rows.
 	public ResponseEntity<BankCreditAnalysisDashboardResponse> getOfficerDashboard() {
 		return ResponseEntity.ok(creditEvaluationService.getOfficerDashboard());
+	}
+
+	@GetMapping("/officer/history")
+	@Operation(summary = "Get CreditLens evaluation history for the logged-in bank officer's customer portfolio.")
+	public ResponseEntity<List<OfficerCreditHistoryItemResponse>> getOfficerCreditHistory() {
+		return ResponseEntity.ok(creditEvaluationService.getOfficerCreditHistory());
 	}
 
 	@GetMapping("/officer/customers/{bankCustomerId}/profile")
