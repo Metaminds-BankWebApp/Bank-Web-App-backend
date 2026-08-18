@@ -65,6 +65,7 @@ public class PublicCustomerFinancialRecordService {
 	private final UserRepository userRepository;
 	private final NotificationService notificationService;
 
+	// Injects repositories and mapper required for public-customer financial workflows.
 	public PublicCustomerFinancialRecordService(
 		PublicCustomerProfileRepository publicCustomerProfileRepository,
 		PublicCustomerFinancialRecordRepository financialRecordRepository,
@@ -93,6 +94,7 @@ public class PublicCustomerFinancialRecordService {
 		this.notificationService = notificationService;
 	}
 
+	// Default card-provider list used as baseline dropdown options.
 	private static final List<String> DEFAULT_CARD_PROVIDER_BANK_NAMES = List.of(
 		"Bank of Ceylon",
 		"People's Bank",
@@ -110,6 +112,7 @@ public class PublicCustomerFinancialRecordService {
 		"HSBC"
 	);
 
+	// Resolves identity details for the logged-in public customer.
 	@Transactional(readOnly = true)
 	public PublicCustomerMeResponse getLoggedInPublicCustomerProfile() {
 		PublicCustomerProfile profile = resolveLoggedInPublicCustomerProfile();
@@ -120,6 +123,7 @@ public class PublicCustomerFinancialRecordService {
 		);
 	}
 
+	// Builds card-provider dropdown options from defaults plus stored providers.
 	@Transactional(readOnly = true)
 	public List<PublicCustomerCardProviderOptionResponse> getCardProviderOptions() {
 		// Ensure only the logged-in PUBLIC_CUSTOMER can request step options for their flow.
@@ -133,6 +137,7 @@ public class PublicCustomerFinancialRecordService {
 		return providerNames.stream().map(PublicCustomerCardProviderOptionResponse::new).toList();
 	}
 
+	// Saves step-1 income data by replacing existing rows for current record.
 	@Transactional
 	public PublicCustomerFinancialStepResponse saveIncomeStep(Long publicCustomerId, PublicCustomerIncomeStepRequest request) {
 		if (request.incomes().isEmpty()) {
@@ -165,6 +170,7 @@ public class PublicCustomerFinancialRecordService {
 		return new PublicCustomerFinancialStepResponse(recordId, publicCustomerId, "INCOME", "Income step saved successfully.");
 	}
 
+	// Saves step-2 loan data by replacing existing rows for current record.
 	@Transactional
 	public PublicCustomerFinancialStepResponse saveLoanStep(Long publicCustomerId, PublicCustomerLoanStepRequest request) {
 		if (request.loans().isEmpty()) {
@@ -194,6 +200,7 @@ public class PublicCustomerFinancialRecordService {
 		return new PublicCustomerFinancialStepResponse(recordId, publicCustomerId, "LOANS", "Loan step saved successfully.");
 	}
 
+	// Saves step-3 card data by replacing existing rows for current record.
 	@Transactional
 	public PublicCustomerFinancialStepResponse saveCardStep(Long publicCustomerId, PublicCustomerCardStepRequest request) {
 		if (request.cards().isEmpty()) {
@@ -223,6 +230,7 @@ public class PublicCustomerFinancialRecordService {
 		return new PublicCustomerFinancialStepResponse(recordId, publicCustomerId, "CARDS", "Card step saved successfully.");
 	}
 
+	// Saves step-4 liabilities and missed-payment aggregate for current record.
 	@Transactional
 	public PublicCustomerFinancialStepResponse saveLiabilityStep(Long publicCustomerId, PublicCustomerLiabilityStepRequest request) {
 		if (request.liabilities().isEmpty() && request.missedPayments() == 0) {
@@ -286,10 +294,10 @@ public class PublicCustomerFinancialRecordService {
 		String normalizedStep = normalizeApplicationStep(stepCode);
 
 		switch (normalizedStep) {
-			case "INCOME" -> {
-				incomeRepository.deleteByFinancialRecord_RecordId(recordId);
-				currentRecord.setIncomeStepStatus(SKIPPED);
-			}
+			case "INCOME" -> throw new ResponseStatusException(
+				HttpStatus.BAD_REQUEST,
+				"Income details are required and cannot be skipped."
+			);
 			case "LOANS" -> {
 				loanRepository.deleteByFinancialRecord_RecordId(recordId);
 				currentRecord.setLoanStepStatus(SKIPPED);
@@ -322,6 +330,13 @@ public class PublicCustomerFinancialRecordService {
 			));
 		currentRecord = reconcileLegacyProgress(currentRecord);
 
+		if (!COMPLETED.equals(currentRecord.getIncomeStepStatus())) {
+			throw new ResponseStatusException(
+				HttpStatus.BAD_REQUEST,
+				"Complete the required income section before submitting the application."
+			);
+		}
+
 		if (
 			PENDING.equals(currentRecord.getIncomeStepStatus()) ||
 			PENDING.equals(currentRecord.getLoanStepStatus()) ||
@@ -349,6 +364,7 @@ public class PublicCustomerFinancialRecordService {
 		return mapRecordToResponse(currentRecord);
 	}
 
+	// Returns summary history of all financial snapshots for a public customer.
 	@Transactional(readOnly = true)
 	public List<PublicCustomerFinancialRecordSummaryResponse> getFinancialRecordHistory(Long publicCustomerId) {
 		if (!publicCustomerProfileRepository.existsById(publicCustomerId)) {
@@ -362,6 +378,7 @@ public class PublicCustomerFinancialRecordService {
 			.collect(Collectors.toList());
 	}
 
+	// Returns one financial snapshot by record id for the public customer.
 	@Transactional(readOnly = true)
 	public PublicCustomerFinancialRecordResponse getFinancialRecordById(Long publicCustomerId, Long recordId) {
 		PublicCustomerFinancialRecord record = financialRecordRepository
@@ -371,6 +388,7 @@ public class PublicCustomerFinancialRecordService {
 		return mapRecordToResponse(record);
 	}
 
+	// Loads all child step rows and maps them into full response DTO.
 	private PublicCustomerFinancialRecordResponse mapRecordToResponse(PublicCustomerFinancialRecord record) {
 		Long recordId = record.getRecordId();
 		int missedPayments = missedPaymentRepository.findByFinancialRecord_RecordId(recordId)
@@ -387,6 +405,7 @@ public class PublicCustomerFinancialRecordService {
 		);
 	}
 
+	// Normalizes accepted income-category aliases into canonical values.
 	private String normalizeIncomeCategory(String incomeCategory) {
 		String normalized = incomeCategory == null ? "" : incomeCategory.trim().toUpperCase(Locale.ROOT);
 		if ("SALARY WORKER".equals(normalized)) {
@@ -401,6 +420,7 @@ public class PublicCustomerFinancialRecordService {
 		return normalized;
 	}
 
+	// Adds non-empty provider names into target set after trimming.
 	private void addNormalizedProviderNames(Set<String> sink, List<String> values) {
 		for (String value : values) {
 			String normalized = value == null ? "" : value.trim();
@@ -410,6 +430,7 @@ public class PublicCustomerFinancialRecordService {
 		}
 	}
 
+	// Gets existing CURRENT record or creates one when absent.
 	private PublicCustomerFinancialRecord getOrCreateCurrentRecord(Long publicCustomerId) {
 		PublicCustomerProfile profile = resolveOwnedPublicCustomerProfile(publicCustomerId);
 
@@ -423,6 +444,7 @@ public class PublicCustomerFinancialRecordService {
 			});
 	}
 
+	// Updates parent record timestamp after step save.
 	private void touchRecord(PublicCustomerFinancialRecord record) {
 		record.setUpdatedAt(LocalDateTime.now());
 		financialRecordRepository.save(record);

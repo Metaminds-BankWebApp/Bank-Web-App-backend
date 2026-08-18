@@ -19,9 +19,12 @@ import org.springframework.stereotype.Service;
 @Service
 public class PublicCustomerService {
 
+	// Delegated service for registration and list onboarding operations.
 	private final PublicCustomerOnboardingService onboardingService;
+	// Delegated service for financial-step and profile-related operations.
 	private final PublicCustomerFinancialRecordService financialRecordService;
 
+	// Injects onboarding and financial-record services.
 	public PublicCustomerService(
 		PublicCustomerOnboardingService onboardingService,
 		PublicCustomerFinancialRecordService financialRecordService
@@ -30,38 +33,47 @@ public class PublicCustomerService {
 		this.financialRecordService = financialRecordService;
 	}
 
+	// Saves public-customer registration as draft.
 	public UserRegistrationStepResponse saveDraft(UserRegistrationStepOneRequest request) {
 		return onboardingService.saveDraft(request);
 	}
 
+	// Completes public-customer registration.
 	public UserRegistrationStepResponse register(UserRegistrationStepOneRequest request) {
 		return onboardingService.register(request);
 	}
 
+	// Returns public-customer summary list.
 	public List<BankCustomerSummaryResponse> getAll() {
 		return onboardingService.getAll();
 	}
 
+	// Returns authenticated public-customer profile mapping.
 	public PublicCustomerMeResponse getMe() {
 		return financialRecordService.getLoggedInPublicCustomerProfile();
 	}
 
+	// Returns card-provider options for application card step.
 	public List<PublicCustomerCardProviderOptionResponse> getCardProviderOptions() {
 		return financialRecordService.getCardProviderOptions();
 	}
 
+	// Saves income step values.
 	public PublicCustomerFinancialStepResponse saveIncomeStep(Long publicCustomerId, PublicCustomerIncomeStepRequest request) {
 		return financialRecordService.saveIncomeStep(publicCustomerId, request);
 	}
 
+	// Saves loan step values.
 	public PublicCustomerFinancialStepResponse saveLoanStep(Long publicCustomerId, PublicCustomerLoanStepRequest request) {
 		return financialRecordService.saveLoanStep(publicCustomerId, request);
 	}
 
+	// Saves card step values.
 	public PublicCustomerFinancialStepResponse saveCardStep(Long publicCustomerId, PublicCustomerCardStepRequest request) {
 		return financialRecordService.saveCardStep(publicCustomerId, request);
 	}
 
+	// Saves liability and missed-payment step values.
 	public PublicCustomerFinancialStepResponse saveLiabilityStep(Long publicCustomerId, PublicCustomerLiabilityStepRequest request) {
 		return financialRecordService.saveLiabilityStep(publicCustomerId, request);
 	}
@@ -82,10 +94,12 @@ public class PublicCustomerService {
 		return financialRecordService.getCurrentFinancialRecord(publicCustomerId);
 	}
 
+	// Returns financial snapshot history.
 	public List<PublicCustomerFinancialRecordSummaryResponse> getFinancialRecordHistory(Long publicCustomerId) {
 		return financialRecordService.getFinancialRecordHistory(publicCustomerId);
 	}
 
+	// Returns a specific financial snapshot by record id.
 	public PublicCustomerFinancialRecordResponse getFinancialRecordById(Long publicCustomerId, Long recordId) {
 		return financialRecordService.getFinancialRecordById(publicCustomerId, recordId);
 	}

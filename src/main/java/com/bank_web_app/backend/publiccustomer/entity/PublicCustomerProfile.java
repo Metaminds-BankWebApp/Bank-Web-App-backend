@@ -24,24 +24,30 @@ import lombok.Setter;
 @NoArgsConstructor
 public class PublicCustomerProfile {
 
+	// Primary key of public-customer profile.
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	@Column(name = "public_customer_id")
 	private Long publicCustomerId;
 
+	// Linked user account for this public-customer profile.
 	@OneToOne(fetch = FetchType.LAZY, optional = false)
 	@JoinColumn(name = "user_id", nullable = false, unique = true)
 	private User user;
 
+	// Human-readable customer code identifier.
 	@Column(name = "customer_code", nullable = false, unique = true, length = 50)
 	private String customerCode;
 
+	// Profile creation timestamp.
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private LocalDateTime createdAt;
 
+	// Profile last update timestamp.
 	@Column(name = "updated_at", nullable = false)
 	private LocalDateTime updatedAt;
 
+	// Initializes audit timestamps on first persist.
 	@PrePersist
 	void onCreate() {
 		LocalDateTime now = LocalDateTime.now();
@@ -49,6 +55,7 @@ public class PublicCustomerProfile {
 		updatedAt = now;
 	}
 
+	// Refreshes update timestamp on each modification.
 	@PreUpdate
 	void onUpdate() {
 		updatedAt = LocalDateTime.now();

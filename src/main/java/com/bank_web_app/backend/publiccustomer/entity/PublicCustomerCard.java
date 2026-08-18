@@ -23,27 +23,34 @@ import lombok.Setter;
 @NoArgsConstructor
 public class PublicCustomerCard {
 
+	// Primary key of the card entry.
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	@Column(name = "card_id")
 	private Long cardId;
 
+	// Parent financial record this card belongs to.
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
 	@JoinColumn(name = "record_id", nullable = false)
 	private PublicCustomerFinancialRecord financialRecord;
 
+	// Card issuer/provider name.
 	@Column(name = "provider", length = 100)
 	private String provider;
 
+	// Approved credit limit for the card.
 	@Column(name = "credit_limit", nullable = false, precision = 15, scale = 2)
 	private BigDecimal creditLimit;
 
+	// Current outstanding card balance.
 	@Column(name = "outstanding_balance", nullable = false, precision = 15, scale = 2)
 	private BigDecimal outstandingBalance;
 
+	// Row creation timestamp.
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private LocalDateTime createdAt;
 
+	// Initializes created timestamp when row is first persisted.
 	@PrePersist
 	void onCreate() {
 		createdAt = LocalDateTime.now();
