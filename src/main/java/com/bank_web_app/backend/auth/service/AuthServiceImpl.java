@@ -1,15 +1,22 @@
 package com.bank_web_app.backend.auth.service;
 
+import com.bank_web_app.backend.auth.dto.request.ForgotPasswordRequest;
 import com.bank_web_app.backend.auth.dto.request.LoginRequest;
 import com.bank_web_app.backend.auth.dto.request.RefreshTokenRequest;
+import com.bank_web_app.backend.auth.dto.request.ResetPasswordRequest;
+import com.bank_web_app.backend.auth.dto.request.VerifyPasswordResetOtpRequest;
+import com.bank_web_app.backend.auth.dto.response.AuthActionResponse;
 import com.bank_web_app.backend.auth.dto.response.AuthMeResponse;
 import com.bank_web_app.backend.auth.dto.response.LoginResponse;
+import com.bank_web_app.backend.auth.entity.PasswordResetToken;
 import com.bank_web_app.backend.auth.entity.RefreshToken;
+import com.bank_web_app.backend.auth.repository.PasswordResetTokenRepository;
 import com.bank_web_app.backend.auth.repository.RefreshTokenRepository;
 import com.bank_web_app.backend.bankcustomer.entity.BankCustomer;
 import com.bank_web_app.backend.bankcustomer.repository.BankCustomerRepository;
 import com.bank_web_app.backend.bankofficer.entity.BankOfficer;
 import com.bank_web_app.backend.bankofficer.repository.BankOfficerRepository;
+import com.bank_web_app.backend.common.email.EmailService;
 import com.bank_web_app.backend.security.jwt.JwtService;
 import com.bank_web_app.backend.publiccustomer.entity.PublicCustomerProfile;
 import com.bank_web_app.backend.publiccustomer.repository.PublicCustomerProfileRepository;
@@ -21,8 +28,10 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Base64;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
@@ -32,11 +41,21 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 public class AuthServiceImpl implements AuthService {
 
+	private static final Logger LOGGER = LoggerFactory.getLogger(AuthServiceImpl.class);
 	private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+	private static final int PASSWORD_RESET_OTP_LENGTH = 6;
+	private static final int PASSWORD_RESET_MAX_ATTEMPTS = 5;
+	private static final Pattern PASSWORD_PATTERN = Pattern.compile("^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{10,255}$");
+	private static final String PASSWORD_RESET_REQUEST_MESSAGE =
+		"If an active account matches those details, a verification code has been sent to its registered email address.";
+	private static final String INVALID_RESET_OTP_MESSAGE = "Invalid, expired, or locked verification code.";
+	private static final String INVALID_RESET_SESSION_MESSAGE = "This password-reset session is invalid or has expired. Request a new code.";
 
 	private final UserRepository userRepository;
 	private final BankCustomerRepository bankCustomerRepository;
@@ -44,8 +63,13 @@ public class AuthServiceImpl implements AuthService {
 	private final BankOfficerRepository bankOfficerRepository;
 	private final JwtService jwtService;
 	private final RefreshTokenRepository refreshTokenRepository;
+	private final PasswordResetTokenRepository passwordResetTokenRepository;
 	private final PasswordEncoder passwordEncoder;
+	private final EmailService emailService;
 	private final long refreshTokenExpirationMs;
+	private final int passwordResetOtpExpiryMinutes;
+	private final int passwordResetTokenExpiryMinutes;
+	private final int passwordResetResendCooldownSeconds;
 
 	public AuthServiceImpl(
 		UserRepository userRepository,
@@ -54,8 +78,13 @@ public class AuthServiceImpl implements AuthService {
 		BankOfficerRepository bankOfficerRepository,
 		JwtService jwtService,
 		RefreshTokenRepository refreshTokenRepository,
+		PasswordResetTokenRepository passwordResetTokenRepository,
 		PasswordEncoder passwordEncoder,
-		@Value("${jwt.refresh-token-expiration-ms:1209600000}") long refreshTokenExpirationMs
+		EmailService emailService,
+		@Value("${jwt.refresh-token-expiration-ms:1209600000}") long refreshTokenExpirationMs,
+		@Value("${app.password-reset.otp-expiry-minutes:10}") int passwordResetOtpExpiryMinutes,
+		@Value("${app.password-reset.token-expiry-minutes:15}") int passwordResetTokenExpiryMinutes,
+		@Value("${app.password-reset.resend-cooldown-seconds:60}") int passwordResetResendCooldownSeconds
 	) {
 		this.userRepository = userRepository;
 		this.bankCustomerRepository = bankCustomerRepository;
@@ -63,8 +92,13 @@ public class AuthServiceImpl implements AuthService {
 		this.bankOfficerRepository = bankOfficerRepository;
 		this.jwtService = jwtService;
 		this.refreshTokenRepository = refreshTokenRepository;
+		this.passwordResetTokenRepository = passwordResetTokenRepository;
 		this.passwordEncoder = passwordEncoder;
+		this.emailService = emailService;
 		this.refreshTokenExpirationMs = refreshTokenExpirationMs;
+		this.passwordResetOtpExpiryMinutes = Math.max(1, passwordResetOtpExpiryMinutes);
+		this.passwordResetTokenExpiryMinutes = Math.max(1, passwordResetTokenExpiryMinutes);
+		this.passwordResetResendCooldownSeconds = Math.max(1, passwordResetResendCooldownSeconds);
 	}
 
 	@Override
@@ -139,6 +173,139 @@ public class AuthServiceImpl implements AuthService {
 	}
 
 	@Override
+	@Transactional
+	public AuthActionResponse forgotPassword(ForgotPasswordRequest request) {
+		User user = findUserByIdentifier(request.identifier()).orElse(null);
+		if (user == null || "INACTIVE".equalsIgnoreCase(user.getStatus())) {
+			return passwordResetRequestResponse();
+		}
+
+		LocalDateTime now = LocalDateTime.now();
+		List<PasswordResetToken> activeTokens = passwordResetTokenRepository
+			.findAllByUser_UserIdAndConsumedAtIsNullOrderByCreatedAtDesc(user.getUserId());
+		if (
+			!activeTokens.isEmpty() &&
+			activeTokens.getFirst().getCreatedAt().isAfter(now.minusSeconds(passwordResetResendCooldownSeconds))
+		) {
+			return passwordResetRequestResponse();
+		}
+
+		activeTokens.forEach(token -> token.setConsumedAt(now));
+		if (!activeTokens.isEmpty()) {
+			passwordResetTokenRepository.saveAll(activeTokens);
+		}
+
+		String otp = generatePasswordResetOtp();
+		PasswordResetToken token = new PasswordResetToken();
+		token.setUser(user);
+		token.setOtpHash(passwordEncoder.encode(otp));
+		token.setOtpExpiresAt(now.plusMinutes(passwordResetOtpExpiryMinutes));
+		token.setFailedAttempts(0);
+		passwordResetTokenRepository.save(token);
+
+		try {
+			emailService.sendPlainText(
+				user.getEmail(),
+				"Primecore password reset code",
+				buildPasswordResetEmail(user, otp)
+			);
+		} catch (RuntimeException exception) {
+			token.setConsumedAt(now);
+			passwordResetTokenRepository.save(token);
+			LOGGER.error("Password-reset email could not be delivered for userId={}", user.getUserId(), exception);
+		}
+
+		return passwordResetRequestResponse();
+	}
+
+	@Override
+	@Transactional
+	public AuthActionResponse verifyPasswordResetOtp(VerifyPasswordResetOtpRequest request) {
+		User user = findUserByIdentifier(request.identifier()).orElse(null);
+		if (user == null || "INACTIVE".equalsIgnoreCase(user.getStatus())) {
+			throw invalidPasswordResetOtp();
+		}
+
+		PasswordResetToken token = passwordResetTokenRepository
+			.findAllByUser_UserIdAndConsumedAtIsNullOrderByCreatedAtDesc(user.getUserId())
+			.stream()
+			.findFirst()
+			.orElseThrow(this::invalidPasswordResetOtp);
+		LocalDateTime now = LocalDateTime.now();
+		if (token.getOtpExpiresAt().isBefore(now) || token.getFailedAttempts() >= PASSWORD_RESET_MAX_ATTEMPTS) {
+			token.setConsumedAt(now);
+			passwordResetTokenRepository.save(token);
+			throw invalidPasswordResetOtp();
+		}
+
+		if (!passwordEncoder.matches(request.otp().trim(), token.getOtpHash())) {
+			token.setFailedAttempts(token.getFailedAttempts() + 1);
+			if (token.getFailedAttempts() >= PASSWORD_RESET_MAX_ATTEMPTS) {
+				token.setConsumedAt(now);
+			}
+			passwordResetTokenRepository.save(token);
+			throw invalidPasswordResetOtp();
+		}
+
+		String rawResetToken = generateResetToken();
+		token.setVerifiedAt(now);
+		token.setResetTokenHash(sha256Hex(rawResetToken));
+		token.setResetTokenExpiresAt(now.plusMinutes(passwordResetTokenExpiryMinutes));
+		passwordResetTokenRepository.save(token);
+		return new AuthActionResponse("Verification successful. You can now set a new password.", rawResetToken);
+	}
+
+	@Override
+	@Transactional
+	public AuthActionResponse resetPassword(ResetPasswordRequest request) {
+		if (!request.password().equals(request.confirmPassword())) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Confirm password does not match.");
+		}
+		if (!PASSWORD_PATTERN.matcher(request.password()).matches()) {
+			throw new ResponseStatusException(
+				HttpStatus.BAD_REQUEST,
+				"Password must be at least 10 characters and include uppercase, lowercase, and numbers."
+			);
+		}
+
+		PasswordResetToken token = passwordResetTokenRepository
+			.findByResetTokenHashAndConsumedAtIsNull(sha256Hex(request.resetToken().trim()))
+			.orElseThrow(this::invalidPasswordResetSession);
+		LocalDateTime now = LocalDateTime.now();
+		if (
+			token.getVerifiedAt() == null ||
+			token.getResetTokenExpiresAt() == null ||
+			!token.getResetTokenExpiresAt().isAfter(now)
+		) {
+			token.setConsumedAt(now);
+			passwordResetTokenRepository.save(token);
+			throw invalidPasswordResetSession();
+		}
+
+		User user = token.getUser();
+		if ("INACTIVE".equalsIgnoreCase(user.getStatus())) {
+			throw invalidPasswordResetSession();
+		}
+		user.setPasswordHash(passwordEncoder.encode(request.password()));
+		userRepository.save(user);
+		refreshTokenRepository.deleteByUser_UserId(user.getUserId());
+		token.setConsumedAt(now);
+		passwordResetTokenRepository.save(token);
+
+		try {
+			emailService.sendPlainText(
+				user.getEmail(),
+				"Your Primecore password was changed",
+				"Your password was changed successfully. If you did not make this change, contact support immediately."
+			);
+		} catch (RuntimeException exception) {
+			LOGGER.error("Password-reset confirmation email could not be delivered for userId={}", user.getUserId(), exception);
+		}
+
+		return new AuthActionResponse("Password updated successfully. Please sign in with your new password.", null);
+	}
+
+	@Override
 	@Transactional(readOnly = true)
 	public AuthMeResponse me() {
 		User user = resolveLoggedInUser();
@@ -196,6 +363,13 @@ public class AuthServiceImpl implements AuthService {
 			.orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Logged-in user was not found."));
 	}
 
+	private java.util.Optional<User> findUserByIdentifier(String identifier) {
+		String normalizedIdentifier = identifier.trim();
+		return userRepository
+			.findByEmailIgnoreCase(normalizedIdentifier)
+			.or(() -> userRepository.findByUsernameIgnoreCase(normalizedIdentifier));
+	}
+
 	private LoginResponse issueTokenPair(User user) {
 		TokenPair pair = createRefreshToken(user);
 		return issueTokenResponse(user, pair.rawRefreshToken());
@@ -242,6 +416,37 @@ public class AuthServiceImpl implements AuthService {
 		byte[] randomBytes = new byte[64];
 		SECURE_RANDOM.nextBytes(randomBytes);
 		return Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes);
+	}
+
+	private String generatePasswordResetOtp() {
+		int upperBound = (int) Math.pow(10, PASSWORD_RESET_OTP_LENGTH);
+		return String.format(Locale.ROOT, "%0" + PASSWORD_RESET_OTP_LENGTH + "d", SECURE_RANDOM.nextInt(upperBound));
+	}
+
+	private String generateResetToken() {
+		byte[] randomBytes = new byte[32];
+		SECURE_RANDOM.nextBytes(randomBytes);
+		return Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes);
+	}
+
+	private String buildPasswordResetEmail(User user, String otp) {
+		String name = safe(user.getFirstName());
+		String greeting = name.isBlank() ? "Hello," : "Hello " + name + ",";
+		return greeting + "\n\n" +
+			"Use this verification code to reset your Primecore password: " + otp + "\n\n" +
+			"This code expires in " + passwordResetOtpExpiryMinutes + " minutes. Do not share it with anyone.";
+	}
+
+	private AuthActionResponse passwordResetRequestResponse() {
+		return new AuthActionResponse(PASSWORD_RESET_REQUEST_MESSAGE, null);
+	}
+
+	private ResponseStatusException invalidPasswordResetOtp() {
+		return new ResponseStatusException(HttpStatus.BAD_REQUEST, INVALID_RESET_OTP_MESSAGE);
+	}
+
+	private ResponseStatusException invalidPasswordResetSession() {
+		return new ResponseStatusException(HttpStatus.BAD_REQUEST, INVALID_RESET_SESSION_MESSAGE);
 	}
 
 	private String sha256Hex(String value) {

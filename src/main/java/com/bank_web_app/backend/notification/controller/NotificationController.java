@@ -60,9 +60,16 @@ public class NotificationController {
 	}
 
 	@DeleteMapping("/{notificationId}")
-	@Operation(summary = "Dismiss one owned notification")
+	@Operation(summary = "Permanently delete one owned notification")
 	public ResponseEntity<Void> dismiss(@PathVariable Long notificationId) {
-		notificationService.dismissMyNotification(notificationId);
+		notificationService.deleteMyNotification(notificationId);
+		return ResponseEntity.noContent().build();
+	}
+
+	@DeleteMapping
+	@Operation(summary = "Permanently clear all notifications owned by the logged-in user")
+	public ResponseEntity<Void> clearAll() {
+		notificationService.clearAllMyNotifications();
 		return ResponseEntity.noContent().build();
 	}
 }

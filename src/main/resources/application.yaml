@@ -37,6 +37,10 @@ jwt:
   refresh-token-expiration-ms: ${JWT_REFRESH_TOKEN_EXPIRATION_MS:1209600000}
 
 app:
+  password-reset:
+    otp-expiry-minutes: ${APP_PASSWORD_RESET_OTP_EXPIRY_MINUTES:10}
+    token-expiry-minutes: ${APP_PASSWORD_RESET_TOKEN_EXPIRY_MINUTES:15}
+    resend-cooldown-seconds: ${APP_PASSWORD_RESET_RESEND_COOLDOWN_SECONDS:60}
   transact:
     otp:
       fail-open-enabled: ${APP_TRANSACT_OTP_FAIL_OPEN_ENABLED:false}

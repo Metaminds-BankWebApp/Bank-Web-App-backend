@@ -1,9 +1,7 @@
 package com.bank_web_app.backend.notification.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -23,7 +21,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.web.server.ResponseStatusException;
 
 @ExtendWith(MockitoExtension.class)
 class NotificationServiceTest {
@@ -82,7 +79,7 @@ class NotificationServiceTest {
 	}
 
 	@Test
-	void keepsMissingFinancialDetailsNotificationUntilCompletion() {
+	void permanentlyDeletesAnOwnedNotification() {
 		User recipient = user(12L);
 		Notification reminder = new Notification();
 		reminder.setRecipient(recipient);
@@ -92,10 +89,9 @@ class NotificationServiceTest {
 		when(notificationRepository.findByNotificationIdAndRecipient_UserIdAndDismissedAtIsNull(5L, 12L))
 			.thenReturn(Optional.of(reminder));
 
-		assertThatThrownBy(() -> notificationService.dismissMyNotification(5L))
-			.isInstanceOf(ResponseStatusException.class)
-			.hasMessageContaining("Complete your financial details");
-		verify(notificationRepository, never()).save(reminder);
+		notificationService.deleteMyNotification(5L);
+
+		verify(notificationRepository).delete(reminder);
 	}
 
 	@Test
@@ -110,6 +106,16 @@ class NotificationServiceTest {
 
 		assertThat(reminder.getDismissedAt()).isNotNull();
 		verify(notificationRepository).saveAll(List.of(reminder));
+	}
+
+	@Test
+	void clearsOnlyTheLoggedInUsersNotifications() {
+		User recipient = user(12L);
+		when(currentUserService.resolveRequiredUser()).thenReturn(recipient);
+
+		notificationService.clearAllMyNotifications();
+
+		verify(notificationRepository).deleteByRecipient_UserId(12L);
 	}
 
 	private NotificationCommand command(boolean aggregate) {
