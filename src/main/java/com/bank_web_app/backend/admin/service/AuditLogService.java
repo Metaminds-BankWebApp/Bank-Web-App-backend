@@ -10,7 +10,11 @@ import com.bank_web_app.backend.user.repository.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.persistence.criteria.Expression;
 import jakarta.persistence.criteria.Predicate;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -52,6 +56,11 @@ public class AuditLogService {
 	private static final int MAX_LIMIT = 100;
 	private static final int MAX_PAGE_SIZE = 200;
 	private static final int RECENT_ACTION_FETCH_MULTIPLIER = 5;
+	private static final List<DateTimeFormatter> DATE_SEARCH_FORMATTERS = List.of(
+		DateTimeFormatter.ISO_LOCAL_DATE,
+		new DateTimeFormatterBuilder().parseCaseInsensitive().appendPattern("d MMM uuuu").toFormatter(Locale.ENGLISH),
+		new DateTimeFormatterBuilder().parseCaseInsensitive().appendPattern("d/MM/uuuu").toFormatter(Locale.ENGLISH)
+	);
 	private static final Set<String> CUSTOMER_ROLES = Set.of("PUBLIC_CUSTOMER", "BANK_CUSTOMER");
 	private static final Set<String> IMPORTANT_CUSTOMER_TARGET_TYPES = Set.of(
 		"PROFILE",
@@ -394,6 +403,53 @@ public class AuditLogService {
 		return actor.getRole().getRoleName().trim();
 	}
 
+	static String normalizeSearchPattern(String query) {
+		if (query == null) {
+			return null;
+		}
+		String trimmed = query.trim();
+		if (trimmed.isEmpty()) {
+			return null;
+		}
+		return "%" + trimmed.toLowerCase(Locale.ROOT) + "%";
+	}
+
+	static boolean matchesSearchIgnoreCase(String value, String query) {
+		if (value == null || query == null) {
+			return false;
+		}
+		return value.toLowerCase(Locale.ROOT).contains(query.toLowerCase(Locale.ROOT));
+	}
+
+	static LocalDate parseDateSearchQuery(String query) {
+		if (query == null || query.isBlank()) {
+			return null;
+		}
+
+		String normalizedQuery = query.trim();
+		for (DateTimeFormatter formatter : DATE_SEARCH_FORMATTERS) {
+			try {
+				return LocalDate.parse(normalizedQuery, formatter);
+			} catch (DateTimeParseException ignored) {
+				// Try the next format accepted by the audit-log table.
+			}
+		}
+		return null;
+	}
+
+	static List<String> tonesForDisplayStatusSearch(String query) {
+		if (query == null) {
+			return List.of();
+		}
+
+		return switch (query.trim().toLowerCase(Locale.ROOT)) {
+			case "success" -> List.of("SUCCESS");
+			case "failure", "failed" -> List.of("ERROR");
+			case "policy", "policy change" -> List.of("WARNING", "INFO");
+			default -> List.of();
+		};
+	}
+
 	private Specification<AuditLog> buildSearchSpecification(
 		LocalDateTime fromDateTime,
 		LocalDateTime toDateTime,
@@ -429,19 +485,58 @@ public class AuditLogService {
 				predicates.add(cb.like(cb.lower(root.get("actorName")), "%" + actorName.toLowerCase(Locale.ROOT) + "%"));
 			}
 			if (query != null) {
-				String search = "%" + query.toLowerCase(Locale.ROOT) + "%";
+				String search = normalizeSearchPattern(query);
+				if (search == null) {
+					return cb.and(predicates.toArray(Predicate[]::new));
+				}
+				LocalDate searchDate = parseDateSearchQuery(query);
+				List<String> displayStatusTones = tonesForDisplayStatusSearch(query);
 				Expression<String> title = cb.lower(cb.coalesce(root.get("title"), ""));
 				Expression<String> details = cb.lower(cb.coalesce(root.get("details"), ""));
+				Expression<String> actorNameExpr = cb.lower(cb.coalesce(root.get("actorName"), ""));
+				Expression<String> actionTypeExpr = cb.lower(cb.coalesce(root.get("actionType"), ""));
+				Expression<String> actorRoleExpr = cb.lower(cb.coalesce(root.get("actorRole"), ""));
+				Expression<String> targetTypeExpr = cb.lower(cb.coalesce(root.get("targetType"), ""));
 				Expression<String> targetIdExpr = cb.lower(cb.coalesce(root.get("targetId"), ""));
 				Expression<String> ipExpr = cb.lower(cb.coalesce(root.get("ipAddress"), ""));
-				predicates.add(
-					cb.or(
-						cb.like(title, search),
-						cb.like(details, search),
-						cb.like(targetIdExpr, search),
-						cb.like(ipExpr, search)
-					)
+				Expression<String> dateTimeExpr = cb.lower(
+					cb.function("to_char", String.class, root.get("createdAt"), cb.literal("YYYY-MM-DD HH24:MI:SS"))
 				);
+				Expression<String> dateOnlyExpr = cb.lower(
+					cb.function("to_char", String.class, root.get("createdAt"), cb.literal("YYYY-MM-DD"))
+				);
+				Expression<String> displayDateExpr = cb.lower(
+					cb.function("to_char", String.class, root.get("createdAt"), cb.literal("DD Mon YYYY"))
+				);
+				Expression<String> toneExpr = cb.lower(cb.coalesce(root.get("tone"), ""));
+				List<Predicate> queryPredicates = new ArrayList<>(List.of(
+					cb.like(title, search),
+					cb.like(details, search),
+					cb.like(actorNameExpr, search),
+					cb.like(actionTypeExpr, search),
+					cb.like(actorRoleExpr, search),
+					cb.like(targetTypeExpr, search),
+					cb.like(targetIdExpr, search),
+					cb.like(ipExpr, search),
+					cb.like(dateTimeExpr, search),
+					cb.like(dateOnlyExpr, search),
+					cb.like(displayDateExpr, search),
+					cb.like(toneExpr, search)
+				));
+
+				if (searchDate != null) {
+					queryPredicates.add(
+						cb.and(
+							cb.greaterThanOrEqualTo(root.get("createdAt"), searchDate.atStartOfDay()),
+							cb.lessThan(root.get("createdAt"), searchDate.plusDays(1).atStartOfDay())
+						)
+					);
+				}
+				if (!displayStatusTones.isEmpty()) {
+					queryPredicates.add(cb.upper(root.get("tone")).in(displayStatusTones));
+				}
+
+				predicates.add(cb.or(queryPredicates.toArray(Predicate[]::new)));
 			}
 
 			return cb.and(predicates.toArray(Predicate[]::new));
