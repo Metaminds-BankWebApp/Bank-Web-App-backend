@@ -173,13 +173,6 @@ public class PublicCustomerFinancialRecordService {
 	// Saves step-2 loan data by replacing existing rows for current record.
 	@Transactional
 	public PublicCustomerFinancialStepResponse saveLoanStep(Long publicCustomerId, PublicCustomerLoanStepRequest request) {
-		if (request.loans().isEmpty()) {
-			throw new ResponseStatusException(
-				HttpStatus.BAD_REQUEST,
-				"Add at least one loan, or use Skip if you have no loan details to provide."
-			);
-		}
-
 		PublicCustomerFinancialRecord currentRecord = getOrCreateCurrentRecord(publicCustomerId);
 		Long recordId = currentRecord.getRecordId();
 
@@ -203,13 +196,6 @@ public class PublicCustomerFinancialRecordService {
 	// Saves step-3 card data by replacing existing rows for current record.
 	@Transactional
 	public PublicCustomerFinancialStepResponse saveCardStep(Long publicCustomerId, PublicCustomerCardStepRequest request) {
-		if (request.cards().isEmpty()) {
-			throw new ResponseStatusException(
-				HttpStatus.BAD_REQUEST,
-				"Add at least one credit card, or use Skip if you have no card details to provide."
-			);
-		}
-
 		PublicCustomerFinancialRecord currentRecord = getOrCreateCurrentRecord(publicCustomerId);
 		Long recordId = currentRecord.getRecordId();
 
@@ -233,13 +219,6 @@ public class PublicCustomerFinancialRecordService {
 	// Saves step-4 liabilities and missed-payment aggregate for current record.
 	@Transactional
 	public PublicCustomerFinancialStepResponse saveLiabilityStep(Long publicCustomerId, PublicCustomerLiabilityStepRequest request) {
-		if (request.liabilities().isEmpty() && request.missedPayments() == 0) {
-			throw new ResponseStatusException(
-				HttpStatus.BAD_REQUEST,
-				"Add a liability or missed payment, or use Skip if you have no liability details to provide."
-			);
-		}
-
 		PublicCustomerFinancialRecord currentRecord = getOrCreateCurrentRecord(publicCustomerId);
 		Long recordId = currentRecord.getRecordId();
 
