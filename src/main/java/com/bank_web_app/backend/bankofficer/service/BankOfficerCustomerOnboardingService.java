@@ -80,14 +80,14 @@ public class BankOfficerCustomerOnboardingService {
 
 	@Transactional(readOnly = true)
 	public BankOfficerCustomerStepOnePrefillResponse getOwnedBankCustomerStepOneByNic(String nic) {
-		String normalizedNic = safeTrim(nic);
+		String normalizedNic = safeTrim(nic).replaceAll("\\s+", "").toUpperCase(Locale.ROOT);
 		if (normalizedNic.isBlank()) {
 			throw new IllegalArgumentException("NIC is required.");
 		}
 
 		bankOfficerContextService.resolveLoggedInBankOfficer();
 		BankCustomer customer = bankCustomerRepository
-			.findByUser_Nic(normalizedNic)
+			.findByNormalizedUserNic(normalizedNic)
 			.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Bank customer was not found."));
 
 		User user = customer.getUser();
