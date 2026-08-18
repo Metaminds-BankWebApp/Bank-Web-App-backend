@@ -11,6 +11,7 @@ import com.bank_web_app.backend.transact.dto.response.TransactDashboardSummaryRe
 import com.bank_web_app.backend.transact.dto.response.TransactionInitiateResponse;
 import com.bank_web_app.backend.transact.dto.response.TransactionResponse;
 import com.bank_web_app.backend.transact.service.TransactionService;
+import com.bank_web_app.backend.transact.service.TransactionReceiptPdfService;
 import com.bank_web_app.backend.transact.service.TransactionStatementPdfService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -42,14 +43,18 @@ public class TransactionController {
 	private final TransactionService transactionService;
 	// Service layer for generating statement-style transaction history PDFs.
 	private final TransactionStatementPdfService transactionStatementPdfService;
+	// Service layer for generating a receipt PDF for one completed transfer.
+	private final TransactionReceiptPdfService transactionReceiptPdfService;
 
 	// Injects transact services used by customer-facing transact endpoints.
 	public TransactionController(
 		TransactionService transactionService,
-		TransactionStatementPdfService transactionStatementPdfService
+		TransactionStatementPdfService transactionStatementPdfService,
+		TransactionReceiptPdfService transactionReceiptPdfService
 	) {
 		this.transactionService = transactionService;
 		this.transactionStatementPdfService = transactionStatementPdfService;
+		this.transactionReceiptPdfService = transactionReceiptPdfService;
 	}
 
 	// Initiates a transfer and triggers OTP delivery for confirmation.
@@ -182,6 +187,30 @@ public class TransactionController {
 			.contentType(MediaType.APPLICATION_PDF)
 			.header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + report.fileName() + "\"")
 			.body(report.content());
+	}
+
+	// Generates and downloads a PDF receipt for one successful customer-owned transaction.
+	@GetMapping(value = "/transactions/{referenceNo}/receipt", produces = MediaType.APPLICATION_PDF_VALUE)
+	@Operation(
+		summary = "Download transaction receipt as PDF",
+		description = "Returns a receipt PDF for a successful transaction owned by the logged-in BANK_CUSTOMER.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Receipt PDF generated successfully"),
+			@ApiResponse(responseCode = "400", description = "Transaction is not successful"),
+			@ApiResponse(responseCode = "401", description = "Unauthorized: bank customer authentication is required"),
+			@ApiResponse(responseCode = "403", description = "Forbidden: the transaction is not owned by the logged-in customer"),
+			@ApiResponse(responseCode = "404", description = "Transaction not found")
+		}
+	)
+	public ResponseEntity<byte[]> downloadTransactionReceipt(@PathVariable String referenceNo) {
+		TransactionReceiptPdfService.ReceiptPdfResult receipt = transactionReceiptPdfService.generateReceiptPdf(referenceNo);
+
+		return ResponseEntity
+			.ok()
+			.cacheControl(CacheControl.noStore().mustRevalidate())
+			.contentType(MediaType.APPLICATION_PDF)
+			.header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + receipt.fileName() + "\"")
+			.body(receipt.content());
 	}
 
 	// Returns a single transaction using its reference number.
