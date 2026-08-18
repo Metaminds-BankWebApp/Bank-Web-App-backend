@@ -16,12 +16,15 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Bank Officer Transact", description = "Read-only transaction endpoints for BANK_OFFICER users.")
 public class BankOfficerTransactionController {
 
+	// Service layer dependency for retrieving transaction records.
 	private final TransactionService transactionService;
 
+	// Injects transaction service for bank officer transaction endpoints.
 	public BankOfficerTransactionController(TransactionService transactionService) {
 		this.transactionService = transactionService;
 	}
 
+	// Returns all transactions visible to BANK_OFFICER users.
 	@GetMapping("/transactions")
 	@Operation(
 		summary = "Get all transactions",

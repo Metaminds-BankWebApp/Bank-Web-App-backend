@@ -77,6 +77,7 @@ public class TransactionStatementPdfService {
 	private final AccountRepository accountRepository;
 	private final UserRepository userRepository;
 
+	// Injects dependencies required for statement data resolution and auth context.
 	public TransactionStatementPdfService(
 		TransactionRepository transactionRepository,
 		BankCustomerRepository bankCustomerRepository,
@@ -89,6 +90,7 @@ public class TransactionStatementPdfService {
 		this.userRepository = userRepository;
 	}
 
+	// Generates statement PDF bytes (and file name) for selected or default date range.
 	@Transactional(readOnly = true)
 	public StatementPdfResult generateStatementPdf(LocalDate fromDate, LocalDate toDate) {
 		DateRange range = resolveDateRange(fromDate, toDate);
@@ -134,6 +136,7 @@ public class TransactionStatementPdfService {
 		return new StatementPdfResult(fileName, pdfContent);
 	}
 
+	// Resolves effective date range and validates ordering + future constraints.
 	private DateRange resolveDateRange(LocalDate fromDate, LocalDate toDate) {
 		LocalDate today = LocalDate.now();
 		LocalDate effectiveToDate = toDate == null ? today : toDate;
@@ -149,6 +152,7 @@ public class TransactionStatementPdfService {
 		return new DateRange(effectiveFromDate, effectiveToDate);
 	}
 
+	// Computes opening balance at range start by reversing later successful transactions.
 	private BigDecimal computeOpeningBalance(
 		LocalDateTime fromDateTime,
 		String accountNumber,
@@ -166,6 +170,7 @@ public class TransactionStatementPdfService {
 		return runningBalance;
 	}
 
+	// Builds statement rows and aggregate deposit/withdrawal totals for the period.
 	private StatementComputation computeStatementRows(
 		String accountNumber,
 		BigDecimal openingBalance,
@@ -210,6 +215,7 @@ public class TransactionStatementPdfService {
 		return new StatementComputation(rows, totalDeposits, totalWithdrawals, depositCount, withdrawalCount);
 	}
 
+	// Reverses the effect of one transaction when backtracking opening balance.
 	private BigDecimal reverseTransactionEffect(BigDecimal balanceAfterTransaction, Transaction transaction, String accountNumber) {
 		BigDecimal amount = safeAmount(transaction.getAmount());
 		if (isOutgoing(transaction, accountNumber)) {
@@ -218,10 +224,12 @@ public class TransactionStatementPdfService {
 		return balanceAfterTransaction.subtract(amount);
 	}
 
+	// Determines whether transaction direction is outgoing relative to account.
 	private boolean isOutgoing(Transaction transaction, String accountNumber) {
 		return normalizeAccountNumber(transaction.getSenderAccountNo()).equals(accountNumber);
 	}
 
+	// Builds statement particulars text line for one transaction row.
 	private String buildParticulars(Transaction transaction, boolean isOutgoing) {
 		String referenceNo = safeText(transaction.getReferenceNo());
 		String remark = safeText(transaction.getRemark());
@@ -246,6 +254,7 @@ public class TransactionStatementPdfService {
 		return trimToLength(particulars, 88);
 	}
 
+	// Trims long text with ellipsis to keep table layout stable.
 	private String trimToLength(String value, int maxLength) {
 		if (value == null || value.length() <= maxLength) {
 			return value == null ? "" : value;
@@ -253,6 +262,7 @@ public class TransactionStatementPdfService {
 		return value.substring(0, maxLength - 3) + "...";
 	}
 
+	// Renders complete PDF document from computed statement data.
 	private byte[] buildPdf(
 		BankCustomer bankCustomer,
 		Account account,
@@ -279,6 +289,7 @@ public class TransactionStatementPdfService {
 		}
 	}
 
+	// Adds top banner/title/date section to the statement document.
 	private void addHeaderSection(Document document, DateRange range) throws DocumentException {
 		PdfPTable bannerTable = new PdfPTable(1);
 		bannerTable.setWidthPercentage(100f);
@@ -311,6 +322,7 @@ public class TransactionStatementPdfService {
 		document.add(new Paragraph(" "));
 	}
 
+	// Adds customer and account details section.
 	private void addCustomerSection(Document document, BankCustomer bankCustomer, Account account) throws DocumentException {
 		User user = bankCustomer.getUser();
 		String fullName = resolveDisplayName(user).toUpperCase(Locale.ENGLISH);
@@ -348,6 +360,7 @@ public class TransactionStatementPdfService {
 		document.add(new Paragraph(" "));
 	}
 
+	// Adds main statement transaction table with alternating row styles.
 	private void addStatementTable(Document document, List<StatementRow> rows) throws DocumentException {
 		PdfPTable table = new PdfPTable(new float[] { 1.2f, 4.5f, 2f, 2f, 2f });
 		table.setWidthPercentage(100f);
@@ -373,6 +386,7 @@ public class TransactionStatementPdfService {
 		document.add(new Paragraph("  "));
 	}
 
+	// Adds totals block for unrealized cheques, deposits, and withdrawals.
 	private void addTotalsSection(Document document, StatementComputation computation) throws DocumentException {
 		PdfPTable totals = new PdfPTable(new float[] { 3.3f, 1.4f, 1.6f });
 		totals.setWidthPercentage(57f);
@@ -394,6 +408,7 @@ public class TransactionStatementPdfService {
 		document.add(new Paragraph("  "));
 	}
 
+	// Adds closing message and contact hint section.
 	private void addClosingSection(Document document, BankCustomer bankCustomer) throws DocumentException {
 		String branchPhone = bankCustomer.getBranch() == null ? "" : safeText(bankCustomer.getBranch().getBranchPhone());
 		String message = branchPhone.isBlank()
@@ -405,12 +420,14 @@ public class TransactionStatementPdfService {
 		document.add(centeredParagraph(message, FONT_SMALL));
 	}
 
+	// Creates a horizontally centered paragraph with a specific font.
 	private Paragraph centeredParagraph(String value, Font font) {
 		Paragraph paragraph = new Paragraph(value, font);
 		paragraph.setAlignment(Element.ALIGN_CENTER);
 		return paragraph;
 	}
 
+	// Builds shared section container style cell.
 	private PdfPCell sectionCell() {
 		PdfPCell cell = new PdfPCell();
 		cell.setBorderColor(SECTION_BORDER);
@@ -420,6 +437,7 @@ public class TransactionStatementPdfService {
 		return cell;
 	}
 
+	// Adds one key/value detail row into account-details mini-table.
 	private void addDetailRow(PdfPTable table, String label, String value) {
 		PdfPCell labelCell = new PdfPCell(new Phrase(label, FONT_SMALL_BOLD));
 		labelCell.setBorder(Rectangle.NO_BORDER);
@@ -442,6 +460,7 @@ public class TransactionStatementPdfService {
 		table.addCell(valueCell);
 	}
 
+	// Builds styled header cell for statement table.
 	private PdfPCell headerCell(String value) {
 		PdfPCell cell = new PdfPCell(new Phrase(value, FONT_TABLE_HEAD));
 		cell.setHorizontalAlignment(Element.ALIGN_CENTER);
@@ -453,6 +472,7 @@ public class TransactionStatementPdfService {
 		return cell;
 	}
 
+	// Builds styled body cell for statement table.
 	private PdfPCell bodyCell(String value, int horizontalAlignment, Color backgroundColor) {
 		PdfPCell cell = new PdfPCell(new Phrase(value, FONT_TABLE_BODY));
 		cell.setHorizontalAlignment(horizontalAlignment);
@@ -464,6 +484,7 @@ public class TransactionStatementPdfService {
 		return cell;
 	}
 
+	// Builds styled label cell used in totals section.
 	private PdfPCell totalLabelCell(String value) {
 		PdfPCell cell = new PdfPCell(new Phrase(value, FONT_SMALL_BOLD_WHITE));
 		cell.setBackgroundColor(BRAND_SECONDARY);
@@ -473,6 +494,7 @@ public class TransactionStatementPdfService {
 		return cell;
 	}
 
+	// Builds styled value cell used in totals section.
 	private PdfPCell totalValueCell(String value) {
 		PdfPCell cell = new PdfPCell(new Phrase(value, FONT_SMALL));
 		cell.setBackgroundColor(TOTAL_VALUE_BG);
@@ -483,6 +505,7 @@ public class TransactionStatementPdfService {
 		return cell;
 	}
 
+	// Returns formatted amount string or blank when value is null.
 	private String formatAmountOrBlank(BigDecimal value) {
 		if (value == null) {
 			return "";
@@ -490,11 +513,13 @@ public class TransactionStatementPdfService {
 		return formatAmount(value);
 	}
 
+	// Formats numeric amount with 2 decimal places and grouping separators.
 	private String formatAmount(BigDecimal value) {
 		DecimalFormat decimalFormat = new DecimalFormat("#,##0.00", DecimalFormatSymbols.getInstance(Locale.ENGLISH));
 		return decimalFormat.format(safeAmount(value));
 	}
 
+	// Splits address text into clean printable lines.
 	private List<String> splitAddressLines(String address) {
 		String sanitized = address.replace("\r", "").trim();
 		if (sanitized.isBlank()) {
@@ -515,18 +540,22 @@ public class TransactionStatementPdfService {
 		return lines;
 	}
 
+	// Normalizes account number by trimming and removing internal spaces.
 	private String normalizeAccountNumber(String accountNo) {
 		return accountNo == null ? "" : accountNo.replaceAll("\\s+", "").trim();
 	}
 
+	// Returns zero when amount is null.
 	private BigDecimal safeAmount(BigDecimal amount) {
 		return amount == null ? BigDecimal.ZERO : amount;
 	}
 
+	// Returns trimmed text or empty fallback for null values.
 	private String safeText(String value) {
 		return value == null ? "" : value.trim();
 	}
 
+	// Resolves best-available display name for statement customer block.
 	private String resolveDisplayName(User user) {
 		if (user == null) {
 			return "";
@@ -544,6 +573,7 @@ public class TransactionStatementPdfService {
 		return safeText(user.getEmail());
 	}
 
+	// Resolves account linked to authenticated bank customer.
 	private Account resolveOwnedAccountForBankCustomer(BankCustomer bankCustomer) {
 		if (bankCustomer == null || bankCustomer.getAccount() == null || bankCustomer.getAccount().getAccountId() == null) {
 			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Account was not found for logged-in bank customer.");
@@ -553,6 +583,7 @@ public class TransactionStatementPdfService {
 			.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Account was not found for logged-in bank customer."));
 	}
 
+	// Resolves and validates authenticated principal as BANK_CUSTOMER.
 	private BankCustomer resolveLoggedInBankCustomer() {
 		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 		if (
@@ -585,10 +616,13 @@ public class TransactionStatementPdfService {
 			.orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Bank customer profile was not found for logged-in user."));
 	}
 
+	// Result wrapper for generated statement file name and binary content.
 	public record StatementPdfResult(String fileName, byte[] content) {}
 
+	// Inclusive statement date range.
 	private record DateRange(LocalDate fromDate, LocalDate toDate) {}
 
+	// One printable row in statement transaction table.
 	private record StatementRow(
 		String date,
 		String particulars,
@@ -597,6 +631,7 @@ public class TransactionStatementPdfService {
 		BigDecimal balance
 	) {}
 
+	// Computed statement rows plus totals for summary section.
 	private record StatementComputation(
 		List<StatementRow> rows,
 		BigDecimal totalDeposits,
@@ -605,9 +640,11 @@ public class TransactionStatementPdfService {
 		int withdrawalCount
 	) {}
 
+	// Custom PDF footer renderer (page number, marker, and disclaimer).
 	private static class StatementFooterPageEvent extends PdfPageEventHelper {
 
 		@Override
+		// Draws footer lines at the end of each PDF page.
 		public void onEndPage(PdfWriter writer, Document document) {
 			ColumnText.showTextAligned(
 				writer.getDirectContent(),

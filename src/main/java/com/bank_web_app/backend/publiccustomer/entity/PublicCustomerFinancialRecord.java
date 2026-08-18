@@ -23,15 +23,18 @@ import lombok.Setter;
 @NoArgsConstructor
 public class PublicCustomerFinancialRecord {
 
+	// Primary key of financial snapshot record.
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	@Column(name = "record_id")
 	private Long recordId;
 
+	// Owning public-customer profile for this record.
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
 	@JoinColumn(name = "public_customer_id", nullable = false)
 	private PublicCustomerProfile publicCustomer;
 
+	// Record status marker (e.g., CURRENT/ARCHIVED).
 	@Column(name = "record_status", nullable = false, length = 20)
 	private String recordStatus = "CURRENT";
 
@@ -56,9 +59,11 @@ public class PublicCustomerFinancialRecord {
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private LocalDateTime createdAt;
 
+	// Record update timestamp.
 	@Column(name = "updated_at", nullable = false)
 	private LocalDateTime updatedAt;
 
+	// Initializes audit timestamps on first persist.
 	@PrePersist
 	void onCreate() {
 		LocalDateTime now = LocalDateTime.now();
@@ -66,6 +71,7 @@ public class PublicCustomerFinancialRecord {
 		updatedAt = now;
 	}
 
+	// Refreshes update timestamp on each modification.
 	@PreUpdate
 	void onUpdate() {
 		updatedAt = LocalDateTime.now();

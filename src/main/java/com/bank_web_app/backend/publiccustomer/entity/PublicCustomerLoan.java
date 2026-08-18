@@ -23,27 +23,34 @@ import lombok.Setter;
 @NoArgsConstructor
 public class PublicCustomerLoan {
 
+	// Primary key of loan entry.
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	@Column(name = "loan_id")
 	private Long loanId;
 
+	// Parent financial record this loan belongs to.
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
 	@JoinColumn(name = "record_id", nullable = false)
 	private PublicCustomerFinancialRecord financialRecord;
 
+	// Loan type/category label.
 	@Column(name = "loan_type", nullable = false, length = 50)
 	private String loanType;
 
+	// Current monthly EMI for this loan.
 	@Column(name = "monthly_emi", nullable = false, precision = 15, scale = 2)
 	private BigDecimal monthlyEmi;
 
+	// Remaining outstanding loan balance.
 	@Column(name = "remaining_balance", nullable = false, precision = 15, scale = 2)
 	private BigDecimal remainingBalance;
 
+	// Row creation timestamp.
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private LocalDateTime createdAt;
 
+	// Initializes created timestamp when row is first persisted.
 	@PrePersist
 	void onCreate() {
 		createdAt = LocalDateTime.now();

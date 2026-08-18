@@ -23,24 +23,30 @@ import lombok.Setter;
 @NoArgsConstructor
 public class PublicCustomerLiability {
 
+	// Primary key of liability entry.
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	@Column(name = "liability_id")
 	private Long liabilityId;
 
+	// Parent financial record this liability belongs to.
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
 	@JoinColumn(name = "record_id", nullable = false)
 	private PublicCustomerFinancialRecord financialRecord;
 
+	// Description of liability commitment.
 	@Column(name = "description", nullable = false, length = 255)
 	private String description;
 
+	// Monthly liability amount.
 	@Column(name = "monthly_amount", nullable = false, precision = 15, scale = 2)
 	private BigDecimal monthlyAmount;
 
+	// Row creation timestamp.
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private LocalDateTime createdAt;
 
+	// Initializes created timestamp when row is first persisted.
 	@PrePersist
 	void onCreate() {
 		createdAt = LocalDateTime.now();
