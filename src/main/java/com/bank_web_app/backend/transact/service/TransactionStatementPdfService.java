@@ -105,25 +105,16 @@ public class TransactionStatementPdfService {
 		LocalDateTime fromDateTime = range.fromDate().atStartOfDay();
 		LocalDateTime toDateTime = range.toDate().atTime(LocalTime.MAX);
 
-		List<Transaction> allSuccessTransactionsDesc = transactionRepository.findAllByAccountNoAndStatusOrderByTransactionDateDesc(
-			accountNumber,
-			STATUS_SUCCESS
-		);
-		List<Transaction> periodTransactions = transactionRepository.findAllByAccountNoAndStatusBetweenDatesOrderByTransactionDateAsc(
-			accountNumber,
-			STATUS_SUCCESS,
+		List<Transaction> periodTransactions = transactionRepository
+			.findAllByBankCustomer_BankCustomerIdAndTransactionDateBetweenOrderByTransactionDateDesc(
+				bankCustomer.getBankCustomerId(),
 			fromDateTime,
 			toDateTime
-		);
-
-		BigDecimal openingBalance = computeOpeningBalance(
-			fromDateTime,
-			accountNumber,
-			safeAmount(account.getBalance()),
-			allSuccessTransactionsDesc
-		);
-		StatementComputation computation = computeStatementRows(accountNumber, openingBalance, periodTransactions, range);
-		byte[] pdfContent = buildPdf(bankCustomer, account, range, computation);
+			);
+		List<HistoryRow> historyRows = periodTransactions.stream()
+			.map(transaction -> toHistoryRow(transaction, accountNumber))
+			.toList();
+		byte[] pdfContent = buildPdf(bankCustomer, account, range, historyRows);
 
 		String fileName =
 			"transaction-statement-" +
@@ -262,25 +253,23 @@ public class TransactionStatementPdfService {
 		return value.substring(0, maxLength - 3) + "...";
 	}
 
-	// Renders complete PDF document from computed statement data.
+	// Renders the same transaction columns displayed on the customer history screen.
 	private byte[] buildPdf(
 		BankCustomer bankCustomer,
 		Account account,
 		DateRange range,
-		StatementComputation computation
+		List<HistoryRow> historyRows
 	) {
 		ByteArrayOutputStream out = new ByteArrayOutputStream();
 		try {
-			Document document = new Document(PageSize.A4, 36f, 36f, 34f, 70f);
+			Document document = new Document(PageSize.A4.rotate(), 28f, 28f, 28f, 70f);
 			PdfWriter writer = PdfWriter.getInstance(document, out);
 			writer.setPageEvent(new StatementFooterPageEvent());
 			document.open();
 
 			addHeaderSection(document, range);
 			addCustomerSection(document, bankCustomer, account);
-			addStatementTable(document, computation.rows());
-			addTotalsSection(document, computation);
-			addClosingSection(document, bankCustomer);
+			addTransactionHistoryTable(document, historyRows);
 
 			document.close();
 			return out.toByteArray();
@@ -308,8 +297,8 @@ public class TransactionStatementPdfService {
 
 		PdfPCell leftCell = new PdfPCell();
 		leftCell.setBorder(Rectangle.NO_BORDER);
-		leftCell.addElement(new Paragraph("STATEMENT OF ACCOUNT", FONT_TITLE));
-		leftCell.addElement(new Paragraph("Transaction Statement", FONT_SMALL));
+		leftCell.addElement(new Paragraph("TRANSACTION HISTORY", FONT_TITLE));
+		leftCell.addElement(new Paragraph("Transaction History PDF", FONT_SMALL));
 		table.addCell(leftCell);
 
 		PdfPCell rightCell = new PdfPCell();
@@ -360,30 +349,70 @@ public class TransactionStatementPdfService {
 		document.add(new Paragraph(" "));
 	}
 
-	// Adds main statement transaction table with alternating row styles.
-	private void addStatementTable(Document document, List<StatementRow> rows) throws DocumentException {
-		PdfPTable table = new PdfPTable(new float[] { 1.2f, 4.5f, 2f, 2f, 2f });
+	// Adds the eight columns displayed in the in-app transaction history table.
+	private void addTransactionHistoryTable(Document document, List<HistoryRow> rows) throws DocumentException {
+		PdfPTable table = new PdfPTable(new float[] { 1.25f, 1.55f, 0.8f, 1.55f, 1.05f, 1.1f, 0.9f, 1.7f });
 		table.setWidthPercentage(100f);
+		table.setHeaderRows(1);
 
+		table.addCell(headerCell("RECEIVER\nNAME"));
+		table.addCell(headerCell("RECEIVER\nACCOUNT NO"));
+		table.addCell(headerCell("SENDER\nNAME"));
+		table.addCell(headerCell("SENDER\nACCOUNT NO"));
+		table.addCell(headerCell("AMOUNT"));
+		table.addCell(headerCell("STATUS"));
 		table.addCell(headerCell("DATE"));
-		table.addCell(headerCell("PARTICULARS"));
-		table.addCell(headerCell("PAYMENTS"));
-		table.addCell(headerCell("RECEIPTS"));
-		table.addCell(headerCell("BALANCE"));
+		table.addCell(headerCell("REFERENCE NO"));
 
 		for (int i = 0; i < rows.size(); i += 1) {
-			StatementRow row = rows.get(i);
+			HistoryRow row = rows.get(i);
 			Color rowColor = i % 2 == 0 ? ROW_BG : ROW_BG_ALT;
 
+			table.addCell(bodyCell(row.receiverName(), Element.ALIGN_LEFT, rowColor));
+			table.addCell(bodyCell(row.receiverAccountNo(), Element.ALIGN_LEFT, rowColor));
+			table.addCell(bodyCell(row.senderName(), Element.ALIGN_LEFT, rowColor));
+			table.addCell(bodyCell(row.senderAccountNo(), Element.ALIGN_LEFT, rowColor));
+			table.addCell(bodyCell(row.amount(), Element.ALIGN_RIGHT, rowColor));
+			table.addCell(statusCell(row.status(), rowColor));
 			table.addCell(bodyCell(row.date(), Element.ALIGN_LEFT, rowColor));
-			table.addCell(bodyCell(row.particulars(), Element.ALIGN_LEFT, rowColor));
-			table.addCell(bodyCell(formatAmountOrBlank(row.payments()), Element.ALIGN_RIGHT, rowColor));
-			table.addCell(bodyCell(formatAmountOrBlank(row.receipts()), Element.ALIGN_RIGHT, rowColor));
-			table.addCell(bodyCell(formatAmount(row.balance()), Element.ALIGN_RIGHT, rowColor));
+			table.addCell(bodyCell(row.referenceNo(), Element.ALIGN_LEFT, rowColor));
+		}
+
+		if (rows.isEmpty()) {
+			PdfPCell emptyCell = bodyCell("No transactions found for this date range.", Element.ALIGN_CENTER, ROW_BG_ALT);
+			emptyCell.setColspan(8);
+			emptyCell.setPadding(12f);
+			table.addCell(emptyCell);
 		}
 
 		document.add(table);
-		document.add(new Paragraph("  "));
+	}
+
+	private HistoryRow toHistoryRow(Transaction transaction, String accountNumber) {
+		String date = transaction.getTransactionDate() == null
+			? "-"
+			: transaction.getTransactionDate().toLocalDate().toString();
+		String senderAccountNo = normalizeAccountNumber(transaction.getSenderAccountNo());
+		String senderName = senderAccountNo.equals(accountNumber) ? "You" : senderAccountNo;
+		return new HistoryRow(
+			emptyAsDash(safeText(transaction.getReceiverName())),
+			emptyAsDash(normalizeAccountNumber(transaction.getReceiverAccountNo())),
+			emptyAsDash(senderName),
+			emptyAsDash(senderAccountNo),
+			"LKR " + formatAmount(transaction.getAmount()),
+			formatStatus(transaction.getStatus()),
+			date,
+			emptyAsDash(safeText(transaction.getReferenceNo()))
+		);
+	}
+
+	private String formatStatus(String status) {
+		String normalized = safeText(status).toUpperCase(Locale.ENGLISH);
+		return normalized.isBlank() ? "-" : normalized.replace('_', ' ');
+	}
+
+	private String emptyAsDash(String value) {
+		return value == null || value.isBlank() ? "-" : value;
 	}
 
 	// Adds totals block for unrealized cheques, deposits, and withdrawals.
@@ -478,6 +507,24 @@ public class TransactionStatementPdfService {
 		cell.setHorizontalAlignment(horizontalAlignment);
 		cell.setVerticalAlignment(Element.ALIGN_MIDDLE);
 		cell.setBackgroundColor(backgroundColor);
+		cell.setBorderColor(WHITE_GRID);
+		cell.setBorderWidth(1.3f);
+		cell.setPadding(4f);
+		return cell;
+	}
+
+	// Uses the same success, pending, and failure color cues as the history table.
+	private PdfPCell statusCell(String status, Color rowColor) {
+		Color statusColor = switch (status) {
+			case "SUCCESS" -> new Color(0, 143, 85);
+			case "PENDING OTP" -> new Color(218, 124, 0);
+			case "CANCELLED" -> new Color(90, 102, 117);
+			default -> new Color(195, 44, 44);
+		};
+		PdfPCell cell = new PdfPCell(new Phrase(status, FontFactory.getFont(FontFactory.HELVETICA_BOLD, 8, statusColor)));
+		cell.setHorizontalAlignment(Element.ALIGN_CENTER);
+		cell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+		cell.setBackgroundColor(rowColor);
 		cell.setBorderColor(WHITE_GRID);
 		cell.setBorderWidth(1.3f);
 		cell.setPadding(4f);
@@ -638,6 +685,18 @@ public class TransactionStatementPdfService {
 		BigDecimal totalWithdrawals,
 		int depositCount,
 		int withdrawalCount
+	) {}
+
+	// One row in the exported transaction-history table.
+	private record HistoryRow(
+		String receiverName,
+		String receiverAccountNo,
+		String senderName,
+		String senderAccountNo,
+		String amount,
+		String status,
+		String date,
+		String referenceNo
 	) {}
 
 	// Custom PDF footer renderer (page number, marker, and disclaimer).

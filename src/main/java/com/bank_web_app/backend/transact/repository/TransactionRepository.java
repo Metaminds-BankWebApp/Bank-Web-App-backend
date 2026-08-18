@@ -25,6 +25,13 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
 	// Returns all transactions for one customer, latest first.
 	List<Transaction> findAllByBankCustomer_BankCustomerIdOrderByTransactionDateDesc(Long bankCustomerId);
 
+	// Returns the customer-owned history in a selected inclusive date range, latest first.
+	List<Transaction> findAllByBankCustomer_BankCustomerIdAndTransactionDateBetweenOrderByTransactionDateDesc(
+		Long bankCustomerId,
+		LocalDateTime fromDateTime,
+		LocalDateTime toDateTime
+	);
+
 	// Checks whether a reference number already exists.
 	boolean existsByReferenceNo(String referenceNo);
 
