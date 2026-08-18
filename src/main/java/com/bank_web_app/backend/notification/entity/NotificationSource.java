@@ -7,5 +7,6 @@ public enum NotificationSource {
 	SPENDIQ,
 	CREDITLENS,
 	LOANSENSE,
+	SUPPORT,
 	SYSTEM
 }
