@@ -114,16 +114,15 @@ public class NotificationService {
 	}
 
 	@Transactional
-	public void dismissMyNotification(Long notificationId) {
+	public void deleteMyNotification(Long notificationId) {
 		Notification notification = findOwnedVisibleNotification(notificationId);
-		if (notification.getType() == NotificationType.FINANCIAL_DETAILS_MISSING) {
-			throw new ResponseStatusException(
-				HttpStatus.CONFLICT,
-				"Complete your financial details before removing this notification."
-			);
-		}
-		notification.setDismissedAt(LocalDateTime.now());
-		notificationRepository.save(notification);
+		notificationRepository.delete(notification);
+	}
+
+	@Transactional
+	public void clearAllMyNotifications() {
+		Long userId = currentUserService.resolveRequiredUser().getUserId();
+		notificationRepository.deleteByRecipient_UserId(userId);
 	}
 
 	@Transactional
