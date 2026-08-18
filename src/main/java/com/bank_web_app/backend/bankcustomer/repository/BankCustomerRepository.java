@@ -4,12 +4,24 @@ import com.bank_web_app.backend.bankcustomer.entity.BankCustomer;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface BankCustomerRepository extends JpaRepository<BankCustomer, Long> {
 
 	Optional<BankCustomer> findByUser_UserId(Long userId);
 
 	Optional<BankCustomer> findByUser_Nic(String nic);
+
+	// NICs can be entered with spaces or a lowercase suffix. Match their canonical value
+	// so an existing customer can always be reopened from the officer onboarding flow.
+	@Query("""
+		SELECT customer
+		FROM BankCustomer customer
+		JOIN customer.user bankUser
+		WHERE UPPER(TRIM(bankUser.nic)) = UPPER(TRIM(:nic))
+		""")
+	Optional<BankCustomer> findByNormalizedUserNic(@Param("nic") String nic);
 
 	Optional<BankCustomer> findByUser_UserIdAndOfficer_OfficerId(Long userId, Long officerId);
 
