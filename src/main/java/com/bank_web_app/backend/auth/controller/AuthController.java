@@ -49,7 +49,7 @@ public class AuthController {
 	@PostMapping("/login")
 	@Operation(
 		summary = "Login",
-		description = "Authenticate user by email and password.",
+		description = "Authenticate user by email address or username and password.",
 		responses = {
 			@ApiResponse(responseCode = "200", description = "Login successful"),
 			@ApiResponse(responseCode = "400", description = "Validation failed"),
