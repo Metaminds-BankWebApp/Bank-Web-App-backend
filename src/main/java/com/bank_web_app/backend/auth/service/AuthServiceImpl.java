@@ -107,17 +107,14 @@ public class AuthServiceImpl implements AuthService {
 		String identifier = request.identifier().trim();
 		String password = request.password();
 
-		User user = userRepository
-			.findByEmailIgnoreCase(identifier)
-			.or(() -> userRepository.findByUsernameIgnoreCase(identifier))
-			.orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials."));
+		User user = findUserForLogin(identifier);
 
 		if (!matchesPasswordAndUpgradeIfNeeded(user, password)) {
 			throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials.");
 		}
 
-		if ("INACTIVE".equalsIgnoreCase(user.getStatus())) {
-			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User account is inactive.");
+		if (!isActive(user)) {
+			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Your account has been suspended. Please contact support.");
 		}
 
 		return issueTokenPair(user);
@@ -140,8 +137,8 @@ public class AuthServiceImpl implements AuthService {
 		}
 
 		User user = existingToken.getUser();
-		if ("INACTIVE".equalsIgnoreCase(user.getStatus())) {
-			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User account is inactive.");
+		if (!isActive(user)) {
+			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Your account has been suspended. Please contact support.");
 		}
 
 		TokenPair rotatedPair = createRefreshToken(user);
@@ -176,7 +173,7 @@ public class AuthServiceImpl implements AuthService {
 	@Transactional
 	public AuthActionResponse forgotPassword(ForgotPasswordRequest request) {
 		User user = findUserByIdentifier(request.identifier()).orElse(null);
-		if (user == null || "INACTIVE".equalsIgnoreCase(user.getStatus())) {
+		if (user == null || !isActive(user)) {
 			return passwordResetRequestResponse();
 		}
 
@@ -222,7 +219,7 @@ public class AuthServiceImpl implements AuthService {
 	@Transactional
 	public AuthActionResponse verifyPasswordResetOtp(VerifyPasswordResetOtpRequest request) {
 		User user = findUserByIdentifier(request.identifier()).orElse(null);
-		if (user == null || "INACTIVE".equalsIgnoreCase(user.getStatus())) {
+		if (user == null || !isActive(user)) {
 			throw invalidPasswordResetOtp();
 		}
 
@@ -283,7 +280,7 @@ public class AuthServiceImpl implements AuthService {
 		}
 
 		User user = token.getUser();
-		if ("INACTIVE".equalsIgnoreCase(user.getStatus())) {
+		if (!isActive(user)) {
 			throw invalidPasswordResetSession();
 		}
 		user.setPasswordHash(passwordEncoder.encode(request.password()));
@@ -357,17 +354,35 @@ public class AuthServiceImpl implements AuthService {
 		String principal = authentication.getName().trim();
 		String normalizedPrincipal = principal.toLowerCase(Locale.ROOT);
 		return userRepository
-			.findByEmail(normalizedPrincipal)
-			.or(() -> userRepository.findByUsername(principal))
+			.findByUsername(principal)
 			.or(() -> userRepository.findByUsername(normalizedPrincipal))
+			.or(() -> userRepository.findByEmail(normalizedPrincipal))
 			.orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Logged-in user was not found."));
 	}
 
 	private java.util.Optional<User> findUserByIdentifier(String identifier) {
 		String normalizedIdentifier = identifier.trim();
 		return userRepository
-			.findByEmailIgnoreCase(normalizedIdentifier)
-			.or(() -> userRepository.findByUsernameIgnoreCase(normalizedIdentifier));
+			.findByUsernameIgnoreCase(normalizedIdentifier)
+			.or(() -> findSingleUserByEmail(normalizedIdentifier));
+	}
+
+	private User findUserForLogin(String identifier) {
+		return userRepository
+			.findByUsernameIgnoreCase(identifier)
+			.or(() -> findSingleUserByEmail(identifier))
+			.orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials."));
+	}
+
+	private java.util.Optional<User> findSingleUserByEmail(String identifier) {
+		List<User> matches = userRepository.findAllByEmailIgnoreCaseOrderByUserIdAsc(identifier.trim());
+		if (matches.size() > 1) {
+			throw new ResponseStatusException(
+				HttpStatus.UNAUTHORIZED,
+				"This email is used by more than one account. Please sign in using your username."
+			);
+		}
+		return matches.stream().findFirst();
 	}
 
 	private LoginResponse issueTokenPair(User user) {
@@ -484,6 +499,10 @@ public class AuthServiceImpl implements AuthService {
 
 	private boolean isBcryptHash(String value) {
 		return value.startsWith("$2a$") || value.startsWith("$2b$") || value.startsWith("$2y$");
+	}
+
+	private boolean isActive(User user) {
+		return user != null && "ACTIVE".equalsIgnoreCase(user.getStatus());
 	}
 
 	private String safe(String value) {

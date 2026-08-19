@@ -1,6 +1,7 @@
 package com.bank_web_app.backend.user.service;
 
 import com.bank_web_app.backend.admin.entity.Branch;
+import com.bank_web_app.backend.admin.entity.BranchStatus;
 import com.bank_web_app.backend.admin.repository.BranchRepository;
 import com.bank_web_app.backend.bankcustomer.entity.Account;
 import com.bank_web_app.backend.bankcustomer.entity.BankCustomer;
@@ -53,6 +54,7 @@ private static final String STATE_SUCCESS = "SUCCESS";
 private static final Pattern NIC_REGEX = Pattern.compile("^(?:\\d{9}[VvXx]|\\d{12})$");
 private static final Pattern BANK_OFFICER_MOBILE_REGEX = Pattern.compile("^(?:077|076|078|070|072|074|075|071)\\d{7}$");
 private static final Pattern BANK_OFFICER_EMAIL_REGEX = Pattern.compile("^[A-Za-z0-9._%+-]+@gmail\\.com$", Pattern.CASE_INSENSITIVE);
+private static final Pattern NAME_STARTS_WITH_LETTER_REGEX = Pattern.compile("^\\p{L}.*$");
 private static final Set<String> SRI_LANKA_PROVINCES = Set.of(
 "western",
 "central",
@@ -222,7 +224,7 @@ return toSummary(user, employeeCode);
 }
 
 private User createUserForRole(UserRegistrationStepOneRequest request, String roleName) {
-validateBaseRequest(request);
+validateBaseRequest(request, roleName);
 if (ROLE_BANK_OFFICER.equals(roleName)) {
 validateBankOfficerConstraints(request);
 }
@@ -232,7 +234,7 @@ Role role = roleRepository
 String username = request.username().trim();
 String email = request.email().trim().toLowerCase(Locale.ROOT);
 String nic = request.nic().trim();
-validateUniqueness(username, email, nic);
+validateUniqueness(username, email, nic, roleName);
 
 User user = new User();
 user.setRole(role);
@@ -245,7 +247,7 @@ user.setPhone(request.mobile().trim());
 user.setNic(nic);
 user.setDob(parseDob(request.dob()));
 user.setProvince(request.province().trim());
-user.setAddress(request.address().trim());
+user.setAddress(safeTrim(request.address()));
 user.setStatus(STATUS_ACTIVE);
 return userRepository.save(user);
 }
@@ -273,6 +275,9 @@ String employeeCode = generateBankOfficerEmployeeCode();
 Branch branch = branchRepository
 .findById(branchId)
 .orElseThrow(() -> new IllegalArgumentException("Branch not found."));
+if (branch.getStatus() != BranchStatus.ACTIVE && branch.getStatus() != BranchStatus.MAINTENANCE) {
+throw new IllegalArgumentException("Only active or maintenance branches can be assigned to a bank officer.");
+}
 BankOfficer officer = new BankOfficer();
 officer.setUser(user);
 officer.setBranch(branch);
@@ -485,7 +490,7 @@ candidate = generated + "-" + suffix;
 return candidate;
 }
 
-private void validateBaseRequest(UserRegistrationStepOneRequest request) {
+private void validateBaseRequest(UserRegistrationStepOneRequest request, String roleName) {
 if (request == null) {
 throw new IllegalArgumentException("Request body is required.");
 }
@@ -496,7 +501,9 @@ requireText(request.dob(), "Date of birth is required.");
 requireText(request.email(), "Email is required.");
 requireText(request.mobile(), "Mobile is required.");
 requireText(request.province(), "Province is required.");
+if (!ROLE_BANK_OFFICER.equals(roleName)) {
 requireText(request.address(), "Address is required.");
+}
 requireText(request.username(), "Username is required.");
 requireText(request.password(), "Password is required.");
 requireText(request.confirmPassword(), "Confirm password is required.");
@@ -506,6 +513,16 @@ throw new IllegalArgumentException("Password and confirm password must match.");
 }
 
 private void validateBankOfficerConstraints(UserRegistrationStepOneRequest request) {
+String firstName = safeTrim(request.firstName());
+if (!NAME_STARTS_WITH_LETTER_REGEX.matcher(firstName).matches()) {
+throw new IllegalArgumentException("First name must start with a letter.");
+}
+
+String lastName = safeTrim(request.lastName());
+if (!NAME_STARTS_WITH_LETTER_REGEX.matcher(lastName).matches()) {
+throw new IllegalArgumentException("Last name must start with a letter.");
+}
+
 String nic = safeTrim(request.nic());
 if (!NIC_REGEX.matcher(nic).matches()) {
 throw new IllegalArgumentException("Enter a valid NIC number.");
@@ -513,7 +530,7 @@ throw new IllegalArgumentException("Enter a valid NIC number.");
 
 String mobile = safeTrim(request.mobile());
 if (!BANK_OFFICER_MOBILE_REGEX.matcher(mobile).matches()) {
-throw new IllegalArgumentException("Contact number must be 10 digits and start with 077, 076, 078, 070, 072, 074, 075, or 071.");
+throw new IllegalArgumentException("Contact number must be 10 digits and start with 070, 071, 072, 074, 075, 076, 077, or 078.");
 }
 
 String email = safeTrim(request.email());
@@ -525,14 +542,19 @@ String province = safeTrim(request.province()).toLowerCase(Locale.ROOT);
 if (!SRI_LANKA_PROVINCES.contains(province)) {
 throw new IllegalArgumentException("Please select a valid Sri Lankan province.");
 }
+
+LocalDate dob = parseDob(request.dob());
+if (dob.isAfter(LocalDate.now().minusYears(18))) {
+throw new IllegalArgumentException("Bank officer must be at least 18 years old.");
+}
 }
 
-private void validateUniqueness(String username, String email, String nic) {
+private void validateUniqueness(String username, String email, String nic, String roleName) {
 LinkedHashMap<String, String> duplicateFieldErrors = new LinkedHashMap<>();
 if (userRepository.existsByUsername(username)) {
 duplicateFieldErrors.put("username", "Username is already in use.");
 }
-if (userRepository.existsByEmail(email)) {
+if (userRepository.existsByEmailIgnoreCaseAndRole_RoleName(email, roleName)) {
 duplicateFieldErrors.put("email", "Email is already in use.");
 }
 if (userRepository.existsByNic(nic)) {

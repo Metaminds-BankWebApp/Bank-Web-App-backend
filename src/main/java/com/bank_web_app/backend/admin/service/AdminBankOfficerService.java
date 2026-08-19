@@ -35,7 +35,7 @@ import com.bank_web_app.backend.user.service.UserService;
 @Service
 public class AdminBankOfficerService {
 
-	private static final Set<String> ALLOWED_STATUSES = Set.of("ACTIVE", "INACTIVE", "LOCKED");
+	private static final Set<String> ALLOWED_STATUSES = Set.of("ACTIVE", "SUSPEND");
 	private static final String GENERATED_PASSWORD_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789@#$%&*!";
 	private static final int GENERATED_PASSWORD_LENGTH = 10;
 	private static final int USERNAME_MAX_LENGTH = 50;
@@ -170,6 +170,9 @@ public class AdminBankOfficerService {
 		String normalizedStatus = normalizeStatus(status);
 		user.setStatus(normalizedStatus);
 		userRepository.save(user);
+		if (!"ACTIVE".equals(normalizedStatus)) {
+			refreshTokenRepository.deleteByUser_UserId(user.getUserId());
+		}
 		AdminBankOfficerSummaryResponse response = toResponse(officer);
 		auditLogService.logAction(
 			"BANK_OFFICER_STATUS_CHANGED",
@@ -202,7 +205,8 @@ public class AdminBankOfficerService {
 		if (!BANK_OFFICER_EMAIL_REGEX.matcher(normalizedEmail).matches()) {
 			throw new IllegalArgumentException("Email must be in the format name@gmail.com.");
 		}
-		if (userRepository.existsByEmailAndUserIdNot(normalizedEmail, user.getUserId())) {
+		String roleName = safe(user.getRole() == null ? null : user.getRole().getRoleName());
+		if (userRepository.existsByEmailIgnoreCaseAndRole_RoleNameAndUserIdNot(normalizedEmail, roleName, user.getUserId())) {
 			throw new IllegalArgumentException("Email is already in use.");
 		}
 
@@ -281,7 +285,7 @@ public class AdminBankOfficerService {
 			throw new IllegalArgumentException("Status is required.");
 		}
 		if (!ALLOWED_STATUSES.contains(normalized)) {
-			throw new IllegalArgumentException("Status must be ACTIVE, INACTIVE, or LOCKED.");
+			throw new IllegalArgumentException("Status must be ACTIVE or SUSPEND.");
 		}
 		return normalized;
 	}
@@ -299,7 +303,7 @@ public class AdminBankOfficerService {
 			fullName,
 			safe(user.getEmail()),
 			safe(user.getPhone()),
-			safe(user.getStatus()),
+			normalizeDisplayStatus(user.getStatus()),
 			officer.getCreatedAt() == null ? null : officer.getCreatedAt().toString(),
 			user.getUpdatedAt() == null ? null : user.getUpdatedAt().toString(),
 			officer.getBranch() == null ? null : officer.getBranch().getBranchId(),
@@ -313,6 +317,10 @@ public class AdminBankOfficerService {
 			return "";
 		}
 		return normalized;
+	}
+
+	private String normalizeDisplayStatus(String status) {
+		return "ACTIVE".equalsIgnoreCase(safe(status)) ? "ACTIVE" : "SUSPEND";
 	}
 
 	private String buildUsernameWithSuffix(String base, long suffix) {

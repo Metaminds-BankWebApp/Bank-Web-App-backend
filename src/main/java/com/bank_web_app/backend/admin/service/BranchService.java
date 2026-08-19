@@ -223,7 +223,11 @@ public class BranchService {
 		if (value == null || value.trim().isEmpty()) {
 			throw new IllegalArgumentException(message);
 		}
-		return value.trim();
+		String normalized = value.trim();
+		if (!Character.isLetter(normalized.codePointAt(0))) {
+			throw new IllegalArgumentException("Branch name must start with a letter.");
+		}
+		return normalized;
 	}
 
 	private String normalizeOptional(String value) {

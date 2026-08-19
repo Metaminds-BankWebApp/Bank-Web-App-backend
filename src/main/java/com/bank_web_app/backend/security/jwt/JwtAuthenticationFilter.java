@@ -47,15 +47,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 		}
 
 		Claims claims = jwtService.parseClaims(token);
-		String subjectEmail = claims.getSubject();
-		if (subjectEmail == null || subjectEmail.isBlank()) {
+		Number userIdClaim = claims.get("userId", Number.class);
+		if (userIdClaim == null) {
 			filterChain.doFilter(request, response);
 			return;
 		}
 
-		String normalizedEmail = subjectEmail.trim().toLowerCase(Locale.ROOT);
-		User user = userRepository.findByEmail(normalizedEmail).orElse(null);
-		if (user == null || "INACTIVE".equalsIgnoreCase(user.getStatus())) {
+		User user = userRepository.findById(userIdClaim.longValue()).orElse(null);
+		if (user == null || !"ACTIVE".equalsIgnoreCase(user.getStatus())) {
 			filterChain.doFilter(request, response);
 			return;
 		}
@@ -66,7 +65,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 			return;
 		}
 		UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-			user.getEmail(),
+			user.getUsername(),
 			null,
 			List.of(new SimpleGrantedAuthority("ROLE_" + role.trim().toUpperCase(Locale.ROOT)))
 		);

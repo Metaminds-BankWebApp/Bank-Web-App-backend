@@ -29,7 +29,7 @@ public class JwtService {
 		Date expiresAt = new Date(now.getTime() + accessTokenExpirationMs);
 
 		return Jwts.builder()
-			.subject(user.getEmail())
+			.subject(user.getUsername())
 			.claim("role", user.getRole().getRoleName())
 			.claim("userId", user.getUserId())
 			.issuedAt(now)
