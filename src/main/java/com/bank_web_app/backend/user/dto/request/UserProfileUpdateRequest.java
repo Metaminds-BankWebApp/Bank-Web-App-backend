@@ -20,10 +20,9 @@ public record UserProfileUpdateRequest(
 	@Size(max = 100, message = "Email address must not exceed 100 characters.")
 	String email,
 
-	@Schema(description = "Contact phone number.", example = "+94771234567", requiredMode = Schema.RequiredMode.REQUIRED)
+	@Schema(description = "Contact phone number (exactly 10 digits).", example = "0771234567", requiredMode = Schema.RequiredMode.REQUIRED)
 	@NotBlank(message = "Phone number is required.")
-	@Size(max = 20, message = "Phone number must not exceed 20 characters.")
-	@Pattern(regexp = "^\\+?[0-9()\\s-]+$", message = "Use only digits, spaces, +, -, or parentheses.")
+	@Pattern(regexp = "^\\d{10}$", message = "Phone number must contain exactly 10 digits.")
 	String phone,
 
 	@Schema(description = "Editable address field, mainly used by public customers.", example = "Colombo Central")

@@ -80,15 +80,15 @@ public class BankOfficerCustomerOnboardingService {
 
 	@Transactional(readOnly = true)
 	public BankOfficerCustomerStepOnePrefillResponse getOwnedBankCustomerStepOneByNic(String nic) {
-		String normalizedNic = safeTrim(nic);
+		String normalizedNic = safeTrim(nic).replaceAll("\\s+", "").toUpperCase(Locale.ROOT);
 		if (normalizedNic.isBlank()) {
 			throw new IllegalArgumentException("NIC is required.");
 		}
 
-		BankOfficer officer = bankOfficerContextService.resolveLoggedInBankOfficer();
+		bankOfficerContextService.resolveLoggedInBankOfficer();
 		BankCustomer customer = bankCustomerRepository
-			.findByUser_NicAndOfficer_OfficerId(normalizedNic, officer.getOfficerId())
-			.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "NIC not found for this bank officer."));
+			.findByNormalizedUserNic(normalizedNic)
+			.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Bank customer was not found."));
 
 		User user = customer.getUser();
 		Account account = customer.getAccount();
@@ -142,12 +142,9 @@ public class BankOfficerCustomerOnboardingService {
 	) {
 		validateUpdateRequest(request);
 
-		BankOfficer loggedOfficer = bankOfficerContextService.resolveLoggedInBankOfficer();
+		bankOfficerContextService.resolveLoggedInBankOfficer();
 		BankCustomer customer = bankCustomerRepository.findById(bankCustomerId)
 			.orElseThrow(() -> new IllegalArgumentException("Bank customer not found."));
-		if (!customer.getOfficer().getOfficerId().equals(loggedOfficer.getOfficerId())) {
-			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This bank customer is not assigned to the logged-in officer.");
-		}
 
 		User user = customer.getUser();
 		String username = request.username().trim();
@@ -193,8 +190,8 @@ public class BankOfficerCustomerOnboardingService {
 		}
 		userRepository.save(user);
 
-		customer.setOfficer(loggedOfficer);
-		customer.setBranch(loggedOfficer.getBranch());
+		// Keep recorded ownership unchanged. BANK_OFFICER access is role-based,
+		// so updating a customer must not implicitly reassign their owner/branch.
 		customer.setAccount(account);
 		customer.setAccessStatus(targetState);
 		bankCustomerRepository.save(customer);
