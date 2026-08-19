@@ -39,8 +39,7 @@ String mobile,
 @Schema(description = "Province", example = "Western", requiredMode = Schema.RequiredMode.REQUIRED)
 @NotBlank(message = "Province is required.")
 String province,
-@Schema(description = "Address", example = "123, Main Street, Colombo", requiredMode = Schema.RequiredMode.REQUIRED)
-@NotBlank(message = "Address is required.")
+@Schema(description = "Address. Optional for BANK_OFFICER registration.", example = "123, Main Street, Colombo")
 String address,
 @Schema(description = "Username for account login", example = "john.doe.2000", requiredMode = Schema.RequiredMode.REQUIRED)
 @NotBlank(message = "Username is required.")

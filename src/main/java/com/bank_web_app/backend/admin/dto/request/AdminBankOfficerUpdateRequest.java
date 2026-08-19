@@ -10,11 +10,13 @@ import jakarta.validation.constraints.Size;
 public record AdminBankOfficerUpdateRequest(
 	@Schema(example = "Lila")
 	@NotBlank(message = "First name is required.")
+	@Pattern(regexp = "^\\p{L}.*$", message = "First name must start with a letter.")
 	@Size(max = 100, message = "First name must not exceed 100 characters.")
 	String firstName,
 
 	@Schema(example = "Doe")
 	@NotBlank(message = "Last name is required.")
+	@Pattern(regexp = "^\\p{L}.*$", message = "Last name must start with a letter.")
 	@Size(max = 100, message = "Last name must not exceed 100 characters.")
 	String lastName,
 

@@ -53,7 +53,7 @@ public class AdminUserManagementService {
 	private static final String CUSTOMER_TYPE_ALL = "ALL";
 	private static final String CUSTOMER_TYPE_BANK = "BANK";
 	private static final String CUSTOMER_TYPE_PUBLIC = "PUBLIC";
-	private static final Set<String> ALLOWED_STATUSES = Set.of("ACTIVE", "INACTIVE", "LOCKED");
+	private static final Set<String> ALLOWED_STATUSES = Set.of("ACTIVE", "SUSPEND");
 
 	private final UserRepository userRepository;
 	private final RefreshTokenRepository refreshTokenRepository;
@@ -213,6 +213,9 @@ public class AdminUserManagementService {
 
 		user.setStatus(normalizedStatus);
 		User saved = userRepository.save(user);
+		if (!"ACTIVE".equals(normalizedStatus)) {
+			refreshTokenRepository.deleteByUser_UserId(saved.getUserId());
+		}
 
 		String bankCode = bankCustomerRepository
 			.findByUser_UserId(saved.getUserId())
@@ -254,7 +257,7 @@ public class AdminUserManagementService {
 		if (normalizedEmail.isBlank()) {
 			throw new IllegalArgumentException("Email is required.");
 		}
-		if (userRepository.existsByEmailAndUserIdNot(normalizedEmail, user.getUserId())) {
+		if (userRepository.existsByEmailIgnoreCaseAndRole_RoleNameAndUserIdNot(normalizedEmail, roleName, user.getUserId())) {
 			throw new IllegalArgumentException("Email is already in use.");
 		}
 
@@ -365,7 +368,7 @@ public class AdminUserManagementService {
 			safe(user.getPhone()),
 			user.getCreatedAt() == null ? null : user.getCreatedAt().toString(),
 			customerType,
-			safe(user.getStatus()),
+			normalizeDisplayStatus(user.getStatus()),
 			safe(user.getProfilePictureUrl())
 		);
 	}
@@ -412,13 +415,17 @@ public class AdminUserManagementService {
 			throw new IllegalArgumentException("Status is required.");
 		}
 		if (!ALLOWED_STATUSES.contains(normalized)) {
-			throw new IllegalArgumentException("Status must be ACTIVE, INACTIVE, or LOCKED.");
+			throw new IllegalArgumentException("Status must be ACTIVE or SUSPEND.");
 		}
 		return normalized;
 	}
 
 	private String normalizeSearch(String search) {
 		return safe(search).toLowerCase(Locale.ROOT);
+	}
+
+	private String normalizeDisplayStatus(String status) {
+		return "ACTIVE".equalsIgnoreCase(safe(status)) ? "ACTIVE" : "SUSPEND";
 	}
 
 	private String fallbackCustomerCode(String prefix, Long userId) {

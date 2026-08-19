@@ -8,6 +8,7 @@ import jakarta.validation.constraints.Size;
 public record BranchRequest(
 	@Schema(example = "Colombo Main")
 	@NotBlank(message = "Branch name is required.")
+	@Pattern(regexp = "^\\p{L}.*$", message = "Branch name must start with a letter.")
 	@Size(max = 100, message = "Branch name must not exceed 100 characters.")
 	String branchName,
 

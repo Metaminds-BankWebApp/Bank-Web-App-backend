@@ -16,6 +16,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     Optional<User> findByEmailIgnoreCase(String email);
 
+    List<User> findAllByEmailIgnoreCaseOrderByUserIdAsc(String email);
+
     Optional<User> findByUsername(String username);
 
     Optional<User> findByUsernameIgnoreCase(String username);
@@ -37,6 +39,10 @@ public interface UserRepository extends JpaRepository<User, Long> {
     boolean existsByUsernameAndUserIdNot(String username, Long userId);
 
     boolean existsByEmailAndUserIdNot(String email, Long userId);
+
+    boolean existsByEmailIgnoreCaseAndRole_RoleName(String email, String roleName);
+
+    boolean existsByEmailIgnoreCaseAndRole_RoleNameAndUserIdNot(String email, String roleName, Long userId);
 
     boolean existsByNicAndUserIdNot(String nic, Long userId);
 
