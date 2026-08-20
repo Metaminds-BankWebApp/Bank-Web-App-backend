@@ -234,7 +234,8 @@ Role role = roleRepository
 String username = request.username().trim();
 String email = request.email().trim().toLowerCase(Locale.ROOT);
 String nic = request.nic().trim();
-validateUniqueness(username, email, nic, roleName);
+String phone = request.mobile().trim();
+validateUniqueness(username, email, nic, phone, roleName);
 
 User user = new User();
 user.setRole(role);
@@ -243,7 +244,7 @@ user.setEmail(email);
 user.setPasswordHash(passwordEncoder.encode(request.password()));
 user.setFirstName(request.firstName().trim());
 user.setLastName(request.lastName().trim());
-user.setPhone(request.mobile().trim());
+user.setPhone(phone);
 user.setNic(nic);
 user.setDob(parseDob(request.dob()));
 user.setProvince(request.province().trim());
@@ -549,13 +550,23 @@ throw new IllegalArgumentException("Bank officer must be at least 18 years old."
 }
 }
 
-private void validateUniqueness(String username, String email, String nic, String roleName) {
+private void validateUniqueness(String username, String email, String nic, String phone, String roleName) {
 LinkedHashMap<String, String> duplicateFieldErrors = new LinkedHashMap<>();
 if (userRepository.existsByUsername(username)) {
 duplicateFieldErrors.put("username", "Username is already in use.");
 }
-if (userRepository.existsByEmailIgnoreCaseAndRole_RoleName(email, roleName)) {
+if (userRepository.existsByEmailIgnoreCase(email)) {
 duplicateFieldErrors.put("email", "Email is already in use.");
+}
+if (branchRepository.existsByBranchPhone(phone)) {
+	duplicateFieldErrors.put("mobile", "Contact number is already in use.");
+}
+if (ROLE_BANK_OFFICER.equals(roleName) && userRepository.existsByPhoneAndRole_RoleNameIn(phone, List.of(ROLE_BANK_OFFICER))) {
+	duplicateFieldErrors.put("mobile", "Contact number is already in use.");
+}
+if ((ROLE_BANK_CUSTOMER.equals(roleName) || ROLE_PUBLIC_CUSTOMER.equals(roleName)) &&
+	userRepository.existsByPhoneAndRole_RoleNameIn(phone, List.of(ROLE_BANK_CUSTOMER, ROLE_PUBLIC_CUSTOMER))) {
+	duplicateFieldErrors.put("mobile", "Contact number is already in use.");
 }
 if (userRepository.existsByNic(nic)) {
 duplicateFieldErrors.put("nic", "NIC is already in use.");

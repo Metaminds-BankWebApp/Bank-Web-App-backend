@@ -17,6 +17,8 @@ import com.bank_web_app.backend.bankcustomer.repository.BankCustomerRepository;
 import com.bank_web_app.backend.bankofficer.repository.BankOfficerRepository;
 import com.bank_web_app.backend.notification.event.NotificationEventPublisher;
 import com.bank_web_app.backend.notification.event.NotificationEventType;
+import com.bank_web_app.backend.common.exception.DuplicateFieldsException;
+import com.bank_web_app.backend.user.repository.UserRepository;
 
 /**
  * Orchestrates Admin business logic, validation, and persistence workflows.
@@ -30,6 +32,7 @@ public class BranchService {
 	private final BranchRepository branchRepository;
 	private final BankOfficerRepository bankOfficerRepository;
 	private final BankCustomerRepository bankCustomerRepository;
+	private final UserRepository userRepository;
 	private final AuditLogService auditLogService;
 	private final NotificationEventPublisher notificationEventPublisher;
 
@@ -37,12 +40,14 @@ public class BranchService {
 		BranchRepository branchRepository,
 		BankOfficerRepository bankOfficerRepository,
 		BankCustomerRepository bankCustomerRepository,
+		UserRepository userRepository,
 		AuditLogService auditLogService,
 		NotificationEventPublisher notificationEventPublisher
 	) {
 		this.branchRepository = branchRepository;
 		this.bankOfficerRepository = bankOfficerRepository;
 		this.bankCustomerRepository = bankCustomerRepository;
+		this.userRepository = userRepository;
 		this.auditLogService = auditLogService;
 		this.notificationEventPublisher = notificationEventPublisher;
 	}
@@ -50,11 +55,13 @@ public class BranchService {
 	@Transactional
 	// Creates a new entity from validated request data.
 	public BranchResponse create(BranchRequest request) {
+		String phone = normalizeOptional(request.branchPhone());
+		validatePhoneUniqueness(phone, null);
 		Branch branch = new Branch();
 		branch.setBranchCode(generateBranchCode());
 		branch.setBranchName(normalizeRequired(request.branchName(), "Branch name is required."));
 		branch.setBranchEmail(normalizeOptional(request.branchEmail()));
-		branch.setBranchPhone(normalizeOptional(request.branchPhone()));
+		branch.setBranchPhone(phone);
 		branch.setAddress(normalizeOptional(request.address()));
 		branch.setStatus(normalizeStatus(request.status()));
 
@@ -88,10 +95,12 @@ public class BranchService {
 	public BranchResponse update(Long branchId, BranchRequest request) {
 		Branch branch = findBranch(branchId);
 		String previousStatus = branch.getStatus() == null ? null : branch.getStatus().name();
+		String phone = normalizeOptional(request.branchPhone());
+		validatePhoneUniqueness(phone, branchId);
 
 		branch.setBranchName(normalizeRequired(request.branchName(), "Branch name is required."));
 		branch.setBranchEmail(normalizeOptional(request.branchEmail()));
-		branch.setBranchPhone(normalizeOptional(request.branchPhone()));
+		branch.setBranchPhone(phone);
 		branch.setAddress(normalizeOptional(request.address()));
 		branch.setStatus(normalizeStatus(request.status()));
 
@@ -232,6 +241,20 @@ public class BranchService {
 
 	private String normalizeOptional(String value) {
 		return value == null ? null : value.trim();
+	}
+
+	private void validatePhoneUniqueness(String phone, Long branchId) {
+		if (phone == null || phone.isBlank()) {
+			return;
+		}
+		boolean duplicateBranch = branchId == null
+			? branchRepository.existsByBranchPhone(phone)
+			: branchRepository.existsByBranchPhoneAndBranchIdNot(phone, branchId);
+		boolean duplicateOfficer = userRepository.existsByPhoneAndRole_RoleNameIn(phone, List.of("BANK_OFFICER"));
+		boolean duplicateCustomer = userRepository.existsByPhoneAndRole_RoleNameIn(phone, List.of("BANK_CUSTOMER", "PUBLIC_CUSTOMER"));
+		if (duplicateBranch || duplicateOfficer || duplicateCustomer) {
+			throw new DuplicateFieldsException(Map.of("branchPhone", "Contact number is already in use."));
+		}
 	}
 
 	private String safe(String value) {

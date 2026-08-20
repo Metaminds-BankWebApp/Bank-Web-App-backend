@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.bank_web_app.backend.admin.dto.request.AdminBankOfficerUpdateRequest;
 import com.bank_web_app.backend.admin.dto.response.AdminBankOfficerSummaryResponse;
+import com.bank_web_app.backend.common.exception.DuplicateFieldsException;
 import com.bank_web_app.backend.admin.entity.Branch;
 import com.bank_web_app.backend.admin.repository.BranchRepository;
 import com.bank_web_app.backend.auth.repository.RefreshTokenRepository;
@@ -205,9 +206,17 @@ public class AdminBankOfficerService {
 		if (!BANK_OFFICER_EMAIL_REGEX.matcher(normalizedEmail).matches()) {
 			throw new IllegalArgumentException("Email must be in the format name@gmail.com.");
 		}
-		String roleName = safe(user.getRole() == null ? null : user.getRole().getRoleName());
-		if (userRepository.existsByEmailIgnoreCaseAndRole_RoleNameAndUserIdNot(normalizedEmail, roleName, user.getUserId())) {
-			throw new IllegalArgumentException("Email is already in use.");
+		Map<String, String> duplicateFieldErrors = new java.util.LinkedHashMap<>();
+		if (userRepository.existsByEmailIgnoreCaseAndUserIdNot(normalizedEmail, user.getUserId())) {
+			duplicateFieldErrors.put("email", "Email is already in use.");
+		}
+		String normalizedPhone = safe(request.contactNumber());
+		if (branchRepository.existsByBranchPhone(normalizedPhone) ||
+			userRepository.existsByPhoneAndRole_RoleNameInAndUserIdNot(normalizedPhone, List.of("BANK_OFFICER"), user.getUserId())) {
+			duplicateFieldErrors.put("contactNumber", "Contact number is already in use.");
+		}
+		if (!duplicateFieldErrors.isEmpty()) {
+			throw new DuplicateFieldsException(duplicateFieldErrors);
 		}
 
 		Branch branch = branchRepository
@@ -217,7 +226,7 @@ public class AdminBankOfficerService {
 		user.setFirstName(safe(request.firstName()));
 		user.setLastName(safe(request.lastName()));
 		user.setEmail(normalizedEmail);
-		user.setPhone(safe(request.contactNumber()));
+		user.setPhone(normalizedPhone);
 		officer.setBranch(branch);
 
 		userRepository.save(user);

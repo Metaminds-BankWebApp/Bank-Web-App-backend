@@ -34,6 +34,8 @@ import com.bank_web_app.backend.transact.repository.OtpRecordRepository;
 import com.bank_web_app.backend.transact.repository.TransactionRepository;
 import com.bank_web_app.backend.user.entity.User;
 import com.bank_web_app.backend.user.repository.UserRepository;
+import com.bank_web_app.backend.common.exception.DuplicateFieldsException;
+import com.bank_web_app.backend.admin.repository.BranchRepository;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -56,6 +58,7 @@ public class AdminUserManagementService {
 	private static final Set<String> ALLOWED_STATUSES = Set.of("ACTIVE", "SUSPEND");
 
 	private final UserRepository userRepository;
+	private final BranchRepository branchRepository;
 	private final RefreshTokenRepository refreshTokenRepository;
 	private final NotificationRepository notificationRepository;
 	private final BankCustomerRepository bankCustomerRepository;
@@ -89,6 +92,7 @@ public class AdminUserManagementService {
 
 	public AdminUserManagementService(
 		UserRepository userRepository,
+		BranchRepository branchRepository,
 		RefreshTokenRepository refreshTokenRepository,
 		NotificationRepository notificationRepository,
 		BankCustomerRepository bankCustomerRepository,
@@ -121,6 +125,7 @@ public class AdminUserManagementService {
 		AuditLogService auditLogService
 	) {
 		this.userRepository = userRepository;
+		this.branchRepository = branchRepository;
 		this.refreshTokenRepository = refreshTokenRepository;
 		this.notificationRepository = notificationRepository;
 		this.bankCustomerRepository = bankCustomerRepository;
@@ -257,8 +262,17 @@ public class AdminUserManagementService {
 		if (normalizedEmail.isBlank()) {
 			throw new IllegalArgumentException("Email is required.");
 		}
-		if (userRepository.existsByEmailIgnoreCaseAndRole_RoleNameAndUserIdNot(normalizedEmail, roleName, user.getUserId())) {
-			throw new IllegalArgumentException("Email is already in use.");
+		Map<String, String> duplicateFieldErrors = new java.util.LinkedHashMap<>();
+		if (userRepository.existsByEmailIgnoreCaseAndUserIdNot(normalizedEmail, user.getUserId())) {
+			duplicateFieldErrors.put("email", "Email is already in use.");
+		}
+		String normalizedPhone = safe(request.contactNumber());
+		if (branchPhoneExists(normalizedPhone) || userRepository.existsByPhoneAndRole_RoleNameInAndUserIdNot(
+			normalizedPhone, List.of(ROLE_BANK_CUSTOMER, ROLE_PUBLIC_CUSTOMER), user.getUserId())) {
+			duplicateFieldErrors.put("contactNumber", "Contact number is already in use.");
+		}
+		if (!duplicateFieldErrors.isEmpty()) {
+			throw new DuplicateFieldsException(duplicateFieldErrors);
 		}
 
 		user.setFirstName(safe(request.firstName()));
@@ -288,6 +302,10 @@ public class AdminUserManagementService {
 			"INFO"
 		);
 		return response;
+	}
+
+	private boolean branchPhoneExists(String phone) {
+		return !phone.isBlank() && branchRepository.existsByBranchPhone(phone);
 	}
 
 	@Transactional

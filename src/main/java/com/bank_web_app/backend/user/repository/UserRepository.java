@@ -32,6 +32,10 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     boolean existsByEmail(String email);
 
+    boolean existsByEmailIgnoreCase(String email);
+
+    boolean existsByEmailIgnoreCaseAndUserIdNot(String email, Long userId);
+
     boolean existsByUsername(String username);
 
     boolean existsByNic(String nic);
@@ -43,6 +47,14 @@ public interface UserRepository extends JpaRepository<User, Long> {
     boolean existsByEmailIgnoreCaseAndRole_RoleName(String email, String roleName);
 
     boolean existsByEmailIgnoreCaseAndRole_RoleNameAndUserIdNot(String email, String roleName, Long userId);
+
+    boolean existsByEmailIgnoreCaseAndRole_RoleNameIn(String email, List<String> roleNames);
+
+    boolean existsByEmailIgnoreCaseAndRole_RoleNameInAndUserIdNot(String email, List<String> roleNames, Long userId);
+
+    boolean existsByPhoneAndRole_RoleNameIn(String phone, List<String> roleNames);
+
+    boolean existsByPhoneAndRole_RoleNameInAndUserIdNot(String phone, List<String> roleNames, Long userId);
 
     boolean existsByNicAndUserIdNot(String nic, Long userId);
 

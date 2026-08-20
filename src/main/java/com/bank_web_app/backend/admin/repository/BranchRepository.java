@@ -15,6 +15,10 @@ public interface BranchRepository extends JpaRepository<Branch, Long> {
 
 	boolean existsByBranchCode(String branchCode);
 
+	boolean existsByBranchPhone(String branchPhone);
+
+	boolean existsByBranchPhoneAndBranchIdNot(String branchPhone, Long branchId);
+
 	@Query(value = "select nextval('branch_code_seq')", nativeQuery = true)
 	Long getNextBranchCodeSequence();
 
