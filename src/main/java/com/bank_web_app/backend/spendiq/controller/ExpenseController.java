@@ -217,6 +217,28 @@ public class ExpenseController {
 		return ResponseEntity.ok(expenseService.upsertBudget(request));
 	}
 
+	@PostMapping("/budgets/copy-previous-month")
+	@Operation(
+		summary = "Copy previous month's budgets",
+		description = "Copies the authenticated user's budgets from the month before the given month/year into it," +
+			" for any category that doesn't already have a budget in the target month. Existing budgets in the" +
+			" target month are left untouched.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Budgets copied"),
+			@ApiResponse(responseCode = "401", description = "Authentication required"),
+			@ApiResponse(responseCode = "404", description = "No budgets found in the previous month to copy"),
+			@ApiResponse(responseCode = "409", description = "Every category already has a budget for this month")
+		}
+	)
+	public ResponseEntity<List<BudgetLimitResponse>> copyPreviousMonthBudgets(
+		@Parameter(description = "Target month number (1-12)", example = "5")
+		@RequestParam Integer month,
+		@Parameter(description = "Target year value", example = "2026")
+		@RequestParam Integer year
+	) {
+		return ResponseEntity.ok(expenseService.copyPreviousMonthBudgets(month, year));
+	}
+
 	@GetMapping("/budgets")
 	@Operation(
 		summary = "Get budget limits",

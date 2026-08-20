@@ -11,6 +11,7 @@ import com.bank_web_app.backend.spendiq.dto.response.ExpenseRecordResponse;
 import com.bank_web_app.backend.spendiq.dto.response.IncomeRecordResponse;
 import com.bank_web_app.backend.spendiq.dto.response.SpendIqMonthlySummaryResponse;
 import com.bank_web_app.backend.spendiq.entity.BudgetLimit;
+import com.bank_web_app.backend.spendiq.entity.BudgetLimitSource;
 import com.bank_web_app.backend.spendiq.entity.Expense;
 import com.bank_web_app.backend.spendiq.entity.ExpenseCategory;
 import com.bank_web_app.backend.spendiq.entity.IncomeRecord;
@@ -36,6 +37,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -357,8 +359,53 @@ public class ExpenseService {
 		budgetLimit.setBudgetAmount(request.budgetAmount());
 		budgetLimit.setMonth(request.month());
 		budgetLimit.setYear(request.year());
+		budgetLimit.setSource(BudgetLimitSource.MANUAL);
 
 		return toBudgetResponse(budgetLimitRepository.save(budgetLimit));
+	}
+
+	@Transactional
+	public List<BudgetLimitResponse> copyPreviousMonthBudgets(Integer month, Integer year) {
+		User user = resolveLoggedInUser();
+		YearMonth target = YearMonth.of(year, month);
+		YearMonth previous = target.minusMonths(1);
+
+		List<BudgetLimit> previousBudgets = budgetLimitRepository.findAllByUser_UserIdAndMonthAndYearOrderByCreatedAtDesc(
+			user.getUserId(),
+			previous.getMonthValue(),
+			previous.getYear()
+		);
+		if (previousBudgets.isEmpty()) {
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No budgets found for the previous month to copy.");
+		}
+
+		List<BudgetLimit> copied = new ArrayList<>();
+		for (BudgetLimit previousBudget : previousBudgets) {
+			boolean alreadyExists = budgetLimitRepository
+				.findByUser_UserIdAndCategory_CategoryIdAndMonthAndYear(
+					user.getUserId(),
+					previousBudget.getCategory().getCategoryId(),
+					target.getMonthValue(),
+					target.getYear()
+				)
+				.isPresent();
+			if (alreadyExists) continue;
+
+			BudgetLimit newBudget = new BudgetLimit();
+			newBudget.setUser(user);
+			newBudget.setCategory(previousBudget.getCategory());
+			newBudget.setBudgetAmount(previousBudget.getBudgetAmount());
+			newBudget.setMonth(target.getMonthValue());
+			newBudget.setYear(target.getYear());
+			newBudget.setSource(BudgetLimitSource.ROLLOVER);
+			copied.add(budgetLimitRepository.save(newBudget));
+		}
+
+		if (copied.isEmpty()) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "All categories already have a budget for this month.");
+		}
+
+		return copied.stream().map(this::toBudgetResponse).toList();
 	}
 
 	@Transactional(readOnly = true)
@@ -904,6 +951,7 @@ public class ExpenseService {
 			budgetLimit.getBudgetAmount(),
 			budgetLimit.getMonth(),
 			budgetLimit.getYear(),
+			budgetLimit.getSource() == BudgetLimitSource.ROLLOVER,
 			budgetLimit.getCreatedAt(),
 			budgetLimit.getUpdatedAt()
 		);

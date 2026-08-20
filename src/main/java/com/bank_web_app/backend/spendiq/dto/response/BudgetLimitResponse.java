@@ -11,6 +11,7 @@ public record BudgetLimitResponse(
 	BigDecimal budgetAmount,
 	Integer month,
 	Integer year,
+	boolean autoContinued,
 	LocalDateTime createdAt,
 	LocalDateTime updatedAt
 ) {

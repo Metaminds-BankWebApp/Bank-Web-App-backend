@@ -17,4 +17,6 @@ public interface BudgetLimitRepository extends JpaRepository<BudgetLimit, Long> 
 	List<BudgetLimit> findAllByUser_UserIdAndMonthAndYearOrderByCreatedAtDesc(Long userId, Integer month, Integer year);
 
 	List<BudgetLimit> findAllByUser_UserIdOrderByYearDescMonthDescCreatedAtDesc(Long userId);
+
+	List<BudgetLimit> findAllByMonthAndYear(Integer month, Integer year);
 }

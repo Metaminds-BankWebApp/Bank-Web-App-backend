@@ -3,6 +3,8 @@ package com.bank_web_app.backend.spendiq.entity;
 import com.bank_web_app.backend.user.entity.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -46,6 +48,10 @@ public class BudgetLimit {
 
 	@Column(name = "year", nullable = false)
 	private Integer year;
+
+	@Enumerated(EnumType.STRING)
+	@Column(name = "source", nullable = false, length = 20)
+	private BudgetLimitSource source = BudgetLimitSource.MANUAL;
 
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private LocalDateTime createdAt;
