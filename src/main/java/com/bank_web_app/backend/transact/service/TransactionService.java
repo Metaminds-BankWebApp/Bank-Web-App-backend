@@ -64,6 +64,7 @@ public class TransactionService {
 	private static final String OTP_STATUS_FAILED = "FAILED";
 	private static final int OTP_LENGTH = 6;
 	private static final int OTP_EXPIRY_MINUTES = 5;
+	private static final int MAX_OTP_ATTEMPTS = 3;
 	private static final BigDecimal MAX_TRANSFER_AMOUNT = new BigDecimal("100000.00");
 	private static final BigDecimal MINIMUM_REMAINING_BALANCE = new BigDecimal("1000.00");
 	private static final DateTimeFormatter REFERENCE_TIME_FORMAT = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
@@ -150,6 +151,7 @@ public class TransactionService {
 		transaction.setReferenceNo(referenceNo);
 		transaction.setStatus(STATUS_PENDING_OTP);
 		transaction.setOtpVerified(Boolean.FALSE);
+		transaction.setOtpAttemptCount(0);
 		transaction.setExpenseTrackingEnabled(Boolean.TRUE.equals(request.expenseTrackingEnabled()));
 		transaction.setFailureReason(null);
 
@@ -176,12 +178,13 @@ public class TransactionService {
 			transaction.getStatus(),
 			otpRecord.getSentToEmail(),
 			otpRecord.getExpiresAt(),
+			MAX_OTP_ATTEMPTS,
 			responseMessage
 		);
 	}
 
 	// Verifies OTP, applies fund transfer, and marks transaction as successful.
-	@Transactional
+	@Transactional(noRollbackFor = IllegalArgumentException.class)
 	public TransactionResponse verifyOtp(VerifyTransactionOtpRequest request) {
 		BankCustomer bankCustomer = resolveLoggedInBankCustomer();
 		Transaction transaction = transactionRepository
@@ -211,7 +214,21 @@ public class TransactionService {
 		if (!passwordEncoder.matches(request.otpCode().trim(), otpRecord.getOtpCodeHash())) {
 			otpRecord.setOtpStatus(OTP_STATUS_FAILED);
 			otpRecordRepository.save(otpRecord);
-			throw new IllegalArgumentException("Invalid OTP code.");
+
+			int nextAttemptCount = (transaction.getOtpAttemptCount() == null ? 0 : transaction.getOtpAttemptCount()) + 1;
+			transaction.setOtpAttemptCount(nextAttemptCount);
+			transaction.setOtpVerified(Boolean.FALSE);
+			if (nextAttemptCount >= MAX_OTP_ATTEMPTS) {
+				transaction.setStatus(STATUS_FAILED);
+				transaction.setFailureReason("OTP verification failed after 3 incorrect attempts.");
+				transactionRepository.save(transaction);
+				throw new IllegalArgumentException("Maximum of 3 OTP attempts reached. This transaction has failed.");
+			}
+
+			transactionRepository.save(transaction);
+			throw new IllegalArgumentException(
+				"Invalid OTP code. " + (MAX_OTP_ATTEMPTS - nextAttemptCount) + " attempt(s) remaining."
+			);
 		}
 
 		Account senderAccount = resolveSenderAccountForBankCustomer(bankCustomer);
@@ -258,6 +275,34 @@ public class TransactionService {
 			trackExpenseForSuccessfulTransaction(bankCustomer, transaction);
 		}
 
+		return toTransactionResponse(transaction);
+	}
+
+	// Cancels a transfer that is still waiting for OTP verification.
+	@Transactional
+	public TransactionResponse cancelTransaction(String referenceNo) {
+		BankCustomer bankCustomer = resolveLoggedInBankCustomer();
+		Transaction transaction = transactionRepository
+			.findByReferenceNoAndBankCustomer_BankCustomerId(referenceNo.trim(), bankCustomer.getBankCustomerId())
+			.orElseThrow(() -> new IllegalArgumentException("Transaction not found for logged-in bank customer."));
+
+		if (!STATUS_PENDING_OTP.equals(transaction.getStatus())) {
+			throw new IllegalArgumentException("Only transactions awaiting OTP verification can be cancelled.");
+		}
+
+		otpRecordRepository
+			.findTopByTransaction_TransactionIdOrderByCreatedAtDesc(transaction.getTransactionId())
+			.ifPresent(otpRecord -> {
+				if (OTP_STATUS_SENT.equals(otpRecord.getOtpStatus())) {
+					otpRecord.setOtpStatus(OTP_STATUS_EXPIRED);
+					otpRecordRepository.save(otpRecord);
+				}
+			});
+
+		transaction.setStatus(STATUS_CANCELLED);
+		transaction.setOtpVerified(Boolean.FALSE);
+		transaction.setFailureReason("Cancelled by customer.");
+		transaction = transactionRepository.save(transaction);
 		return toTransactionResponse(transaction);
 	}
 
@@ -313,6 +358,7 @@ public class TransactionService {
 			transaction.getStatus(),
 			otpRecord.getSentToEmail(),
 			otpRecord.getExpiresAt(),
+			Math.max(0, MAX_OTP_ATTEMPTS - (transaction.getOtpAttemptCount() == null ? 0 : transaction.getOtpAttemptCount())),
 			responseMessage
 		);
 	}
