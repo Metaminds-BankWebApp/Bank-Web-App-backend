@@ -26,6 +26,9 @@ public record TransactionInitiateResponse(
 	// Expiry timestamp for the issued OTP.
 	@Schema(description = "OTP expiry timestamp", example = "2026-04-20T11:10:00")
 	LocalDateTime otpExpiresAt,
+	// Number of incorrect OTP attempts still available before the transfer fails.
+	@Schema(description = "Remaining incorrect OTP attempts", example = "3")
+	int otpAttemptsRemaining,
 	// Human-readable status message for client UI.
 	@Schema(description = "Operation message", example = "Transaction created. OTP has been issued for verification.")
 	String message
