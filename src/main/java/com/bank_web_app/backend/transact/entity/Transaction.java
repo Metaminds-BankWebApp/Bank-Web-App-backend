@@ -68,6 +68,10 @@ public class Transaction {
 	@Column(name = "otp_verified", nullable = false)
 	private Boolean otpVerified;
 
+	// Number of incorrect OTP verification attempts made for this transfer.
+	@Column(name = "otp_attempt_count", nullable = false, columnDefinition = "integer default 0")
+	private Integer otpAttemptCount;
+
 	// Indicates whether expense tracking integration is enabled.
 	@Column(name = "expense_tracking_enabled", nullable = false)
 	private Boolean expenseTrackingEnabled;
@@ -100,6 +104,9 @@ public class Transaction {
 		}
 		if (otpVerified == null) {
 			otpVerified = Boolean.FALSE;
+		}
+		if (otpAttemptCount == null) {
+			otpAttemptCount = 0;
 		}
 		if (expenseTrackingEnabled == null) {
 			expenseTrackingEnabled = Boolean.FALSE;

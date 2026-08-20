@@ -90,6 +90,22 @@ public class TransactionController {
 		return ResponseEntity.ok(transactionService.verifyOtp(request));
 	}
 
+	// Cancels a transfer before a valid OTP has completed it.
+	@PostMapping("/transactions/{referenceNo}/cancel")
+	@Operation(
+		summary = "Cancel pending transfer",
+		description = "Cancels a transaction that is still in PENDING_OTP status. No funds are transferred.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "Pending transaction cancelled"),
+			@ApiResponse(responseCode = "400", description = "Transaction cannot be cancelled"),
+			@ApiResponse(responseCode = "401", description = "Unauthorized: bank customer authentication is required"),
+			@ApiResponse(responseCode = "403", description = "Forbidden: logged-in user is not a bank customer")
+		}
+	)
+	public ResponseEntity<TransactionResponse> cancelTransaction(@PathVariable String referenceNo) {
+		return ResponseEntity.ok(transactionService.cancelTransaction(referenceNo));
+	}
+
 	// Sends a new OTP for a transaction still pending OTP verification.
 	@PostMapping("/transactions/resend-otp")
 	@Operation(
