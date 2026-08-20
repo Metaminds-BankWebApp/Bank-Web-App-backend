@@ -155,8 +155,7 @@ public class BankOfficerCustomerOnboardingService {
 		if (userRepository.existsByUsernameAndUserIdNot(username, user.getUserId())) {
 			duplicateFieldErrors.put("username", "Username is already in use.");
 		}
-		String roleName = user.getRole() == null ? "" : user.getRole().getRoleName();
-		if (userRepository.existsByEmailIgnoreCaseAndRole_RoleNameAndUserIdNot(email, roleName, user.getUserId())) {
+		if (userRepository.existsByEmailIgnoreCaseAndUserIdNot(email, user.getUserId())) {
 			duplicateFieldErrors.put("email", "Email is already in use.");
 		}
 		if (userRepository.existsByNicAndUserIdNot(nic, user.getUserId())) {

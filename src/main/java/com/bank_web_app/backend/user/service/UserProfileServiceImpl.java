@@ -118,13 +118,7 @@ public class UserProfileServiceImpl implements UserProfileService {
 		String normalizedAddress = normalizeNullableText(request.address());
 
 		Map<String, String> duplicateFieldErrors = new LinkedHashMap<>();
-		if (
-			userRepository.existsByEmailIgnoreCaseAndRole_RoleNameAndUserIdNot(
-				normalizedEmail,
-				resolveRoleName(user),
-				user.getUserId()
-			)
-		) {
+		if (userRepository.existsByEmailIgnoreCaseAndUserIdNot(normalizedEmail, user.getUserId())) {
 			duplicateFieldErrors.put("email", "Email is already in use.");
 		}
 
