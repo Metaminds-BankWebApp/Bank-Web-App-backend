@@ -6,6 +6,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.bank_web_app.backend.creditlens.dto.response.CreditInsightsResponse;
 import com.bank_web_app.backend.creditlens.dto.response.CreditReportResponse;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -57,6 +58,43 @@ class CreditEvaluationResponseServiceTest {
 		verify(recordService, never()).loadRecordBreakdown(org.mockito.ArgumentMatchers.any(EvaluationView.class));
 	}
 
+	@Test
+	void insightsExcludeZeroPointKeyRiskFactors() {
+		CreditEvaluationResponseService responseService = new CreditEvaluationResponseService(recordService);
+		EvaluationView current = viewWithFactors(10, 12, 0, 0, 0, 1, 1);
+
+		CreditInsightsResponse response = responseService.buildInsightsResponse(
+			current,
+			List.of(current),
+			breakdown("125000.00")
+		);
+
+		assertThat(response.keyRiskFactors())
+			.extracting(item -> item.title())
+			.containsExactly("Debt-to-Income", "Payment History");
+	}
+
+	@Test
+	void positiveBehaviorsExcludeFullPointFactorsAndUseNextEligiblePriorities() {
+		CreditEvaluationResponseService responseService = new CreditEvaluationResponseService(recordService);
+		EvaluationView current = viewWithFactors(30, 0, 0, 0, 0, 1, 0);
+
+		CreditInsightsResponse response = responseService.buildInsightsResponse(
+			current,
+			List.of(current),
+			breakdown("125000.00")
+		);
+
+		assertThat(response.positiveBehaviors())
+			.extracting(item -> item.title())
+			.containsExactly(
+				"Debt-to-income is within the low-risk band",
+				"Credit utilization is within the healthy band",
+				"Income profile is stable"
+			)
+			.doesNotContain("No recent missed payments");
+	}
+
 	private RecordBreakdown breakdown(String income) {
 		return new RecordBreakdown(
 			new BigDecimal(income),
@@ -90,6 +128,39 @@ class CreditEvaluationResponseServiceTest {
 			0,
 			0,
 			createdAt
+		);
+	}
+
+	private EvaluationView viewWithFactors(
+		int paymentHistoryPoints,
+		int dtiPoints,
+		int utilizationPoints,
+		int incomeStabilityPoints,
+		int exposurePoints,
+		int activeFacilitiesCount,
+		int missedPaymentsCount
+	) {
+		return new EvaluationView(
+			100L,
+			200L,
+			"PUBLIC",
+			"Self Assessment",
+			paymentHistoryPoints + dtiPoints + utilizationPoints + incomeStabilityPoints + exposurePoints,
+			"LOW",
+			new BigDecimal("125000.00"),
+			new BigDecimal("25000.00"),
+			new BigDecimal("100000.00"),
+			new BigDecimal("20000.00"),
+			new BigDecimal("0.20"),
+			new BigDecimal("0.20"),
+			activeFacilitiesCount,
+			missedPaymentsCount,
+			paymentHistoryPoints,
+			dtiPoints,
+			utilizationPoints,
+			incomeStabilityPoints,
+			exposurePoints,
+			LocalDateTime.of(2026, 8, 21, 9, 0)
 		);
 	}
 }
