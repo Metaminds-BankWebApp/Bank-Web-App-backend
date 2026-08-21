@@ -40,6 +40,15 @@ public class LoanEligibilityResult {
 	@Column(name = "asset_value", precision = 15, scale = 2)
 	private BigDecimal assetValue;
 
+	@Column(name = "policy_max_dbr_ratio", precision = 5, scale = 4)
+	private BigDecimal policyMaxDbrRatio;
+
+	@Column(name = "max_allowed_emi", precision = 15, scale = 2)
+	private BigDecimal maxAllowedEmi;
+
+	@Column(name = "available_emi_capacity", precision = 15, scale = 2)
+	private BigDecimal availableEmiCapacity;
+
 	@Column(name = "estimated_emi", nullable = false, precision = 15, scale = 2)
 	private BigDecimal estimatedEmi;
 
