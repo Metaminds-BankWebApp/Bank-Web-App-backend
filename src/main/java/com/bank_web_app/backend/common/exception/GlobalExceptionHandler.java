@@ -15,8 +15,10 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.servlet.ModelAndView;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @RestControllerAdvice
@@ -137,6 +139,15 @@ public class GlobalExceptionHandler {
 		HttpServletRequest request
 	) {
 		return build(HttpStatus.CONTENT_TOO_LARGE, "Profile image must not exceed 5 MB.", request.getRequestURI());
+	}
+
+	@ExceptionHandler(AsyncRequestNotUsableException.class)
+	public ModelAndView handleClientDisconnect(
+		AsyncRequestNotUsableException ex,
+		HttpServletRequest request
+	) {
+		LOGGER.debug("Client disconnected before the response completed for path {}: {}", request.getRequestURI(), ex.getMessage());
+		return new ModelAndView();
 	}
 
 	@ExceptionHandler(Exception.class)
