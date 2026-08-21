@@ -367,6 +367,7 @@ public class LoanEligibilityService {
 
 		if (
 			latestEvaluation != null &&
+			!requiresProductSpecificAffordabilityRecalculation(latestEvaluation) &&
 			!isDependencyUpdatedAfter(
 				latestEvaluation.getCreatedAt(),
 				latestRecord.getUpdatedAt(),
@@ -386,6 +387,12 @@ public class LoanEligibilityService {
 		);
 	}
 
+	private boolean requiresProductSpecificAffordabilityRecalculation(LoanSenseEvaluation evaluation) {
+		return evaluation.getResults().stream().anyMatch(result ->
+			result.getMaxAllowedEmi() == null || result.getAvailableEmiCapacity() == null
+		);
+	}
+
 	private LoanSenseEvaluation reconcileOverallStatus(LoanSenseEvaluation evaluation) {
 		String resolvedOverallStatus = resolveOverallStatus(evaluation.getResults());
 		String currentOverallStatus = normalizeText(evaluation.getOverallStatus());
@@ -395,7 +402,7 @@ public class LoanEligibilityService {
 
 		evaluation.setOverallStatus(resolvedOverallStatus);
 		RiskAdjustment riskAdjustment = riskAdjustmentRepository.findByRiskLevel(normalizeText(evaluation.getRiskLevel())).orElse(null);
-		evaluation.setRemarks(buildRemarks(resolvedOverallStatus, safeAmount(evaluation.getAvailableEmiCapacity()), riskAdjustment));
+		evaluation.setRemarks(buildRemarks(resolvedOverallStatus, evaluation.getResults(), riskAdjustment));
 		return loanEligibilityRepository.save(evaluation);
 	}
 
@@ -442,7 +449,9 @@ public class LoanEligibilityService {
 			.map(this::extractInterestRatesByLoanType)
 			.orElse(Map.of());
 
-		BigDecimal maxDbrRatio = activePolicyMap
+		// These evaluation-level values are retained for existing history data. Individual
+		// product results below hold the actual policy-specific affordability figures.
+		BigDecimal conservativeMaxDbrRatio = activePolicyMap
 			.values()
 			.stream()
 			.map(LoanPolicy::getMaxDbrRatio)
@@ -450,7 +459,7 @@ public class LoanEligibilityService {
 			.orElse(DEFAULT_MAX_DBR_RATIO);
 		BigDecimal tmdo = totalExistingLoanEmi.add(leasingHirePurchasePayment).add(creditCardMinPayment).setScale(2, RoundingMode.HALF_UP);
 		BigDecimal dbr = tmdo.divide(monthlyIncome, 4, RoundingMode.HALF_UP);
-		BigDecimal maxAllowedEmi = monthlyIncome.multiply(maxDbrRatio).setScale(2, RoundingMode.HALF_UP);
+		BigDecimal maxAllowedEmi = monthlyIncome.multiply(conservativeMaxDbrRatio).setScale(2, RoundingMode.HALF_UP);
 		BigDecimal availableEmiCapacity = maxAllowedEmi.subtract(tmdo).setScale(2, RoundingMode.HALF_UP);
 
 		String riskLevel = normalizeText(bankCreditEvaluation.getRiskLevel());
@@ -494,7 +503,7 @@ public class LoanEligibilityService {
 				customerAge,
 				monthlyIncome,
 				dbr,
-				availableEmiCapacity,
+				tmdo,
 				missedPaymentsCount,
 				requestInput.assetValuesByLoanType().get(loanType),
 				previousInterestRatesByLoanType.get(loanType)
@@ -504,7 +513,7 @@ public class LoanEligibilityService {
 
 		evaluation.setResults(results);
 		evaluation.setOverallStatus(resolveOverallStatus(results));
-		evaluation.setRemarks(buildRemarks(evaluation.getOverallStatus(), availableEmiCapacity, riskAdjustment));
+		evaluation.setRemarks(buildRemarks(evaluation.getOverallStatus(), results, riskAdjustment));
 		return loanEligibilityRepository.save(evaluation);
 	}
 
@@ -539,7 +548,7 @@ public class LoanEligibilityService {
 		int customerAge,
 		BigDecimal monthlyIncome,
 		BigDecimal dbr,
-		BigDecimal availableEmiCapacity,
+		BigDecimal tmdo,
 		int missedPaymentsCount,
 		BigDecimal assetValue,
 		BigDecimal previousInterestRate
@@ -550,8 +559,16 @@ public class LoanEligibilityService {
 		result.setCustomerAge(customerAge);
 		BigDecimal normalizedAssetValue = assetValue == null ? null : assetValue.setScale(2, RoundingMode.HALF_UP);
 		result.setAssetValue(normalizedAssetValue);
-
-		BigDecimal usableEmiCapacity = availableEmiCapacity.max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
+		BigDecimal productMaxAllowedEmi = policy == null
+			? BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP)
+			: monthlyIncome.multiply(policy.getMaxDbrRatio()).setScale(2, RoundingMode.HALF_UP);
+		BigDecimal productAvailableEmiCapacity = policy == null
+			? BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP)
+			: productMaxAllowedEmi.subtract(tmdo).setScale(2, RoundingMode.HALF_UP);
+		BigDecimal usableEmiCapacity = productAvailableEmiCapacity.max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
+		result.setPolicyMaxDbrRatio(policy == null ? null : policy.getMaxDbrRatio());
+		result.setMaxAllowedEmi(productMaxAllowedEmi);
+		result.setAvailableEmiCapacity(productAvailableEmiCapacity);
 		result.setEstimatedEmi(usableEmiCapacity);
 		result.setInterestRate(policy == null ? null : policy.getBaseInterestRate());
 
@@ -572,7 +589,7 @@ public class LoanEligibilityService {
 			}
 
 			if (usableEmiCapacity.compareTo(BigDecimal.ZERO) <= 0) {
-				blockers.add("Current debt obligations already consume the allowed EMI capacity.");
+				blockers.add("Current debt obligations already consume this product's allowed EMI capacity.");
 			}
 			if (dbr.compareTo(policy.getMaxDbrRatio()) > 0) {
 				blockers.add("Current debt burden ratio is above the allowed policy limit.");
@@ -789,9 +806,16 @@ public class LoanEligibilityService {
 		return eligibleCount >= partialCount ? "ELIGIBLE" : "PARTIALLY_ELIGIBLE";
 	}
 
-	private String buildRemarks(String overallStatus, BigDecimal availableEmiCapacity, RiskAdjustment riskAdjustment) {
+	private String buildRemarks(
+		String overallStatus,
+		List<LoanEligibilityResult> results,
+		RiskAdjustment riskAdjustment
+	) {
 		if ("NOT_ELIGIBLE".equals(overallStatus)) {
-			return availableEmiCapacity.compareTo(BigDecimal.ZERO) <= 0
+			boolean noProductHasEmiCapacity = results == null || results.stream()
+				.filter(Objects::nonNull)
+				.noneMatch(result -> safeAmount(result.getAvailableEmiCapacity()).compareTo(BigDecimal.ZERO) > 0);
+			return noProductHasEmiCapacity
 				? "Current monthly obligations are already at or above the permitted EMI threshold."
 				: "Current policy checks prevent an approval recommendation at this time.";
 		}

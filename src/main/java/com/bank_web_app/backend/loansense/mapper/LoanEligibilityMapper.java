@@ -60,6 +60,15 @@ public class LoanEligibilityMapper {
 		RiskAdjustment adjustment
 	) {
 		int minTenure = resolveMinTenureMonths(result.getLoanType());
+		java.math.BigDecimal policyMaxDbrRatio = result.getPolicyMaxDbrRatio() != null
+			? result.getPolicyMaxDbrRatio()
+			: policy == null ? null : policy.getMaxDbrRatio();
+		java.math.BigDecimal maxAllowedEmi = result.getMaxAllowedEmi() != null
+			? result.getMaxAllowedEmi()
+			: evaluation.getMaxAllowedEmi();
+		java.math.BigDecimal availableEmiCapacity = result.getAvailableEmiCapacity() != null
+			? result.getAvailableEmiCapacity()
+			: evaluation.getAvailableEmiCapacity();
 		return new LoanTypeDetailResponse(
 			evaluation.getLoansenseEvaluationId(),
 			result.getLoanResultId(),
@@ -71,19 +80,22 @@ public class LoanEligibilityMapper {
 			result.getRecommendedMaxAmount(),
 			result.getEstimatedEmi(),
 			result.getInterestRate(),
+			result.getTenureMonths(),
 			minTenure,
 			policy == null ? null : policy.getMaxTenureMonths(),
-			buildTenureLabel(minTenure, policy == null ? result.getTenureMonths() : policy.getMaxTenureMonths()),
+			buildTenureLabel(minTenure, result.getTenureMonths()),
 			result.getCustomerAge(),
+			result.getAssetValue(),
 			evaluation.getMonthlyIncome(),
 			evaluation.getTotalExistingLoanEmi(),
 			evaluation.getCreditCardMinPayment(),
 			evaluation.getLeasingHirePurchasePayment(),
 			evaluation.getTmdo(),
+			evaluation.getMissedPaymentsCount(),
 			evaluation.getDbr(),
-			policy == null ? null : policy.getMaxDbrRatio(),
-			evaluation.getMaxAllowedEmi(),
-			evaluation.getAvailableEmiCapacity(),
+			policyMaxDbrRatio,
+			maxAllowedEmi,
+			availableEmiCapacity,
 			evaluation.getRiskLevel(),
 			toRiskLabel(evaluation.getRiskLevel()),
 			evaluation.getRiskMultiplier(),
@@ -91,6 +103,8 @@ public class LoanEligibilityMapper {
 			policy == null ? null : policy.getMinIncomeRequired(),
 			policy == null ? null : policy.getMinAge(),
 			policy == null ? null : policy.getMaxAge(),
+			policy == null ? null : policy.getMaxFinancePercentage(),
+			policy == null ? null : policy.getStatus(),
 			result.getDecisionReason(),
 			evaluation.getCreatedAt()
 		);
@@ -128,6 +142,9 @@ public class LoanEligibilityMapper {
 			result.getRecommendedMaxAmount(),
 			result.getEstimatedEmi(),
 			result.getInterestRate(),
+			result.getPolicyMaxDbrRatio(),
+			result.getMaxAllowedEmi(),
+			result.getAvailableEmiCapacity(),
 			result.getTenureMonths(),
 			buildTenureLabel(resolveMinTenureMonths(result.getLoanType()), result.getTenureMonths()),
 			result.getCustomerAge(),
