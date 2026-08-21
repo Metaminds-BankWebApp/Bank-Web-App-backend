@@ -18,6 +18,9 @@ public record BeneficiaryResponse(
 	// User-friendly beneficiary nickname.
 	@Schema(description = "Nickname", example = "Water bill")
 	String nickName,
+	// Account holder name resolved from the beneficiary's linked user profile.
+	@Schema(description = "Beneficiary account holder name", example = "Kasun Perera")
+	String accountHolderName,
 	// Additional note saved with beneficiary details.
 	@Schema(description = "Remark", example = "Monthly utility transfer")
 	String remark,

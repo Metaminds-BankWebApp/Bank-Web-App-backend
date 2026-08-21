@@ -929,11 +929,21 @@ public class TransactionService {
 
 	// Converts beneficiary entity to API response DTO.
 	private BeneficiaryResponse toBeneficiaryResponse(Beneficiary beneficiary) {
+		String beneficiaryAccountNo = beneficiary.getBeneficiaryAccountNo();
+		String accountHolderName = bankCustomerRepository
+			.findByAccount_AccountNumber(beneficiaryAccountNo)
+			.map(customer -> resolveDisplayName(customer.getUser()))
+			.orElse("");
+		if (accountHolderName.isBlank()) {
+			accountHolderName = safeText(beneficiary.getNickName());
+		}
+
 		return new BeneficiaryResponse(
 			beneficiary.getBeneficiaryId(),
 			beneficiary.getBankCustomer().getBankCustomerId(),
-			beneficiary.getBeneficiaryAccountNo(),
+			beneficiaryAccountNo,
 			beneficiary.getNickName(),
+			accountHolderName,
 			beneficiary.getRemark(),
 			beneficiary.getCreatedAt()
 		);

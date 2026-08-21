@@ -11,6 +11,9 @@ public interface BankCustomerRepository extends JpaRepository<BankCustomer, Long
 
 	Optional<BankCustomer> findByUser_UserId(Long userId);
 
+	// Resolves the account holder so saved-beneficiary selections can show the real recipient name.
+	Optional<BankCustomer> findByAccount_AccountNumber(String accountNumber);
+
 	Optional<BankCustomer> findByUser_Nic(String nic);
 
 	// NICs can be entered with spaces or a lowercase suffix. Match their canonical value
