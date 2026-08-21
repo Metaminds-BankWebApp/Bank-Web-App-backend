@@ -119,9 +119,13 @@ public class CreditEvaluationResponseService {
 		List<EvaluationView> history
 	) {
 		List<EvaluationView> monthlyViews = getLatestEvaluationsPerMonth(history);
+		Map<Long, RecordBreakdown> breakdownsByRecord = creditEvaluationRecordService.loadRecordBreakdowns(monthlyViews);
 		List<CreditReportSnapshotResponse> snapshots = new ArrayList<>();
 		for (EvaluationView view : monthlyViews) {
-			RecordBreakdown breakdown = creditEvaluationRecordService.loadRecordBreakdown(view);
+			RecordBreakdown breakdown = breakdownsByRecord.get(view.recordId());
+			if (breakdown == null) {
+				throw new IllegalStateException("Financial breakdown was not loaded for record " + view.recordId() + ".");
+			}
 			snapshots.add(new CreditReportSnapshotResponse(
 				view.evaluationId(),
 				view.createdAt().format(MONTH_LABEL_FORMATTER),

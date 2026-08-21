@@ -3,6 +3,7 @@ package com.bank_web_app.backend.creditlens.repository;
 import com.bank_web_app.backend.creditlens.entity.SelfCreditEvaluation;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 /**
@@ -17,6 +18,7 @@ public interface SelfCreditEvaluationRepository extends JpaRepository<SelfCredit
 	Optional<SelfCreditEvaluation> findTopByPublicRecord_RecordIdOrderByCreatedAtDesc(Long recordId);
 
 	// Lists all self evaluations for the public customer history view.
+	@EntityGraph(attributePaths = "publicRecord")
 	List<SelfCreditEvaluation> findAllByPublicCustomer_PublicCustomerIdOrderByCreatedAtDesc(Long publicCustomerId);
 
 	// Finds one self evaluation only when it belongs to the public customer.

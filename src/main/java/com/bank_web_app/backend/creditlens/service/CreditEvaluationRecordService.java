@@ -26,7 +26,9 @@ import com.bank_web_app.backend.publiccustomer.repository.PublicCustomerLoanRepo
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -128,6 +130,47 @@ public class CreditEvaluationRecordService {
 		);
 	}
 
+	// Loads all public report breakdowns with one query per financial table.
+	Map<Long, RecordBreakdown> loadRecordBreakdowns(List<EvaluationView> views) {
+		if (views == null || views.isEmpty()) {
+			return Map.of();
+		}
+		if (views.stream().allMatch(view -> "PUBLIC".equals(view.scope()))) {
+			return loadPublicRecordBreakdowns(views);
+		}
+
+		Map<Long, RecordBreakdown> breakdowns = new LinkedHashMap<>();
+		views.forEach(view -> breakdowns.computeIfAbsent(view.recordId(), ignored -> loadRecordBreakdown(view)));
+		return breakdowns;
+	}
+
+	private Map<Long, RecordBreakdown> loadPublicRecordBreakdowns(List<EvaluationView> views) {
+		List<Long> recordIds = views.stream().map(EvaluationView::recordId).distinct().toList();
+		Map<Long, RecordBreakdownAccumulator> totals = new LinkedHashMap<>();
+		recordIds.forEach(recordId -> totals.put(recordId, new RecordBreakdownAccumulator()));
+
+		publicCustomerIncomeRepository.findAllByFinancialRecord_RecordIdIn(recordIds).forEach(income ->
+			totals.computeIfAbsent(income.getFinancialRecord().getRecordId(), ignored -> new RecordBreakdownAccumulator())
+				.addIncome(income.getAmount())
+		);
+		publicCustomerLoanRepository.findAllByFinancialRecord_RecordIdIn(recordIds).forEach(loan ->
+			totals.computeIfAbsent(loan.getFinancialRecord().getRecordId(), ignored -> new RecordBreakdownAccumulator())
+				.addLoanEmi(loan.getMonthlyEmi())
+		);
+		publicCustomerCardRepository.findAllByFinancialRecord_RecordIdIn(recordIds).forEach(card ->
+			totals.computeIfAbsent(card.getFinancialRecord().getRecordId(), ignored -> new RecordBreakdownAccumulator())
+				.addCard(card.getOutstandingBalance(), card.getCreditLimit())
+		);
+		publicCustomerLiabilityRepository.findAllByFinancialRecord_RecordIdIn(recordIds).forEach(liability ->
+			totals.computeIfAbsent(liability.getFinancialRecord().getRecordId(), ignored -> new RecordBreakdownAccumulator())
+				.addLiability(liability.getMonthlyAmount())
+		);
+
+		Map<Long, RecordBreakdown> breakdowns = new LinkedHashMap<>();
+		totals.forEach((recordId, total) -> breakdowns.put(recordId, total.toRecordBreakdown()));
+		return breakdowns;
+	}
+
 	// Adds all remaining loan balances for a public-customer financial record.
 	BigDecimal loadPublicLoanRemainingBalance(Long recordId) {
 		return publicCustomerLoanRepository.findAllByFinancialRecord_RecordId(recordId)
@@ -146,5 +189,42 @@ public class CreditEvaluationRecordService {
 			.map(CreditEvaluationAmounts::safeAmount)
 			.reduce(BigDecimal.ZERO, BigDecimal::add)
 			.setScale(2, RoundingMode.HALF_UP);
+	}
+
+	private static final class RecordBreakdownAccumulator {
+
+		private BigDecimal income = BigDecimal.ZERO;
+		private BigDecimal loanEmi = BigDecimal.ZERO;
+		private BigDecimal cardBalance = BigDecimal.ZERO;
+		private BigDecimal cardLimit = BigDecimal.ZERO;
+		private BigDecimal liabilities = BigDecimal.ZERO;
+
+		private void addIncome(BigDecimal amount) {
+			income = income.add(safeAmount(amount));
+		}
+
+		private void addLoanEmi(BigDecimal amount) {
+			loanEmi = loanEmi.add(safeAmount(amount));
+		}
+
+		private void addCard(BigDecimal outstandingBalance, BigDecimal creditLimit) {
+			cardBalance = cardBalance.add(safeAmount(outstandingBalance));
+			cardLimit = cardLimit.add(safeAmount(creditLimit));
+		}
+
+		private void addLiability(BigDecimal amount) {
+			liabilities = liabilities.add(safeAmount(amount));
+		}
+
+		private RecordBreakdown toRecordBreakdown() {
+			return new RecordBreakdown(
+				income.setScale(2, RoundingMode.HALF_UP),
+				loanEmi.setScale(2, RoundingMode.HALF_UP),
+				cardBalance.setScale(2, RoundingMode.HALF_UP),
+				cardLimit.setScale(2, RoundingMode.HALF_UP),
+				liabilities.setScale(2, RoundingMode.HALF_UP),
+				estimateCardMinimumPayment(cardBalance)
+			);
+		}
 	}
 }
