@@ -1,0 +1,13 @@
+.git
+.github
+.idea
+.vscode
+.m2
+target
+uploads
+.env
+*.log
+demo_*.sql
+manual_notification_setup.sql
+README.md
+package-lock.json
