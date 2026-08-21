@@ -538,6 +538,12 @@ public class CribDatasetService {
 			if (text.isEmpty()) {
 				return null;
 			}
+			// Some imported CRIB datasets expose monetary values as JSON string
+			// scalars (for example, "5920.61") rather than NUMERIC columns.
+			// Unwrap the scalar before parsing so the source amount is retained.
+			if (text.length() >= 2 && text.startsWith("\"") && text.endsWith("\"")) {
+				text = text.substring(1, text.length() - 1).trim();
+			}
 			return new BigDecimal(text.replace(",", ""));
 		} catch (NumberFormatException ex) {
 			return null;

@@ -261,6 +261,8 @@ public class BankCustomerFinancialRecordService {
 			if (ex.getStatusCode().value() != HttpStatus.NOT_FOUND.value()) {
 				throw ex;
 			}
+			requestStatus = "FAILED";
+			reportStatus = "FAILED";
 			responseMessage = "ID not found in CRIB. Continued with manual financial capture.";
 		}
 

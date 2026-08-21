@@ -11,6 +11,7 @@ import com.bank_web_app.backend.bankofficer.entity.BankOfficer;
 import com.bank_web_app.backend.bankofficer.repository.BankOfficerRepository;
 import com.bank_web_app.backend.bankofficer.service.BankOfficerContextService;
 import com.bank_web_app.backend.bankofficer.service.PortfolioService;
+import com.bank_web_app.backend.common.email.BankCustomerCredentialsEmailService;
 import com.bank_web_app.backend.common.email.BankOfficerCredentialsEmailService;
 import com.bank_web_app.backend.common.exception.DuplicateFieldsException;
 import com.bank_web_app.backend.notification.event.NotificationEventPublisher;
@@ -77,6 +78,7 @@ private final PublicCustomerProfileRepository publicCustomerProfileRepository;
 private final BankOfficerContextService bankOfficerContextService;
 private final PortfolioService portfolioService;
 private final PasswordEncoder passwordEncoder;
+private final BankCustomerCredentialsEmailService bankCustomerCredentialsEmailService;
 private final BankOfficerCredentialsEmailService bankOfficerCredentialsEmailService;
 private final NotificationEventPublisher notificationEventPublisher;
 private static final java.security.SecureRandom SECURE_RANDOM = new java.security.SecureRandom();
@@ -92,6 +94,7 @@ PublicCustomerProfileRepository publicCustomerProfileRepository,
 BankOfficerContextService bankOfficerContextService,
 PortfolioService portfolioService,
 PasswordEncoder passwordEncoder,
+BankCustomerCredentialsEmailService bankCustomerCredentialsEmailService,
 BankOfficerCredentialsEmailService bankOfficerCredentialsEmailService,
 NotificationEventPublisher notificationEventPublisher
 ) {
@@ -105,6 +108,7 @@ this.publicCustomerProfileRepository = publicCustomerProfileRepository;
 this.bankOfficerContextService = bankOfficerContextService;
 this.portfolioService = portfolioService;
 this.passwordEncoder = passwordEncoder;
+this.bankCustomerCredentialsEmailService = bankCustomerCredentialsEmailService;
 this.bankOfficerCredentialsEmailService = bankOfficerCredentialsEmailService;
 this.notificationEventPublisher = notificationEventPublisher;
 }
@@ -124,12 +128,13 @@ public UserRegistrationStepResponse continueBankCustomerStepOne(UserRegistration
 User user = createUserForRole(request, ROLE_BANK_CUSTOMER);
 BankCustomer customer = createBankCustomerProfile(request, user, STATE_PENDING_STEP_2);
 publishBankCustomerCreated(user, customer);
+bankCustomerCredentialsEmailService.sendCredentialsEmail(user.getEmail(), user.getFirstName(), user.getUsername(), request.password());
 
 return new UserRegistrationStepResponse(
 user.getUserId(),
 ROLE_BANK_CUSTOMER,
 STATE_PENDING_STEP_2,
-"Bank customer step one saved. Continue to step two."
+"Bank customer step one saved and credentials email was sent. Continue to step two."
 );
 }
 

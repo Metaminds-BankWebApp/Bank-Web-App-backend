@@ -22,7 +22,9 @@ CREATE TABLE crib_customers (
     gender VARCHAR(10),
     date_of_birth DATE,
     city VARCHAR(100),
-    report_generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    report_generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_crib_customers_nic_format
+        CHECK (nic ~ '^(?:[0-9]{9}[VvXx]|[0-9]{12})$')
 );
 
 -- =========================================
