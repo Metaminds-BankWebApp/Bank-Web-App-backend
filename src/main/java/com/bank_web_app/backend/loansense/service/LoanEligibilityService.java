@@ -1,5 +1,29 @@
 package com.bank_web_app.backend.loansense.service;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.Period;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+
 import com.bank_web_app.backend.admin.entity.LoanPolicy;
 import com.bank_web_app.backend.admin.entity.RiskAdjustment;
 import com.bank_web_app.backend.admin.repository.LoanPolicyRepository;
@@ -24,10 +48,10 @@ import com.bank_web_app.backend.creditlens.entity.BankCreditEvaluation;
 import com.bank_web_app.backend.creditlens.service.CreditEvaluationService;
 import com.bank_web_app.backend.loansense.dto.request.CreateLoanSenseEvaluationRequest;
 import com.bank_web_app.backend.loansense.dto.request.LoanSenseLoanInputRequest;
-import com.bank_web_app.backend.loansense.dto.response.LoanSenseOfficerCustomerRowResponse;
-import com.bank_web_app.backend.loansense.dto.response.LoanSenseOfficerDashboardResponse;
 import com.bank_web_app.backend.loansense.dto.response.LoanSenseEvaluationResponse;
 import com.bank_web_app.backend.loansense.dto.response.LoanSenseHistoryItemResponse;
+import com.bank_web_app.backend.loansense.dto.response.LoanSenseOfficerCustomerRowResponse;
+import com.bank_web_app.backend.loansense.dto.response.LoanSenseOfficerDashboardResponse;
 import com.bank_web_app.backend.loansense.dto.response.LoanTypeDetailResponse;
 import com.bank_web_app.backend.loansense.entity.LoanEligibilityResult;
 import com.bank_web_app.backend.loansense.entity.LoanSenseEvaluation;
@@ -37,28 +61,6 @@ import com.bank_web_app.backend.notification.event.NotificationEventPublisher;
 import com.bank_web_app.backend.notification.event.NotificationEventType;
 import com.bank_web_app.backend.user.entity.User;
 import com.bank_web_app.backend.user.repository.UserRepository;
-import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.Period;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-import org.springframework.http.HttpStatus;
-import org.springframework.security.authentication.AnonymousAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 
 /**
  * Core LoanSense domain service.
@@ -67,7 +69,8 @@ import org.springframework.web.server.ResponseStatusException;
  * - Build and persist loan eligibility evaluations from latest customer financial data.
  * - Reuse the latest evaluation when upstream dependencies have not changed.
  * - Provide customer/officer views, loan-type details, and history projections.
- */
+ */
+
 @Service
 public class LoanEligibilityService {
 
@@ -577,10 +580,10 @@ public class LoanEligibilityService {
 		Integer adjustedTenureMonths = null;
 
 		if (policy == null) {
-			blockers.add("This loan product is not currently configured as active.");
+			blockers.add("This loan is not currently configured as active.");
 		} else {
 			if (customerAge < policy.getMinAge() || customerAge > policy.getMaxAge()) {
-				blockers.add("Customer age is outside the policy age range for this product.");
+				blockers.add("Customer age is outside the policy age range for this loan.");
 			}
 
 			adjustedTenureMonths = resolveAdjustedTenureMonths(policy, customerAge);
@@ -589,16 +592,16 @@ public class LoanEligibilityService {
 			}
 
 			if (usableEmiCapacity.compareTo(BigDecimal.ZERO) <= 0) {
-				blockers.add("Current debt obligations already consume this product's allowed EMI capacity.");
+				blockers.add("Current debt obligations already consume this loan's allowed EMI capacity.");
 			}
 			if (dbr.compareTo(policy.getMaxDbrRatio()) > 0) {
 				blockers.add("Current debt burden ratio is above the allowed policy limit.");
 			}
 			if (policy.getMinIncomeRequired() != null && monthlyIncome.compareTo(policy.getMinIncomeRequired()) < 0) {
-				cautions.add("Monthly income is below the preferred threshold for this product.");
+				cautions.add("Monthly income is below the preferred threshold for this loan.");
 			}
 			if ("HIGH".equals(normalizeText(evaluation.getRiskLevel()))) {
-				cautions.add("High credit risk reduces the recommended amount for this product.");
+				cautions.add("High credit risk reduces the recommended amount for this loan.");
 			}
 			if (missedPaymentsCount >= 3) {
 				cautions.add("Recent missed payments make the recommendation more conservative.");
@@ -760,7 +763,7 @@ public class LoanEligibilityService {
 			return String.join(" ", cautions);
 		}
 		if ("ELIGIBLE".equals(eligibilityStatus)) {
-			return "Current affordability, age, and policy checks all pass for this product.";
+			return "Current affordability, age, and policy checks all pass for this loan.";
 		}
 		return "Recommendation generated from the latest verified financial and credit evaluation data.";
 	}
@@ -820,7 +823,7 @@ public class LoanEligibilityService {
 				: "Current policy checks prevent an approval recommendation at this time.";
 		}
 		if ("PARTIALLY_ELIGIBLE".equals(overallStatus)) {
-			return "Some products need more conservative limits because of income, repayment history, or credit risk conditions.";
+			return "Some loans need more conservative limits because of income, repayment history, or credit risk conditions.";
 		}
 		if (riskAdjustment != null && riskAdjustment.getDescription() != null && !riskAdjustment.getDescription().isBlank()) {
 			return riskAdjustment.getDescription().trim();
