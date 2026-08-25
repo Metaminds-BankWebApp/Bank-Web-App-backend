@@ -23,8 +23,7 @@ String lastName,
 @NotBlank(message = "NIC is required.")
 @Size(max = 20, message = "NIC must not exceed 20 characters.")
 String nic,
-@Schema(description = "Date of birth in ISO format (yyyy-MM-dd)", example = "2000-03-15", requiredMode = Schema.RequiredMode.REQUIRED)
-@NotBlank(message = "Date of birth is required.")
+@Schema(description = "Date of birth in ISO format (yyyy-MM-dd). Optional for public customer self-registration.", example = "2000-03-15")
 @Pattern(regexp = "^\\d{4}-\\d{2}-\\d{2}$", message = "DOB must be in yyyy-MM-dd format.")
 String dob,
 @Schema(description = "Email address", example = "john.doe@bank.com", requiredMode = Schema.RequiredMode.REQUIRED)

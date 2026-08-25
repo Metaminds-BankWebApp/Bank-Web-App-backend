@@ -76,6 +76,10 @@ public class Transaction {
 	@Column(name = "expense_tracking_enabled", nullable = false)
 	private Boolean expenseTrackingEnabled;
 
+	// SpendIQ category selected when expense tracking was requested for this transfer.
+	@Column(name = "expense_category_name", length = 100)
+	private String expenseCategoryName;
+
 	// Failure reason captured when transaction ends in FAILED status.
 	@Column(name = "failure_reason", length = 255)
 	private String failureReason;
