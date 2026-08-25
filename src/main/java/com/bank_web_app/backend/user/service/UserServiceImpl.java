@@ -246,7 +246,7 @@ user.setFirstName(request.firstName().trim());
 user.setLastName(request.lastName().trim());
 user.setPhone(phone);
 user.setNic(nic);
-user.setDob(parseDob(request.dob()));
+user.setDob(parseOptionalDob(request.dob()));
 user.setProvince(request.province().trim());
 user.setAddress(safeTrim(request.address()));
 user.setStatus(STATUS_ACTIVE);
@@ -498,7 +498,9 @@ throw new IllegalArgumentException("Request body is required.");
 requireText(request.firstName(), "First name is required.");
 requireText(request.lastName(), "Last name is required.");
 requireText(request.nic(), "NIC is required.");
-requireText(request.dob(), "Date of birth is required.");
+if (!ROLE_PUBLIC_CUSTOMER.equals(roleName)) {
+	requireText(request.dob(), "Date of birth is required.");
+}
 requireText(request.email(), "Email is required.");
 requireText(request.mobile(), "Mobile is required.");
 requireText(request.province(), "Province is required.");
@@ -582,6 +584,10 @@ return LocalDate.parse(dob.trim());
 } catch (DateTimeParseException ex) {
 throw new IllegalArgumentException("DOB must be in yyyy-MM-dd format.");
 }
+}
+
+private LocalDate parseOptionalDob(String dob) {
+	return safeTrim(dob).isBlank() ? null : parseDob(dob);
 }
 
 private BankCustomerSummaryResponse toSummary(User user, String customerId) {
