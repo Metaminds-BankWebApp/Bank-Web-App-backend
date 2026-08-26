@@ -125,6 +125,10 @@ public class TransactionService {
 		String receiverAccountNo = normalizeAccountNumber(request.receiverAccountNo());
 		String receiverName = request.receiverName().trim();
 		String remark = request.remark().trim();
+		boolean expenseTrackingEnabled = Boolean.TRUE.equals(request.expenseTrackingEnabled());
+		String expenseCategoryName = expenseTrackingEnabled
+			? expenseService.resolveTransactExpenseCategoryName(bankCustomer, request.expenseCategoryName())
+			: null;
 
 		if (senderAccountNo.equals(receiverAccountNo)) {
 			throw new IllegalArgumentException("Sender and receiver account numbers cannot be the same.");
@@ -152,7 +156,8 @@ public class TransactionService {
 		transaction.setStatus(STATUS_PENDING_OTP);
 		transaction.setOtpVerified(Boolean.FALSE);
 		transaction.setOtpAttemptCount(0);
-		transaction.setExpenseTrackingEnabled(Boolean.TRUE.equals(request.expenseTrackingEnabled()));
+		transaction.setExpenseTrackingEnabled(expenseTrackingEnabled);
+		transaction.setExpenseCategoryName(expenseCategoryName);
 		transaction.setFailureReason(null);
 
 		transaction = transactionRepository.save(transaction);
@@ -901,7 +906,8 @@ public class TransactionService {
 				bankCustomer,
 				transaction.getReferenceNo(),
 				transaction.getAmount(),
-				transaction.getTransactionDate()
+				transaction.getTransactionDate(),
+				transaction.getExpenseCategoryName()
 			);
 		} catch (RuntimeException ex) {
 			LOGGER.warn("SpendIQ tracking failed for transaction reference {}: {}", transaction.getReferenceNo(), ex.getMessage());

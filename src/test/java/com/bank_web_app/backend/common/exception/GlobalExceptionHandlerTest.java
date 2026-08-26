@@ -1,6 +1,9 @@
 package com.bank_web_app.backend.common.exception;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
@@ -10,6 +13,11 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 class GlobalExceptionHandlerTest {
@@ -39,5 +47,28 @@ class GlobalExceptionHandlerTest {
 		assertThat(response.getBody()).isNotNull();
 		assertThat(response.getBody().message()).isEqualTo("Profile image must not exceed 5 MB.");
 		assertThat(response.getBody().path()).isEqualTo("/api/users/profile/image");
+	}
+
+	@Test
+	void disconnectedClientIsResolvedWithoutWritingAnotherResponse() throws Exception {
+		MockMvc mockMvc = MockMvcBuilders
+			.standaloneSetup(new DisconnectingController())
+			.setControllerAdvice(new GlobalExceptionHandler())
+			.build();
+
+		mockMvc
+			.perform(get("/test/client-disconnect"))
+			.andExpect(status().isOk())
+			.andExpect(content().string(""))
+			.andExpect(result -> assertThat(result.getResolvedException()).isInstanceOf(AsyncRequestNotUsableException.class));
+	}
+
+	@RestController
+	private static class DisconnectingController {
+
+		@GetMapping("/test/client-disconnect")
+		public String disconnect() throws AsyncRequestNotUsableException {
+			throw new AsyncRequestNotUsableException("Response connection was aborted");
+		}
 	}
 }

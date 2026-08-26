@@ -37,6 +37,10 @@ public record CreateTransactionRequest(
 	String remark,
 	// Flag indicating whether this transfer should be sent to expense tracking.
 	@Schema(description = "Whether to auto-track this successful transfer in SpendIQ expenses.", example = "false")
-	Boolean expenseTrackingEnabled
+	Boolean expenseTrackingEnabled,
+	// SpendIQ category selected for this transfer when expense tracking is enabled.
+	@Schema(description = "Selected SpendIQ expense category name. Required when expenseTrackingEnabled is true.", example = "Utilities")
+	@Size(max = 100, message = "Expense category name must not exceed 100 characters.")
+	String expenseCategoryName
 ) {
 }

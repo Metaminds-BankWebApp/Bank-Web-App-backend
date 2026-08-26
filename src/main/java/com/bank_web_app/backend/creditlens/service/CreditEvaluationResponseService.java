@@ -119,9 +119,13 @@ public class CreditEvaluationResponseService {
 		List<EvaluationView> history
 	) {
 		List<EvaluationView> monthlyViews = getLatestEvaluationsPerMonth(history);
+		Map<Long, RecordBreakdown> breakdownsByRecord = creditEvaluationRecordService.loadRecordBreakdowns(monthlyViews);
 		List<CreditReportSnapshotResponse> snapshots = new ArrayList<>();
 		for (EvaluationView view : monthlyViews) {
-			RecordBreakdown breakdown = creditEvaluationRecordService.loadRecordBreakdown(view);
+			RecordBreakdown breakdown = breakdownsByRecord.get(view.recordId());
+			if (breakdown == null) {
+				throw new IllegalStateException("Financial breakdown was not loaded for record " + view.recordId() + ".");
+			}
 			snapshots.add(new CreditReportSnapshotResponse(
 				view.evaluationId(),
 				view.createdAt().format(MONTH_LABEL_FORMATTER),
@@ -360,6 +364,7 @@ public class CreditEvaluationResponseService {
 		);
 
 		return factors.stream()
+			.filter(factor -> factor.points() > 0)
 			.sorted(Comparator.comparingInt(FactorSnapshot::points).reversed().thenComparing(FactorSnapshot::title))
 			.limit(3)
 			.map(factor -> new CreditInsightItemResponse(
@@ -380,7 +385,7 @@ public class CreditEvaluationResponseService {
 		List<InsightCandidate> candidates = new ArrayList<>();
 
 		int paymentStrength = current.missedPaymentsCount() == 0 ? 95 : (current.missedPaymentsCount() == 1 ? 75 : (current.missedPaymentsCount() <= 3 ? 50 : 0));
-		if (paymentStrength > 0) {
+		if (paymentStrength > 0 && current.paymentHistoryPoints() < 30) {
 			candidates.add(new InsightCandidate(
 				paymentStrength,
 				new CreditInsightItemResponse(
@@ -398,7 +403,7 @@ public class CreditEvaluationResponseService {
 		}
 
 		int dtiStrength = current.dtiRatio().compareTo(new BigDecimal("0.30")) <= 0 ? 90 : (current.dtiRatio().compareTo(new BigDecimal("0.50")) <= 0 ? 55 : 0);
-		if (dtiStrength > 0) {
+		if (dtiStrength > 0 && current.dtiPoints() < 25) {
 			candidates.add(new InsightCandidate(
 				dtiStrength,
 				new CreditInsightItemResponse(
@@ -418,7 +423,7 @@ public class CreditEvaluationResponseService {
 		int utilizationStrength = current.creditUtilizationRatio().compareTo(new BigDecimal("0.40")) <= 0
 			? 85
 			: (current.creditUtilizationRatio().compareTo(new BigDecimal("0.70")) <= 0 ? 55 : 0);
-		if (utilizationStrength > 0) {
+		if (utilizationStrength > 0 && current.utilizationPoints() < 20) {
 			candidates.add(new InsightCandidate(
 				utilizationStrength,
 				new CreditInsightItemResponse(
@@ -438,7 +443,7 @@ public class CreditEvaluationResponseService {
 		}
 
 		int exposureStrength = current.activeFacilitiesCount() <= 2 ? 80 : (current.activeFacilitiesCount() <= 4 ? 55 : 0);
-		if (exposureStrength > 0) {
+		if (exposureStrength > 0 && current.exposurePoints() < 10) {
 			candidates.add(new InsightCandidate(
 				exposureStrength,
 				new CreditInsightItemResponse(
@@ -456,7 +461,7 @@ public class CreditEvaluationResponseService {
 		}
 
 		int incomeStrength = current.incomeStabilityPoints() == 0 ? 82 : (current.incomeStabilityPoints() <= 7 ? 50 : 0);
-		if (incomeStrength > 0) {
+		if (incomeStrength > 0 && current.incomeStabilityPoints() < 15) {
 			candidates.add(new InsightCandidate(
 				incomeStrength,
 				new CreditInsightItemResponse(

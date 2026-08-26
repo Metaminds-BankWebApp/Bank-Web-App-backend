@@ -25,12 +25,20 @@ public record BankCustomerIncomeStepRequest(
 		@NotNull(message = "Income amount is required.")
 		@Positive(message = "Income amount must be greater than 0.")
 		BigDecimal amount,
-		@Schema(description = "Salary type when category is SALARY", example = "FIXED")
+		@Schema(
+			description = "Salary type when category is SALARY",
+			example = "FIXED",
+			allowableValues = {"FIXED", "AVERAGE_VARIABLE"}
+		)
 		String salaryType,
-		@Schema(description = "Employment type when category is SALARY", example = "PERMANENT")
+		@Schema(
+			description = "Employment type when category is SALARY",
+			example = "PERMANENT",
+			allowableValues = {"PERMANENT", "CONTRACT"}
+		)
 		String employmentType,
-		@Schema(description = "Income duration in months for permanent or contract salary entries", example = "12")
-		@Min(value = 0, message = "Duration months cannot be negative.")
+		@Schema(description = "Contract duration in months; required for contract and unused for permanent employment", example = "12")
+		@Min(value = 1, message = "Contract duration must be at least 1 month.")
 		Integer durationMonths,
 		@Schema(description = "Income stability when category is BUSINESS", example = "STABLE")
 		String incomeStability

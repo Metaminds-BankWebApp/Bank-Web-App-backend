@@ -61,6 +61,7 @@ public class ExpenseService {
 	private static final String SOURCE_TRANSACT = "TRANSACT";
 	private static final String DEFAULT_TRANSFER_CATEGORY_NAME = "Bank Transfer";
 	private static final String DEFAULT_TRANSFER_CATEGORY_TYPE = "VARIABLE";
+	private static final String OTHER_TRANSFER_CATEGORY_NAME = "Other";
 	private static final PaymentMethod DEFAULT_TRANSFER_PAYMENT_TYPE = PaymentMethod.BANK_TRANSFER;
 	private static final List<DefaultCategorySeed> DEFAULT_SPENDIQ_CATEGORIES = List.of(
 		new DefaultCategorySeed("Food", "VARIABLE"),
@@ -117,11 +118,33 @@ public class ExpenseService {
 	}
 
 	@Transactional
+	public String resolveTransactExpenseCategoryName(BankCustomer bankCustomer, String requestedCategoryName) {
+		if (bankCustomer == null || bankCustomer.getUser() == null || bankCustomer.getUser().getUserId() == null) {
+			throw new IllegalArgumentException("Bank customer user context is required for SpendIQ tracking.");
+		}
+
+		String categoryName = normalizeText(requestedCategoryName);
+		if (categoryName.isBlank()) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Expense category is required when expense tracking is enabled.");
+		}
+
+		if (OTHER_TRANSFER_CATEGORY_NAME.equalsIgnoreCase(categoryName)) {
+			return OTHER_TRANSFER_CATEGORY_NAME;
+		}
+
+		return expenseCategoryRepository
+			.findByUser_UserIdAndCategoryNameIgnoreCase(bankCustomer.getUser().getUserId(), categoryName)
+			.map(ExpenseCategory::getCategoryName)
+			.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Expense category not found for this user."));
+	}
+
+	@Transactional
 	public void trackTransactExpenseForBankCustomer(
 		BankCustomer bankCustomer,
 		String referenceNo,
 		BigDecimal amount,
-		LocalDateTime transactionDate
+		LocalDateTime transactionDate,
+		String requestedCategoryName
 	) {
 		if (bankCustomer == null || bankCustomer.getUser() == null || bankCustomer.getUser().getUserId() == null) {
 			throw new IllegalArgumentException("Bank customer user context is required for SpendIQ tracking.");
@@ -140,16 +163,7 @@ public class ExpenseService {
 			return;
 		}
 
-		Long userId = bankCustomer.getUser().getUserId();
-		ExpenseCategory category = expenseCategoryRepository
-			.findByUser_UserIdAndCategoryNameIgnoreCase(userId, DEFAULT_TRANSFER_CATEGORY_NAME)
-			.orElseGet(() -> {
-				ExpenseCategory createdCategory = new ExpenseCategory();
-				createdCategory.setUser(bankCustomer.getUser());
-				createdCategory.setCategoryName(DEFAULT_TRANSFER_CATEGORY_NAME);
-				createdCategory.setCategoryType(DEFAULT_TRANSFER_CATEGORY_TYPE);
-				return expenseCategoryRepository.save(createdCategory);
-			});
+		ExpenseCategory category = resolveTransactExpenseCategory(bankCustomer, requestedCategoryName);
 
 		Expense expense = new Expense();
 		expense.setUser(bankCustomer.getUser());
@@ -171,6 +185,32 @@ public class ExpenseService {
 			)
 		);
 		publishBudgetThresholdIfReached(bankCustomer.getUser(), savedExpense);
+	}
+
+	private ExpenseCategory resolveTransactExpenseCategory(BankCustomer bankCustomer, String requestedCategoryName) {
+		String normalizedCategoryName = normalizeText(requestedCategoryName);
+		String categoryName = normalizedCategoryName.isBlank() ? DEFAULT_TRANSFER_CATEGORY_NAME : normalizedCategoryName;
+		Long userId = bankCustomer.getUser().getUserId();
+
+		if (!OTHER_TRANSFER_CATEGORY_NAME.equalsIgnoreCase(categoryName) && !DEFAULT_TRANSFER_CATEGORY_NAME.equalsIgnoreCase(categoryName)) {
+			return expenseCategoryRepository
+				.findByUser_UserIdAndCategoryNameIgnoreCase(userId, categoryName)
+				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Expense category not found for this user."));
+		}
+
+		return expenseCategoryRepository
+			.findByUser_UserIdAndCategoryNameIgnoreCase(userId, categoryName)
+			.orElseGet(() -> {
+				ExpenseCategory createdCategory = new ExpenseCategory();
+				createdCategory.setUser(bankCustomer.getUser());
+				createdCategory.setCategoryName(
+					OTHER_TRANSFER_CATEGORY_NAME.equalsIgnoreCase(categoryName)
+						? OTHER_TRANSFER_CATEGORY_NAME
+						: DEFAULT_TRANSFER_CATEGORY_NAME
+				);
+				createdCategory.setCategoryType(DEFAULT_TRANSFER_CATEGORY_TYPE);
+				return expenseCategoryRepository.save(createdCategory);
+			});
 	}
 
 	@Transactional

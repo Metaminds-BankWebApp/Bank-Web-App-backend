@@ -643,7 +643,6 @@ public class CreditEvaluationService {
 		return selfCreditEvaluationRepository
 			.findAllByPublicCustomer_PublicCustomerIdOrderByCreatedAtDesc(profile.getPublicCustomerId())
 			.stream()
-			.map(this::synchronizeSelfEvaluation)
 			.map(creditEvaluationViewMapper::toView)
 			.toList();
 	}

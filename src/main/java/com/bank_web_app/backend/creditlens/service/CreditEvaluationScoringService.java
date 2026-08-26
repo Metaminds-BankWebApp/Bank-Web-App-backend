@@ -40,6 +40,7 @@ public class CreditEvaluationScoringService {
 
 	private static final int LOW_RISK_MAX_POINTS = 33;
 	private static final int MEDIUM_RISK_MAX_POINTS = 66;
+	private static final BigDecimal HALF_RISK_MULTIPLIER = new BigDecimal("0.5");
 
 	private final PublicCustomerIncomeRepository publicCustomerIncomeRepository;
 	private final PublicCustomerLoanRepository publicCustomerLoanRepository;
@@ -355,6 +356,7 @@ public class CreditEvaluationScoringService {
 		BigDecimal totalPoints = incomes.stream()
 			.map(income -> share.multiply(resolveIncomeRiskMultiplier(
 				income.getIncomeCategory(),
+				income.getSalaryType(),
 				income.getEmploymentType(),
 				income.getDurationMonths(),
 				income.getIncomeStability()
@@ -373,6 +375,7 @@ public class CreditEvaluationScoringService {
 		BigDecimal totalPoints = incomes.stream()
 			.map(income -> share.multiply(resolveIncomeRiskMultiplier(
 				income.getIncomeCategory(),
+				income.getSalaryType(),
 				income.getEmploymentType(),
 				income.getDurationMonths(),
 				income.getIncomeStability()
@@ -384,29 +387,18 @@ public class CreditEvaluationScoringService {
 	// Resolves how risky one income source is based on category and stability.
 	private BigDecimal resolveIncomeRiskMultiplier(
 		String incomeCategory,
+		String salaryType,
 		String employmentType,
 		Integer durationMonths,
 		String incomeStability
 	) {
 		String normalizedCategory = normalizeText(incomeCategory);
-		String normalizedEmploymentType = normalizeText(employmentType);
 		String normalizedIncomeStability = normalizeText(incomeStability);
-		int normalizedDurationMonths = durationMonths == null ? 0 : durationMonths;
 
 		if ("SALARY".equals(normalizedCategory)) {
-			if (normalizedEmploymentType.contains("PERMANENT")) {
-				if (normalizedDurationMonths > 12) {
-					return BigDecimal.ZERO;
-				}
-				if (normalizedDurationMonths >= 6) {
-					return new BigDecimal("0.5");
-				}
-				return BigDecimal.ONE;
-			}
-			if (normalizedEmploymentType.contains("CONTRACT")) {
-				return normalizedDurationMonths > 0 && normalizedDurationMonths < 6 ? BigDecimal.ONE : new BigDecimal("0.5");
-			}
-			return BigDecimal.ONE;
+			BigDecimal salaryTypeRisk = resolveSalaryTypeRiskMultiplier(salaryType);
+			BigDecimal employmentRisk = resolveEmploymentRiskMultiplier(employmentType, durationMonths);
+			return salaryTypeRisk.max(employmentRisk);
 		}
 
 		if ("BUSINESS".equals(normalizedCategory)) {
@@ -417,11 +409,39 @@ public class CreditEvaluationScoringService {
 				normalizedIncomeStability.contains("MEDIUM") ||
 				normalizedIncomeStability.contains("MODERATE")
 			) {
-				return new BigDecimal("0.5");
+				return HALF_RISK_MULTIPLIER;
 			}
 			return BigDecimal.ONE;
 		}
 
+		return BigDecimal.ONE;
+	}
+
+	// Scores salary structure risk. Blank legacy values defer to employment and tenure.
+	private BigDecimal resolveSalaryTypeRiskMultiplier(String salaryType) {
+		String normalizedSalaryType = normalizeText(salaryType);
+		if (normalizedSalaryType.isBlank() || normalizedSalaryType.contains("FIXED")) {
+			return BigDecimal.ZERO;
+		}
+		if (normalizedSalaryType.contains("AVERAGE") && normalizedSalaryType.contains("VARIABLE")) {
+			return HALF_RISK_MULTIPLIER;
+		}
+		return BigDecimal.ONE;
+	}
+
+	// Scores employment risk; tenure applies only to contract employment.
+	private BigDecimal resolveEmploymentRiskMultiplier(String employmentType, Integer durationMonths) {
+		String normalizedEmploymentType = normalizeText(employmentType);
+		boolean permanent = normalizedEmploymentType.contains("PERMANENT") || normalizedEmploymentType.contains("PERMANANT");
+		if (permanent) {
+			return BigDecimal.ZERO;
+		}
+		if (normalizedEmploymentType.contains("CONTRACT")) {
+			if (durationMonths == null || durationMonths < 6) {
+				return BigDecimal.ONE;
+			}
+			return HALF_RISK_MULTIPLIER;
+		}
 		return BigDecimal.ONE;
 	}
 

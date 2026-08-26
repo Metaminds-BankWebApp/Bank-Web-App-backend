@@ -31,14 +31,22 @@ public record PublicCustomerIncomeStepRequest(
 		@Positive(message = "Income amount must be greater than 0.")
 		BigDecimal amount,
 		// Salary structure when income category is SALARY.
-		@Schema(description = "Salary type when category is SALARY", example = "FIXED")
+		@Schema(
+			description = "Salary type when category is SALARY",
+			example = "FIXED",
+			allowableValues = {"FIXED", "AVERAGE_VARIABLE"}
+		)
 		String salaryType,
 		// Employment classification when category is SALARY.
-		@Schema(description = "Employment type when category is SALARY", example = "PERMANENT")
+		@Schema(
+			description = "Employment type when category is SALARY",
+			example = "PERMANENT",
+			allowableValues = {"PERMANENT", "CONTRACT"}
+		)
 		String employmentType,
-		// Duration in months applicable to salary entries.
-		@Schema(description = "Income duration in months for permanent or contract salary entries", example = "12")
-		@Min(value = 0, message = "Duration months cannot be negative.")
+		// Duration in months applicable to contract salary entries.
+		@Schema(description = "Contract duration in months; required for contract and unused for permanent employment", example = "12")
+		@Min(value = 1, message = "Contract duration must be at least 1 month.")
 		Integer durationMonths,
 		// Stability indicator when income category is BUSINESS.
 		@Schema(description = "Income stability when category is BUSINESS", example = "STABLE")
