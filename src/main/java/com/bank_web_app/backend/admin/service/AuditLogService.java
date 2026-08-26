@@ -155,7 +155,8 @@ public class AuditLogService {
 		String actorRole,
 		String targetType,
 		String actorName,
-		String query
+		String query,
+		String sortBy
 	) {
 		int normalizedPage = normalizePage(page);
 		int normalizedPageSize = normalizePageSize(size);
@@ -184,7 +185,7 @@ public class AuditLogService {
 			PageRequest.of(
 				normalizedPage - 1,
 				normalizedPageSize,
-				Sort.by(Sort.Direction.DESC, "createdAt")
+				resolveAuditLogSort(sortBy)
 			)
 		);
 
@@ -580,6 +581,14 @@ public class AuditLogService {
 			return DEFAULT_PAGE_SIZE;
 		}
 		return Math.min(value, MAX_PAGE_SIZE);
+	}
+
+	private Sort resolveAuditLogSort(String value) {
+		String normalized = normalizeNullable(value, 30);
+		if ("created-asc".equalsIgnoreCase(normalized)) {
+			return Sort.by(Sort.Direction.ASC, "createdAt");
+		}
+		return Sort.by(Sort.Direction.DESC, "createdAt");
 	}
 
 	private String normalize(String value, String fallback, int maxLength) {
