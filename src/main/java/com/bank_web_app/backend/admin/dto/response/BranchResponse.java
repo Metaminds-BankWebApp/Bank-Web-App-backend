@@ -17,6 +17,8 @@ public record BranchResponse(
 	String address,
 	@Schema(example = "ACTIVE")
 	String status,
+	@Schema(example = "2026-04-19T10:00:00")
+	String createdAt,
 	@Schema(example = "2026-04-19T12:00:00")
 	String updatedAt,
 	@Schema(example = "12")

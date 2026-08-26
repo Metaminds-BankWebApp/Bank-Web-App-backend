@@ -222,6 +222,7 @@ public class BranchService {
 			branch.getBranchPhone(),
 			branch.getAddress(),
 			branch.getStatus() == null ? null : branch.getStatus().name(),
+			branch.getCreatedAt() == null ? null : branch.getCreatedAt().toString(),
 			branch.getUpdatedAt() == null ? null : branch.getUpdatedAt().toString(),
 			officerCount,
 			customerCount
