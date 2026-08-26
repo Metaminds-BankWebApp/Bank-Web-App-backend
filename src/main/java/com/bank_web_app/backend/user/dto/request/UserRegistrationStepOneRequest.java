@@ -41,16 +41,13 @@ String mobile,
 String province,
 @Schema(description = "Address. Optional for BANK_OFFICER registration.", example = "123, Main Street, Colombo")
 String address,
-@Schema(description = "Username for account login", example = "john.doe.2000", requiredMode = Schema.RequiredMode.REQUIRED)
-@NotBlank(message = "Username is required.")
-@Size(min = 4, max = 50, message = "Username must be between 4 and 50 characters.")
+@Schema(description = "Optional for BANK_CUSTOMER onboarding. The system derives a unique username from the customer's name; it can later be changed in Profile.", example = "john.doe.2000")
+@Size(max = 50, message = "Username must not exceed 50 characters.")
 String username,
-@Schema(description = "Raw password from frontend.", example = "StrongPass123", requiredMode = Schema.RequiredMode.REQUIRED)
-@NotBlank(message = "Password is required.")
-@Size(min = 8, max = 255, message = "Password must be between 8 and 255 characters.")
+@Schema(description = "Not collected for BANK_CUSTOMER onboarding; the customer sets it through the final activation invitation.", example = "StrongPass123")
+@Size(max = 255, message = "Password must not exceed 255 characters.")
 String password,
-@Schema(description = "Client-side password confirmation", example = "StrongPass123", requiredMode = Schema.RequiredMode.REQUIRED)
-@NotBlank(message = "Confirm password is required.")
+@Schema(description = "Client-side password confirmation when a role collects a password", example = "StrongPass123")
 String confirmPassword,
 @Schema(description = "Legacy bank account field retained for backward compatibility.", example = "123456789")
 @Positive(message = "Bank account must be a positive integer.")

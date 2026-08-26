@@ -52,7 +52,7 @@ private static final String STATUS_ACTIVE = "ACTIVE";
 private static final String STATE_DRAFT = "DRAFT";
 private static final String STATE_PENDING_STEP_2 = "PENDING_STEP_2";
 private static final String STATE_SUCCESS = "SUCCESS";
-private static final Pattern NIC_REGEX = Pattern.compile("^(?:\\d{9}[VvXx]|\\d{12})$");
+private static final Pattern NIC_REGEX = Pattern.compile("^(?:\\d{9}[Vv]|\\d{12})$");
 private static final Pattern BANK_OFFICER_MOBILE_REGEX = Pattern.compile("^(?:077|076|078|070|072|074|075|071)\\d{7}$");
 private static final Pattern BANK_OFFICER_EMAIL_REGEX = Pattern.compile("^[A-Za-z0-9._%+-]+@gmail\\.com$", Pattern.CASE_INSENSITIVE);
 private static final Pattern NAME_STARTS_WITH_LETTER_REGEX = Pattern.compile("^\\p{L}.*$");
@@ -128,7 +128,6 @@ public UserRegistrationStepResponse continueBankCustomerStepOne(UserRegistration
 User user = createUserForRole(request, ROLE_BANK_CUSTOMER);
 BankCustomer customer = createBankCustomerProfile(request, user, STATE_PENDING_STEP_2);
 publishBankCustomerCreated(user, customer);
-bankCustomerCredentialsEmailService.sendCredentialsEmail(user.getEmail(), user.getFirstName(), user.getUsername(), request.password());
 
 return new UserRegistrationStepResponse(
 user.getUserId(),
@@ -183,8 +182,7 @@ return new UserRegistrationStepResponse(user.getUserId(), ROLE_BANK_OFFICER, STA
 public UserRegistrationStepResponse continueBankOfficerStepOne(UserRegistrationStepOneRequest request) {
 User user = createUserForRole(request, ROLE_BANK_OFFICER);
 createBankOfficerProfile(request, user);
-bankOfficerCredentialsEmailService.sendCredentialsEmail(user.getEmail(), user.getFirstName(), user.getUsername(), request.password());
-return new UserRegistrationStepResponse(user.getUserId(), ROLE_BANK_OFFICER, STATE_SUCCESS, "Bank officer registration completed successfully and credentials email was sent.");
+return new UserRegistrationStepResponse(user.getUserId(), ROLE_BANK_OFFICER, STATE_SUCCESS, "Bank officer registration completed successfully.");
 }
 
 @Override
@@ -236,7 +234,10 @@ validateBankOfficerConstraints(request);
 Role role = roleRepository
 .findByRoleName(roleName)
 .orElseThrow(() -> new IllegalStateException("Role " + roleName + " not found."));
-String username = request.username().trim();
+String requestedUsername = safeTrim(request.username());
+String username = ROLE_BANK_CUSTOMER.equals(roleName) && requestedUsername.isBlank()
+	? generateUniqueBankCustomerUsername(request.firstName(), request.lastName())
+	: requestedUsername;
 String email = request.email().trim().toLowerCase(Locale.ROOT);
 String nic = request.nic().trim();
 String phone = request.mobile().trim();
@@ -246,7 +247,8 @@ User user = new User();
 user.setRole(role);
 user.setUsername(username);
 user.setEmail(email);
-user.setPasswordHash(passwordEncoder.encode(request.password()));
+String bootstrapPassword = ROLE_BANK_CUSTOMER.equals(roleName) ? generateTemporaryPassword(32) : request.password();
+user.setPasswordHash(passwordEncoder.encode(bootstrapPassword));
 user.setFirstName(request.firstName().trim());
 user.setLastName(request.lastName().trim());
 user.setPhone(phone);
@@ -254,7 +256,7 @@ user.setNic(nic);
 user.setDob(parseDob(request.dob()));
 user.setProvince(request.province().trim());
 user.setAddress(safeTrim(request.address()));
-user.setStatus(STATUS_ACTIVE);
+user.setStatus(ROLE_BANK_CUSTOMER.equals(roleName) ? "PENDING_ACTIVATION" : STATUS_ACTIVE);
 return userRepository.save(user);
 }
 
@@ -510,11 +512,13 @@ requireText(request.province(), "Province is required.");
 if (!ROLE_BANK_OFFICER.equals(roleName)) {
 requireText(request.address(), "Address is required.");
 }
-requireText(request.username(), "Username is required.");
-requireText(request.password(), "Password is required.");
-requireText(request.confirmPassword(), "Confirm password is required.");
-if (!request.password().equals(request.confirmPassword())) {
-throw new IllegalArgumentException("Password and confirm password must match.");
+if (!ROLE_BANK_CUSTOMER.equals(roleName)) {
+	requireText(request.username(), "Username is required.");
+	requireText(request.password(), "Password is required.");
+	requireText(request.confirmPassword(), "Confirm password is required.");
+	if (!request.password().equals(request.confirmPassword())) {
+		throw new IllegalArgumentException("Password and confirm password must match.");
+	}
 }
 }
 

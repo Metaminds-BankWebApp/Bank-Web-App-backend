@@ -24,7 +24,7 @@ CREATE TABLE crib_customers (
     city VARCHAR(100),
     report_generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT chk_crib_customers_nic_format
-        CHECK (nic ~ '^(?:[0-9]{9}[VvXx]|[0-9]{12})$')
+        CHECK (nic ~ '^(?:[0-9]{9}[Vv]|[0-9]{12})$')
 );
 
 -- =========================================

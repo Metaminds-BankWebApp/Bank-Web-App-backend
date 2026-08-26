@@ -3,6 +3,7 @@ package com.bank_web_app.backend.bankofficer.service;
 import com.bank_web_app.backend.bankcustomer.entity.BankCustomer;
 import com.bank_web_app.backend.bankcustomer.repository.BankCustomerRepository;
 import com.bank_web_app.backend.bankofficer.dto.request.BankCustomerStepOneUpdateRequest;
+import com.bank_web_app.backend.bankofficer.dto.request.BankCustomerContactUpdateRequest;
 import com.bank_web_app.backend.bankofficer.dto.response.BankOfficerCustomerStepOnePrefillResponse;
 import com.bank_web_app.backend.bankofficer.entity.BankOfficer;
 import com.bank_web_app.backend.common.exception.DuplicateFieldsException;
@@ -128,6 +129,32 @@ public class BankOfficerCustomerOnboardingService {
 		);
 	}
 
+	/** Updates serviceable contact details without reopening a completed onboarding workflow. */
+	@Transactional
+	public UserRegistrationStepResponse updateCompletedCustomerContactDetails(Long bankCustomerId, BankCustomerContactUpdateRequest request) {
+		if (request == null) throw new IllegalArgumentException("Request body is required.");
+		BankOfficer officer = bankOfficerContextService.resolveLoggedInBankOfficer();
+		BankCustomer customer = bankCustomerRepository.findById(bankCustomerId)
+			.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Bank customer not found."));
+		if (customer.getOfficer() == null || !officer.getOfficerId().equals(customer.getOfficer().getOfficerId())) {
+			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Bank customer is not assigned to the logged-in officer.");
+		}
+		if (!"COMPLETED".equalsIgnoreCase(safeTrim(customer.getAccessStatus()))) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Use onboarding updates until the customer onboarding is completed.");
+		}
+		User user = customer.getUser();
+		String email = safeTrim(request.email()).toLowerCase(Locale.ROOT);
+		if (userRepository.existsByEmailIgnoreCaseAndUserIdNot(email, user.getUserId())) {
+			throw new DuplicateFieldsException(java.util.Map.of("email", "Email is already in use."));
+		}
+		user.setEmail(email);
+		user.setPhone(safeTrim(request.mobile()));
+		user.setProvince(safeTrim(request.province()));
+		user.setAddress(safeTrim(request.address()));
+		userRepository.save(user);
+		return new UserRegistrationStepResponse(user.getUserId(), ROLE_BANK_CUSTOMER, "COMPLETED", "Customer contact details updated. Legal identity and account ownership remain unchanged.");
+	}
+
 	public List<BankCustomerSummaryResponse> getAll() {
 		return userService.getBankCustomersForOfficer();
 	}
@@ -145,6 +172,12 @@ public class BankOfficerCustomerOnboardingService {
 		bankOfficerContextService.resolveLoggedInBankOfficer();
 		BankCustomer customer = bankCustomerRepository.findById(bankCustomerId)
 			.orElseThrow(() -> new IllegalArgumentException("Bank customer not found."));
+		if ("COMPLETED".equalsIgnoreCase(safeTrim(customer.getAccessStatus()))) {
+			throw new ResponseStatusException(
+				HttpStatus.CONFLICT,
+				"Completed customer onboarding cannot be reopened. Review the customer in Credit Review instead."
+			);
+		}
 
 		User user = customer.getUser();
 		String username = request.username().trim();

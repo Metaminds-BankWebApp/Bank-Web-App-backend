@@ -167,6 +167,12 @@ public class FinancialDataController {
 		return ResponseEntity.ok(financialService.completeCribReviewAndOnboarding(bankCustomerId));
 	}
 
+	@PostMapping("/{bankCustomerId}/financial-records/maintenance/complete")
+	@Operation(summary = "Finalise completed-customer financial maintenance", description = "Finalises a versioned financial maintenance snapshot without reopening onboarding.")
+	public ResponseEntity<BankCustomerFinancialStepResponse> completeFinancialMaintenance(@PathVariable Long bankCustomerId) {
+		return ResponseEntity.ok(financialService.completeFinancialMaintenance(bankCustomerId));
+	}
+
 	@GetMapping("/{bankCustomerId}/financial-records/current")
 	@Operation(summary = "Get current financial record", description = "Returns the latest financial snapshot for the given bank customer.")
 	public ResponseEntity<BankCustomerFinancialRecordResponse> getCurrentFinancialRecord(@PathVariable Long bankCustomerId) {

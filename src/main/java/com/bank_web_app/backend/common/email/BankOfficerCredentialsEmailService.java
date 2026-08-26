@@ -11,39 +11,40 @@ public class BankOfficerCredentialsEmailService {
 	private static final Logger LOGGER = LoggerFactory.getLogger(BankOfficerCredentialsEmailService.class);
 
 	private final EmailService emailService;
-	private final String officerSignInUrl;
+	private final String officerActivationUrl;
 
 	public BankOfficerCredentialsEmailService(
 		EmailService emailService,
-		@Value("${app.frontend.sign-in-url:${APP_FRONTEND_SIGN_IN_URL:http://localhost:3000/login}}") String officerSignInUrl
+		@Value("${app.frontend.activation-url:${APP_FRONTEND_ACTIVATION_URL:http://localhost:3000/reset-password}}") String officerActivationUrl
 	) {
 		this.emailService = emailService;
-		this.officerSignInUrl = officerSignInUrl == null ? "http://localhost:3000/login" : officerSignInUrl.trim();
+		this.officerActivationUrl = officerActivationUrl == null ? "http://localhost:3000/reset-password" : officerActivationUrl.trim();
 	}
 
-	public void sendCredentialsEmail(String recipientEmail, String firstName, String username, String password) {
+	public void sendActivationEmail(String recipientEmail, String firstName, String username, String activationToken) {
 		String normalizedRecipient = recipientEmail == null ? "" : recipientEmail.trim();
 		String normalizedFirstName = firstName == null ? "" : firstName.trim();
 		String normalizedUsername = username == null ? "" : username.trim();
-		String normalizedPassword = password == null ? "" : password;
+		String normalizedToken = activationToken == null ? "" : activationToken.trim();
 
 		if (normalizedRecipient.isBlank()) {
-			throw new IllegalArgumentException("Officer email is required to send credentials.");
+			throw new IllegalArgumentException("Officer email is required to send an activation invitation.");
 		}
+		if (normalizedToken.isBlank()) throw new IllegalArgumentException("Activation token is required.");
 
 		String greetingName = normalizedFirstName.isBlank() ? "Officer" : normalizedFirstName;
-		String subject = "Your PrimeCore Bank Officer Account Is Ready";
+		String activationLink = officerActivationUrl + (officerActivationUrl.contains("?") ? "&" : "?") + "activationToken=" + normalizedToken;
+		String subject = "Activate your PrimeCore Bank Officer Account";
 		String body = String.join("\n",
 			"Hi " + greetingName + ",",
 			"",
-			"Your bank officer account has been created successfully.",
+			"Your bank officer account has been created. Set your own password using the secure activation link below.",
 			"",
 			"Username: " + normalizedUsername,
-			"Password: " + normalizedPassword,
 			"",
-			"Sign In: " + officerSignInUrl,
+			"Activate account: " + activationLink,
 			"",
-			"Please sign in and change your password after your first login.",
+			"This one-time link expires in 24 hours. Do not forward it.",
 			"",
 			"Regards,",
 			"PrimeCore Digital Banking Team"
@@ -51,9 +52,9 @@ public class BankOfficerCredentialsEmailService {
 
 		try {
 			emailService.sendPlainText(normalizedRecipient, subject, body);
-			LOGGER.info("Bank officer credentials email sent successfully to {}", normalizedRecipient);
+			LOGGER.info("Bank officer activation email sent successfully to {}", normalizedRecipient);
 		} catch (RuntimeException ex) {
-			LOGGER.error("Bank officer credentials email failed for {}", normalizedRecipient, ex);
+			LOGGER.error("Bank officer activation email failed for {}", normalizedRecipient, ex);
 			throw ex;
 		}
 	}

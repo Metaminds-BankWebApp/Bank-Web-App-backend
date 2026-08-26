@@ -2,6 +2,7 @@ package com.bank_web_app.backend.bankofficer.controller;
 
 import com.bank_web_app.backend.bankofficer.dto.response.BankOfficerCustomerStepOnePrefillResponse;
 import com.bank_web_app.backend.bankofficer.dto.request.BankCustomerStepOneUpdateRequest;
+import com.bank_web_app.backend.bankofficer.dto.request.BankCustomerContactUpdateRequest;
 import com.bank_web_app.backend.bankofficer.service.BankOfficerCustomerOnboardingService;
 import com.bank_web_app.backend.user.dto.request.UserRegistrationStepOneRequest;
 import com.bank_web_app.backend.user.dto.response.GeneratedBankCustomerCredentialsResponse;
@@ -135,5 +136,14 @@ public class BankOfficerCustomerController {
 		@Valid @RequestBody BankCustomerStepOneUpdateRequest request
 	) {
 		return ResponseEntity.ok(onboardingService.updateStepOneAndContinue(bankCustomerId, request));
+	}
+
+	@PutMapping("/{bankCustomerId}/contact-details")
+	@Operation(summary = "Update completed-customer contact details", description = "Updates email, mobile, province, and address for an assigned completed customer. Legal name, NIC, DOB, username, and account ownership are excluded and require their respective controlled processes.")
+	public ResponseEntity<UserRegistrationStepResponse> updateCompletedCustomerContactDetails(
+		@PathVariable Long bankCustomerId,
+		@Valid @RequestBody BankCustomerContactUpdateRequest request
+	) {
+		return ResponseEntity.ok(onboardingService.updateCompletedCustomerContactDetails(bankCustomerId, request));
 	}
 }

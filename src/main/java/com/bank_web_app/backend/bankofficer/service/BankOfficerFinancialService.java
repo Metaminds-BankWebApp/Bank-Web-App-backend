@@ -102,6 +102,10 @@ public class BankOfficerFinancialService {
         return financialRecordService.completeCribReviewAndOnboarding(bankCustomerId);
     }
 
+    public BankCustomerFinancialStepResponse completeFinancialMaintenance(Long bankCustomerId) {
+        return financialRecordService.completeFinancialMaintenance(bankCustomerId);
+    }
+
     public BankCustomerFinancialRecordResponse getCurrentFinancialRecord(Long bankCustomerId) {
         return financialRecordService.getCurrentFinancialRecord(bankCustomerId);
     }

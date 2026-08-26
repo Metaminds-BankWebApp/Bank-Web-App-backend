@@ -30,11 +30,18 @@ import com.bank_web_app.backend.bankcustomer.repository.BankCustomerLiabilityRep
 import com.bank_web_app.backend.bankcustomer.repository.BankCustomerLoanRepository;
 import com.bank_web_app.backend.bankcustomer.repository.BankCustomerMissedPaymentRepository;
 import com.bank_web_app.backend.bankcustomer.repository.BankCustomerRepository;
+import com.bank_web_app.backend.auth.entity.PasswordResetToken;
+import com.bank_web_app.backend.auth.repository.PasswordResetTokenRepository;
+import com.bank_web_app.backend.common.email.BankCustomerActivationEmailService;
 import com.bank_web_app.backend.crib.dto.response.CribDatasetSnapshotResponse;
 import com.bank_web_app.backend.crib.service.CribDatasetService;
 import com.bank_web_app.backend.user.entity.User;
 import com.bank_web_app.backend.user.repository.UserRepository;
 import java.time.LocalDateTime;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.SecureRandom;
+import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
@@ -42,6 +49,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -57,6 +65,9 @@ public class BankCustomerFinancialRecordService {
 	private static final String STATUS_PENDING_STEP_6 = "PENDING_STEP_6";
 	private static final String STATUS_PENDING_STEP_7 = "PENDING_STEP_7";
 	private static final String STATUS_COMPLETED = "COMPLETED";
+	private static final String DATA_SOURCE_MAINTENANCE_IN_PROGRESS = "OFFICER_MAINTENANCE";
+	private static final String DATA_SOURCE_MAINTENANCE_FINALIZED = "OFFICER_MAINTENANCE_FINAL";
+	private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
 	private final BankCustomerRepository bankCustomerRepository;
 	private final BankCustomerFinancialRecordRepository financialRecordRepository;
@@ -72,6 +83,9 @@ public class BankCustomerFinancialRecordService {
 	private final UserRepository userRepository;
 	private final BankOfficerRepository bankOfficerRepository;
     private final com.bank_web_app.backend.creditlens.service.CreditEvaluationService creditEvaluationService;
+	private final PasswordResetTokenRepository passwordResetTokenRepository;
+	private final PasswordEncoder passwordEncoder;
+	private final BankCustomerActivationEmailService customerActivationEmailService;
 
 	public BankCustomerFinancialRecordService(
 		BankCustomerRepository bankCustomerRepository,
@@ -87,7 +101,10 @@ public class BankCustomerFinancialRecordService {
 		com.bank_web_app.backend.bankofficer.service.BankOfficerContextService bankOfficerContextService,
 		UserRepository userRepository,
 		BankOfficerRepository bankOfficerRepository,
-        com.bank_web_app.backend.creditlens.service.CreditEvaluationService creditEvaluationService
+		com.bank_web_app.backend.creditlens.service.CreditEvaluationService creditEvaluationService,
+		PasswordResetTokenRepository passwordResetTokenRepository,
+		PasswordEncoder passwordEncoder,
+		BankCustomerActivationEmailService customerActivationEmailService
 	) {
 		this.bankCustomerRepository = bankCustomerRepository;
 		this.financialRecordRepository = financialRecordRepository;
@@ -103,6 +120,9 @@ public class BankCustomerFinancialRecordService {
 		this.userRepository = userRepository;
 		this.bankOfficerRepository = bankOfficerRepository;
 		this.creditEvaluationService = creditEvaluationService;
+		this.passwordResetTokenRepository = passwordResetTokenRepository;
+		this.passwordEncoder = passwordEncoder;
+		this.customerActivationEmailService = customerActivationEmailService;
 	}
 
 	@Transactional(readOnly = true)
@@ -361,6 +381,10 @@ public class BankCustomerFinancialRecordService {
 		BankCustomer customer = resolveOwnedBankCustomerForFinalReview(bankCustomerId);
 		customer.setAccessStatus(STATUS_COMPLETED);
 		bankCustomerRepository.save(customer);
+		String activationToken = createActivationToken(customer.getUser());
+		customerActivationEmailService.sendActivationEmail(
+			customer.getUser().getEmail(), customer.getUser().getFirstName(), customer.getUser().getUsername(), activationToken
+		);
 		BankCustomerCribRequest latest = cribRequestRepository
 			.findTopByBankCustomer_BankCustomerIdOrderByRequestedAtDesc(bankCustomerId)
 			.orElse(null);
@@ -385,10 +409,41 @@ public class BankCustomerFinancialRecordService {
 			"CRIB_REVIEW",
 			latest != null ? latest.getRequestStatus() : null,
 			latest != null ? latest.getReportStatus() : null,
-			"Bank customer onboarding completed successfully.",
+			"Bank customer onboarding completed. A password-setup invitation was sent to the customer.",
 			createdEvalId,
 			createdEvalPoints,
 			null
+		);
+	}
+
+	/**
+	 * Closes a post-onboarding financial maintenance session without changing the
+	 * customer's onboarding state. A new credit evaluation is produced from the
+	 * maintained snapshot so the review queue uses the current information.
+	 */
+	@Transactional
+	public BankCustomerFinancialStepResponse completeFinancialMaintenance(Long bankCustomerId) {
+		BankCustomer customer = resolveOwnedBankCustomer(bankCustomerId);
+		if (!STATUS_COMPLETED.equals(normalizeAccessStatus(customer.getAccessStatus()))) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Financial maintenance is available only after onboarding is completed.");
+		}
+		BankCustomerFinancialRecord currentRecord = financialRecordRepository
+			.findTopByBankCustomer_BankCustomerIdOrderByCreatedAtDesc(bankCustomerId)
+			.orElseThrow(() -> new IllegalArgumentException("No financial record found for this bank customer."));
+		if (!DATA_SOURCE_MAINTENANCE_IN_PROGRESS.equals(currentRecord.getDataSource())) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "There is no financial maintenance session to finalise.");
+		}
+		currentRecord.setDataSource(DATA_SOURCE_MAINTENANCE_FINALIZED);
+		touchRecord(currentRecord);
+		try {
+			creditEvaluationService.createBankEvaluationForOfficer(bankCustomerId, null);
+		} catch (Exception ex) {
+			LoggerFactory.getLogger(BankCustomerFinancialRecordService.class)
+				.warn("Failed to refresh bank credit evaluation after maintenance for customer {}: {}", bankCustomerId, ex.getMessage());
+		}
+		return new BankCustomerFinancialStepResponse(
+			currentRecord.getBankRecordId(), bankCustomerId, "FINANCIAL_MAINTENANCE",
+			"Financial maintenance finalised. Onboarding remains completed and a new review evaluation was requested."
 		);
 	}
 
@@ -534,20 +589,94 @@ public class BankCustomerFinancialRecordService {
 
 	private BankCustomerFinancialRecord getOrCreateLatestRecord(BankCustomer customer) {
 		Long bankCustomerId = customer.getBankCustomerId();
-		return financialRecordRepository
+		BankCustomerFinancialRecord latestRecord = financialRecordRepository
 			.findTopByBankCustomer_BankCustomerIdOrderByCreatedAtDesc(bankCustomerId)
-			.orElseGet(() -> {
+			.orElse(null);
+		if (latestRecord == null) {
 				BankCustomerFinancialRecord record = new BankCustomerFinancialRecord();
 				record.setBankCustomer(customer);
 				record.setVerifiedByOfficer(customer.getOfficer());
 				record.setDataSource("MANUAL");
 				return financialRecordRepository.save(record);
-			});
+		}
+		if (
+			STATUS_COMPLETED.equals(normalizeAccessStatus(customer.getAccessStatus())) &&
+			!DATA_SOURCE_MAINTENANCE_IN_PROGRESS.equals(latestRecord.getDataSource())
+		) {
+			return createMaintenanceSnapshot(customer, latestRecord);
+		}
+		return latestRecord;
+	}
+
+	private BankCustomerFinancialRecord createMaintenanceSnapshot(BankCustomer customer, BankCustomerFinancialRecord source) {
+		BankCustomerFinancialRecord snapshot = new BankCustomerFinancialRecord();
+		snapshot.setBankCustomer(customer);
+		snapshot.setVerifiedByOfficer(resolveLoggedInBankOfficer());
+		snapshot.setDataSource(DATA_SOURCE_MAINTENANCE_IN_PROGRESS);
+		BankCustomerFinancialRecord savedSnapshot = financialRecordRepository.save(snapshot);
+
+		incomeRepository.findAllByFinancialRecord_BankRecordId(source.getBankRecordId()).forEach(item -> {
+			BankCustomerIncome copy = new BankCustomerIncome();
+			copy.setFinancialRecord(savedSnapshot); copy.setIncomeCategory(item.getIncomeCategory()); copy.setAmount(item.getAmount());
+			copy.setSalaryType(item.getSalaryType()); copy.setEmploymentType(item.getEmploymentType());
+			copy.setDurationMonths(item.getDurationMonths()); copy.setIncomeStability(item.getIncomeStability()); incomeRepository.save(copy);
+		});
+		loanRepository.findAllByFinancialRecord_BankRecordId(source.getBankRecordId()).forEach(item -> {
+			BankCustomerLoan copy = new BankCustomerLoan();
+			copy.setFinancialRecord(savedSnapshot); copy.setLoanType(item.getLoanType()); copy.setMonthlyEmi(item.getMonthlyEmi()); copy.setRemainingBalance(item.getRemainingBalance()); loanRepository.save(copy);
+		});
+		cardRepository.findAllByFinancialRecord_BankRecordId(source.getBankRecordId()).forEach(item -> {
+			BankCustomerCard copy = new BankCustomerCard();
+			copy.setFinancialRecord(savedSnapshot); copy.setProvider(item.getProvider()); copy.setCreditLimit(item.getCreditLimit()); copy.setOutstandingBalance(item.getOutstandingBalance()); cardRepository.save(copy);
+		});
+		liabilityRepository.findAllByFinancialRecord_BankRecordId(source.getBankRecordId()).forEach(item -> {
+			BankCustomerLiability copy = new BankCustomerLiability();
+			copy.setFinancialRecord(savedSnapshot); copy.setDescription(item.getDescription()); copy.setMonthlyAmount(item.getMonthlyAmount()); liabilityRepository.save(copy);
+		});
+		missedPaymentRepository.findByFinancialRecord_BankRecordId(source.getBankRecordId()).ifPresent(item -> {
+			BankCustomerMissedPayment copy = new BankCustomerMissedPayment();
+			copy.setFinancialRecord(savedSnapshot); copy.setMissedPayments(item.getMissedPayments()); missedPaymentRepository.save(copy);
+		});
+		return savedSnapshot;
 	}
 
 	private void touchRecord(BankCustomerFinancialRecord record) {
 		record.setUpdatedAt(LocalDateTime.now());
 		financialRecordRepository.save(record);
+	}
+
+	private String createActivationToken(User user) {
+		LocalDateTime now = LocalDateTime.now();
+		passwordResetTokenRepository.findAllByUser_UserIdAndConsumedAtIsNullOrderByCreatedAtDesc(user.getUserId())
+			.forEach(token -> token.setConsumedAt(now));
+		String rawToken = randomSecret();
+		PasswordResetToken token = new PasswordResetToken();
+		token.setUser(user);
+		token.setOtpHash(passwordEncoder.encode(randomSecret()));
+		token.setOtpExpiresAt(now.plusHours(24));
+		token.setFailedAttempts(0);
+		token.setVerifiedAt(now);
+		token.setResetTokenHash(sha256Hex(rawToken));
+		token.setResetTokenExpiresAt(now.plusHours(24));
+		passwordResetTokenRepository.save(token);
+		return rawToken;
+	}
+
+	private String randomSecret() {
+		byte[] bytes = new byte[32];
+		SECURE_RANDOM.nextBytes(bytes);
+		return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+	}
+
+	private String sha256Hex(String value) {
+		try {
+			byte[] digest = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
+			StringBuilder result = new StringBuilder(digest.length * 2);
+			for (byte item : digest) result.append(String.format("%02x", item));
+			return result.toString();
+		} catch (Exception exception) {
+			throw new IllegalStateException("Unable to create activation token.", exception);
+		}
 	}
 
 	private void ensureCustomerReachedStep(BankCustomer customer, String minimumRequiredStatus) {

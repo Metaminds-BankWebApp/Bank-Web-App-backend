@@ -1,11 +1,10 @@
 package com.bank_web_app.backend.admin.controller;
 import com.bank_web_app.backend.admin.dto.request.AdminBankOfficerUpdateRequest;
+import com.bank_web_app.backend.admin.dto.request.AdminBankOfficerCreateRequest;
 import com.bank_web_app.backend.admin.dto.request.AdminBankOfficerUsernameGenerationRequest;
-import com.bank_web_app.backend.admin.dto.response.AdminBankOfficerGeneratedPasswordResponse;
 import com.bank_web_app.backend.admin.dto.response.AdminBankOfficerGeneratedUsernameResponse;
 import com.bank_web_app.backend.admin.dto.response.AdminBankOfficerSummaryResponse;
 import com.bank_web_app.backend.admin.service.AdminBankOfficerService;
-import com.bank_web_app.backend.user.dto.request.UserRegistrationStepOneRequest;
 import com.bank_web_app.backend.user.dto.response.UserRegistrationStepResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -40,25 +39,10 @@ public class AdminBankOfficerController {
 		this.adminBankOfficerService = adminBankOfficerService;
 	}
 
-	@PostMapping("/draft")
-	@Operation(
-		summary = "Save BANK_OFFICER draft",
-		description = "Admin creates BANK_OFFICER draft.",
-		responses = {
-			@ApiResponse(responseCode = "200", description = "Draft saved successfully"),
-			@ApiResponse(responseCode = "400", description = "Validation failed"),
-			@ApiResponse(responseCode = "409", description = "Conflict: NIC, email, or username already in use")
-		}
-	)
-	// Creates a draft officer account preview before final submission.
-	public ResponseEntity<UserRegistrationStepResponse> createDraft(@Valid @RequestBody UserRegistrationStepOneRequest request) {
-		return ResponseEntity.ok(adminBankOfficerService.createDraft(request));
-	}
-
 	@PostMapping
 	@Operation(
 		summary = "Create BANK_OFFICER",
-		description = "Admin creates BANK_OFFICER with SUCCESS state.",
+		description = "Admin creates a pending BANK_OFFICER account and sends a one-time activation invitation. No password is accepted or returned.",
 		responses = {
 			@ApiResponse(responseCode = "200", description = "Bank officer created successfully"),
 			@ApiResponse(responseCode = "400", description = "Validation failed"),
@@ -66,7 +50,7 @@ public class AdminBankOfficerController {
 		}
 	)
 	// Creates a new entity from validated request data.
-	public ResponseEntity<UserRegistrationStepResponse> create(@Valid @RequestBody UserRegistrationStepOneRequest request) {
+	public ResponseEntity<UserRegistrationStepResponse> create(@Valid @RequestBody AdminBankOfficerCreateRequest request) {
 		return ResponseEntity.ok(adminBankOfficerService.create(request));
 	}
 
@@ -87,18 +71,12 @@ public class AdminBankOfficerController {
 		return ResponseEntity.ok(new AdminBankOfficerGeneratedUsernameResponse(username));
 	}
 
-	@GetMapping("/credentials/password")
-	@Operation(
-		summary = "Generate bank officer password",
-		description = "Generates a backend-owned suggested password for BANK_OFFICER onboarding.",
-		responses = {
-			@ApiResponse(responseCode = "200", description = "Password generated successfully")
-		}
-	)
-	// Generates a strong temporary password for officer onboarding.
-	public ResponseEntity<AdminBankOfficerGeneratedPasswordResponse> generatePassword() {
-		String password = adminBankOfficerService.generateSuggestedPassword();
-		return ResponseEntity.ok(new AdminBankOfficerGeneratedPasswordResponse(password));
+
+	@PostMapping("/{userId}/activation/resend")
+	@Operation(summary = "Resend officer activation", description = "Invalidates any prior activation link and emails a new one-time link to a pending officer.")
+	public ResponseEntity<Void> resendActivation(@PathVariable Long userId) {
+		adminBankOfficerService.resendActivation(userId);
+		return ResponseEntity.noContent().build();
 	}
 
 	@GetMapping

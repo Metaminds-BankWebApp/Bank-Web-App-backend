@@ -1,5 +1,12 @@
 package com.bank_web_app.backend.admin.service;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
+import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -10,11 +17,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.bank_web_app.backend.admin.dto.request.AdminBankOfficerUpdateRequest;
+import com.bank_web_app.backend.admin.dto.request.AdminBankOfficerCreateRequest;
 import com.bank_web_app.backend.admin.dto.response.AdminBankOfficerSummaryResponse;
 import com.bank_web_app.backend.common.exception.DuplicateFieldsException;
 import com.bank_web_app.backend.admin.entity.Branch;
 import com.bank_web_app.backend.admin.repository.BranchRepository;
 import com.bank_web_app.backend.auth.repository.RefreshTokenRepository;
+import com.bank_web_app.backend.auth.entity.PasswordResetToken;
+import com.bank_web_app.backend.auth.repository.PasswordResetTokenRepository;
 import com.bank_web_app.backend.bankcustomer.repository.BankCustomerFinancialRecordRepository;
 import com.bank_web_app.backend.bankcustomer.repository.BankCustomerRepository;
 import com.bank_web_app.backend.bankofficer.entity.BankOfficer;
@@ -23,11 +33,13 @@ import com.bank_web_app.backend.creditlens.repository.BankCreditEvaluationReposi
 import com.bank_web_app.backend.notification.event.NotificationEventPublisher;
 import com.bank_web_app.backend.notification.event.NotificationEventType;
 import com.bank_web_app.backend.notification.repository.NotificationRepository;
-import com.bank_web_app.backend.user.dto.request.UserRegistrationStepOneRequest;
 import com.bank_web_app.backend.user.dto.response.UserRegistrationStepResponse;
 import com.bank_web_app.backend.user.entity.User;
 import com.bank_web_app.backend.user.repository.UserRepository;
-import com.bank_web_app.backend.user.service.UserService;
+import com.bank_web_app.backend.user.entity.Role;
+import com.bank_web_app.backend.user.repository.RoleRepository;
+import com.bank_web_app.backend.common.email.BankOfficerCredentialsEmailService;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 /**
  * Orchestrates Admin business logic, validation, and persistence workflows.
@@ -37,15 +49,15 @@ import com.bank_web_app.backend.user.service.UserService;
 public class AdminBankOfficerService {
 
 	private static final Set<String> ALLOWED_STATUSES = Set.of("ACTIVE", "SUSPEND");
-	private static final String GENERATED_PASSWORD_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789@#$%&*!";
-	private static final int GENERATED_PASSWORD_LENGTH = 10;
+	private static final String ROLE_BANK_OFFICER = "BANK_OFFICER";
+	private static final String STATUS_PENDING_ACTIVATION = "PENDING_ACTIVATION";
+	private static final int ACTIVATION_EXPIRY_HOURS = 24;
 	private static final int USERNAME_MAX_LENGTH = 50;
 	private static final int USERNAME_SUFFIX_LENGTH = 3;
 	private static final int USERNAME_ATTEMPT_LIMIT = 300;
 	private static final Pattern BANK_OFFICER_EMAIL_REGEX = Pattern.compile("^[A-Za-z0-9._%+-]+@gmail\\.com$", Pattern.CASE_INSENSITIVE);
 	private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
-	private final UserService userService;
 	private final BankOfficerRepository bankOfficerRepository;
 	private final BranchRepository branchRepository;
 	private final UserRepository userRepository;
@@ -56,9 +68,12 @@ public class AdminBankOfficerService {
 	private final BankCreditEvaluationRepository bankCreditEvaluationRepository;
 	private final AuditLogService auditLogService;
 	private final NotificationEventPublisher notificationEventPublisher;
+	private final RoleRepository roleRepository;
+	private final PasswordResetTokenRepository passwordResetTokenRepository;
+	private final PasswordEncoder passwordEncoder;
+	private final BankOfficerCredentialsEmailService officerActivationEmailService;
 
 	public AdminBankOfficerService(
-		UserService userService,
 		BankOfficerRepository bankOfficerRepository,
 		BranchRepository branchRepository,
 		UserRepository userRepository,
@@ -68,9 +83,12 @@ public class AdminBankOfficerService {
 		BankCustomerFinancialRecordRepository bankCustomerFinancialRecordRepository,
 		BankCreditEvaluationRepository bankCreditEvaluationRepository,
 		AuditLogService auditLogService,
-		NotificationEventPublisher notificationEventPublisher
+		NotificationEventPublisher notificationEventPublisher,
+		RoleRepository roleRepository,
+		PasswordResetTokenRepository passwordResetTokenRepository,
+		PasswordEncoder passwordEncoder,
+		BankOfficerCredentialsEmailService officerActivationEmailService
 	) {
-		this.userService = userService;
 		this.bankOfficerRepository = bankOfficerRepository;
 		this.branchRepository = branchRepository;
 		this.userRepository = userRepository;
@@ -81,31 +99,56 @@ public class AdminBankOfficerService {
 		this.bankCreditEvaluationRepository = bankCreditEvaluationRepository;
 		this.auditLogService = auditLogService;
 		this.notificationEventPublisher = notificationEventPublisher;
-	}
-
-	// Creates a draft officer account preview before final submission.
-	public UserRegistrationStepResponse createDraft(UserRegistrationStepOneRequest request) {
-		UserRegistrationStepResponse response = userService.saveBankOfficerStepOneDraft(request);
-		auditLogService.logAction(
-			"BANK_OFFICER_DRAFT_CREATED",
-			"Created Officer Draft: \"" + safe(request.firstName()) + " " + safe(request.lastName()) + "\"",
-			"BANK_OFFICER",
-			response.userId() == null ? null : String.valueOf(response.userId()),
-			"Saved bank officer onboarding draft.",
-			"INFO"
-		);
-		return response;
+		this.roleRepository = roleRepository;
+		this.passwordResetTokenRepository = passwordResetTokenRepository;
+		this.passwordEncoder = passwordEncoder;
+		this.officerActivationEmailService = officerActivationEmailService;
 	}
 
 	// Creates a new entity from validated request data.
-	public UserRegistrationStepResponse create(UserRegistrationStepOneRequest request) {
-		UserRegistrationStepResponse response = userService.continueBankOfficerStepOne(request);
+	@Transactional
+	public UserRegistrationStepResponse create(AdminBankOfficerCreateRequest request) {
+		validateCreateRequest(request);
+		Role role = roleRepository.findByRoleName(ROLE_BANK_OFFICER)
+			.orElseThrow(() -> new IllegalStateException("Role BANK_OFFICER not found."));
+		Branch branch = branchRepository.findById(request.branchId())
+			.orElseThrow(() -> new IllegalArgumentException("Branch not found."));
+		if (branch.getStatus() != com.bank_web_app.backend.admin.entity.BranchStatus.ACTIVE && branch.getStatus() != com.bank_web_app.backend.admin.entity.BranchStatus.MAINTENANCE) {
+			throw new IllegalArgumentException("Only active or maintenance branches can be assigned to a bank officer.");
+		}
+
+		User user = new User();
+		user.setRole(role);
+		user.setFirstName(safe(request.firstName()));
+		user.setLastName(safe(request.lastName()));
+		user.setNic(safe(request.nic()));
+		user.setDob(parseDob(request.dob()));
+		user.setEmail(safe(request.email()).toLowerCase(Locale.ROOT));
+		user.setPhone(safe(request.mobile()));
+		user.setProvince(safe(request.province()));
+		user.setAddress(safe(request.address()));
+		user.setUsername(safe(request.username()));
+		// A random unusable bootstrap value satisfies the non-null database field; it is never disclosed.
+		user.setPasswordHash(passwordEncoder.encode(generateSecret()));
+		user.setStatus(STATUS_PENDING_ACTIVATION);
+		userRepository.save(user);
+
+		BankOfficer officer = new BankOfficer();
+		officer.setUser(user);
+		officer.setBranch(branch);
+		officer.setEmployeeCode(generateEmployeeCode());
+		if (request.createdByAdminUserId() != null) userRepository.findById(request.createdByAdminUserId()).ifPresent(officer::setCreatedByAdminUser);
+		bankOfficerRepository.save(officer);
+
+		String activationToken = createActivationToken(user);
+		officerActivationEmailService.sendActivationEmail(user.getEmail(), user.getFirstName(), user.getUsername(), activationToken);
+		UserRegistrationStepResponse response = new UserRegistrationStepResponse(user.getUserId(), ROLE_BANK_OFFICER, STATUS_PENDING_ACTIVATION, "Bank officer created and activation invitation sent.");
 		auditLogService.logAction(
 			"BANK_OFFICER_CREATED",
 			"Created Bank Officer: \"" + safe(request.firstName()) + " " + safe(request.lastName()) + "\"",
 			"BANK_OFFICER",
 			response.userId() == null ? null : String.valueOf(response.userId()),
-			"Bank officer account was created successfully and credentials email was sent.",
+			"Bank officer account is pending activation and an invitation email was sent.",
 			"SUCCESS"
 		);
 		return response;
@@ -147,14 +190,17 @@ public class AdminBankOfficerService {
 		return candidate;
 	}
 
-	// Generates a suggested password for the Add Officer form.
-	public String generateSuggestedPassword() {
-		char[] password = new char[GENERATED_PASSWORD_LENGTH];
-		for (int index = 0; index < GENERATED_PASSWORD_LENGTH; index++) {
-			int randomIndex = SECURE_RANDOM.nextInt(GENERATED_PASSWORD_CHARS.length());
-			password[index] = GENERATED_PASSWORD_CHARS.charAt(randomIndex);
+
+	@Transactional
+	public void resendActivation(Long userId) {
+		BankOfficer officer = findByUserId(userId);
+		User user = officer.getUser();
+		if (!STATUS_PENDING_ACTIVATION.equalsIgnoreCase(safe(user.getStatus()))) {
+			throw new IllegalArgumentException("Only pending officer accounts can receive an activation invitation.");
 		}
-		return new String(password);
+		String activationToken = createActivationToken(user);
+		officerActivationEmailService.sendActivationEmail(user.getEmail(), user.getFirstName(), user.getUsername(), activationToken);
+		auditLogService.logAction("BANK_OFFICER_ACTIVATION_RESENT", "Resent Officer Activation: \"" + safe(user.getUsername()) + "\"", "BANK_OFFICER", safe(officer.getEmployeeCode()), "Sent a replacement one-time activation invitation.", "INFO");
 	}
 
 	@Transactional(readOnly = true)
@@ -342,5 +388,69 @@ public class AdminBankOfficerService {
 
 	private String safe(String value) {
 		return value == null ? "" : value.trim();
+	}
+
+	private void validateCreateRequest(AdminBankOfficerCreateRequest request) {
+		if (request == null) throw new IllegalArgumentException("Request body is required.");
+		String username = safe(request.username());
+		String email = safe(request.email()).toLowerCase(Locale.ROOT);
+		String nic = safe(request.nic());
+		String phone = safe(request.mobile());
+		if (!BANK_OFFICER_EMAIL_REGEX.matcher(email).matches()) throw new IllegalArgumentException("Email must be in the format name@gmail.com.");
+		try { LocalDate.parse(safe(request.dob())); } catch (DateTimeParseException ex) { throw new IllegalArgumentException("Date of birth must use yyyy-MM-dd format."); }
+		if (userRepository.existsByUsername(username)) throw new DuplicateFieldsException(Map.of("username", "Username is already in use."));
+		if (userRepository.existsByNic(nic)) throw new DuplicateFieldsException(Map.of("nic", "NIC is already in use."));
+		if (userRepository.existsByEmailIgnoreCaseAndRole_RoleName(email, ROLE_BANK_OFFICER)) throw new DuplicateFieldsException(Map.of("email", "Email is already in use."));
+		if (userRepository.existsByPhoneAndRole_RoleNameIn(phone, List.of(ROLE_BANK_OFFICER))) throw new DuplicateFieldsException(Map.of("mobile", "Contact number is already in use."));
+	}
+
+	private String createActivationToken(User user) {
+		LocalDateTime now = LocalDateTime.now();
+		List<PasswordResetToken> existing = passwordResetTokenRepository.findAllByUser_UserIdAndConsumedAtIsNullOrderByCreatedAtDesc(user.getUserId());
+		existing.forEach(token -> token.setConsumedAt(now));
+		if (!existing.isEmpty()) passwordResetTokenRepository.saveAll(existing);
+		String rawToken = generateSecret();
+		PasswordResetToken token = new PasswordResetToken();
+		token.setUser(user);
+		token.setOtpHash(passwordEncoder.encode(generateSecret()));
+		token.setOtpExpiresAt(now.plusHours(ACTIVATION_EXPIRY_HOURS));
+		token.setFailedAttempts(0);
+		token.setVerifiedAt(now);
+		token.setResetTokenHash(sha256Hex(rawToken));
+		token.setResetTokenExpiresAt(now.plusHours(ACTIVATION_EXPIRY_HOURS));
+		passwordResetTokenRepository.save(token);
+		return rawToken;
+	}
+
+	private String generateSecret() {
+		byte[] bytes = new byte[32];
+		SECURE_RANDOM.nextBytes(bytes);
+		return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+	}
+
+	private String sha256Hex(String value) {
+		try {
+			byte[] digest = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
+			StringBuilder output = new StringBuilder(digest.length * 2);
+			for (byte b : digest) output.append(String.format("%02x", b));
+			return output.toString();
+		} catch (NoSuchAlgorithmException exception) {
+			throw new IllegalStateException("SHA-256 is not available.", exception);
+		}
+	}
+
+	private String generateEmployeeCode() {
+		long next = bankOfficerRepository.count() + 1;
+		String code = String.format("EMP-BO-%05d", next);
+		while (bankOfficerRepository.existsByEmployeeCode(code)) code = String.format("EMP-BO-%05d", ++next);
+		return code;
+	}
+
+	private LocalDate parseDob(String value) {
+		try {
+			return LocalDate.parse(safe(value));
+		} catch (DateTimeParseException exception) {
+			throw new IllegalArgumentException("Date of birth must use yyyy-MM-dd format.");
+		}
 	}
 }

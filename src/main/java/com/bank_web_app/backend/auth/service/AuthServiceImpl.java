@@ -280,10 +280,13 @@ public class AuthServiceImpl implements AuthService {
 		}
 
 		User user = token.getUser();
-		if (!isActive(user)) {
+		if (!isActive(user) && !"PENDING_ACTIVATION".equalsIgnoreCase(safe(user.getStatus()))) {
 			throw invalidPasswordResetSession();
 		}
 		user.setPasswordHash(passwordEncoder.encode(request.password()));
+		if ("PENDING_ACTIVATION".equalsIgnoreCase(safe(user.getStatus()))) {
+			user.setStatus("ACTIVE");
+		}
 		userRepository.save(user);
 		refreshTokenRepository.deleteByUser_UserId(user.getUserId());
 		token.setConsumedAt(now);
