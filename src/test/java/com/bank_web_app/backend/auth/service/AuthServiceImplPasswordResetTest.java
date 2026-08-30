@@ -71,7 +71,6 @@ class AuthServiceImplPasswordResetTest {
 	@Test
 	void sendsOtpToRegisteredEmailWhenUsernameIsProvided() {
 		User user = activeUser();
-		when(userRepository.findByEmailIgnoreCase("alice.customer")).thenReturn(Optional.empty());
 		when(userRepository.findByUsernameIgnoreCase("alice.customer")).thenReturn(Optional.of(user));
 		when(passwordResetTokenRepository.findAllByUser_UserIdAndConsumedAtIsNullOrderByCreatedAtDesc(12L))
 			.thenReturn(List.of());
@@ -91,7 +90,7 @@ class AuthServiceImplPasswordResetTest {
 	void rejectsExpiredOtp() {
 		User user = activeUser();
 		PasswordResetToken token = token(user, "123456", LocalDateTime.now().minusMinutes(1));
-		when(userRepository.findByEmailIgnoreCase(user.getEmail())).thenReturn(Optional.of(user));
+		when(userRepository.findAllByEmailIgnoreCaseOrderByUserIdAsc(user.getEmail())).thenReturn(List.of(user));
 		when(passwordResetTokenRepository.findAllByUser_UserIdAndConsumedAtIsNullOrderByCreatedAtDesc(12L))
 			.thenReturn(List.of(token));
 
@@ -108,7 +107,7 @@ class AuthServiceImplPasswordResetTest {
 		User user = activeUser();
 		PasswordResetToken token = token(user, "123456", LocalDateTime.now().plusMinutes(10));
 		token.setFailedAttempts(4);
-		when(userRepository.findByEmailIgnoreCase(user.getEmail())).thenReturn(Optional.of(user));
+		when(userRepository.findAllByEmailIgnoreCaseOrderByUserIdAsc(user.getEmail())).thenReturn(List.of(user));
 		when(passwordResetTokenRepository.findAllByUser_UserIdAndConsumedAtIsNullOrderByCreatedAtDesc(12L))
 			.thenReturn(List.of(token));
 
