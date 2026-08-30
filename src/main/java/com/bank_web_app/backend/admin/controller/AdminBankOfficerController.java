@@ -89,7 +89,7 @@ public class AdminBankOfficerController {
 	@PatchMapping("/{userId}/status")
 	@Operation(
 		summary = "Update bank officer status",
-		description = "Updates user status of a bank officer to ACTIVE or SUSPEND."
+		description = "Updates an activated bank officer to ACTIVE or SUSPEND. PENDING_ACTIVATION is locked until the officer's first successful sign-in."
 	)
 	// Updates only the status field for the selected record.
 	public ResponseEntity<AdminBankOfficerSummaryResponse> updateStatus(

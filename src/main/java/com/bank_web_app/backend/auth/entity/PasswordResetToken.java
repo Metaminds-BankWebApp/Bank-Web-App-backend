@@ -3,6 +3,8 @@ package com.bank_web_app.backend.auth.entity;
 import com.bank_web_app.backend.user.entity.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -14,6 +16,7 @@ import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.ColumnDefault;
 
 /** One-time password-reset challenge. OTP and reset tokens are stored only as hashes. */
 @Entity
@@ -30,6 +33,11 @@ public class PasswordResetToken {
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
 	@JoinColumn(name = "user_id", nullable = false)
 	private User user;
+
+	@Enumerated(EnumType.STRING)
+	@Column(name = "purpose", nullable = false, length = 30)
+	@ColumnDefault("'PASSWORD_RESET'")
+	private PasswordResetTokenPurpose purpose;
 
 	@Column(name = "otp_hash", nullable = false, length = 255)
 	private String otpHash;
@@ -57,6 +65,9 @@ public class PasswordResetToken {
 
 	@PrePersist
 	void onCreate() {
+		if (purpose == null) {
+			purpose = PasswordResetTokenPurpose.PASSWORD_RESET;
+		}
 		if (createdAt == null) {
 			createdAt = LocalDateTime.now();
 		}
