@@ -44,7 +44,7 @@ public class BankOfficerCredentialsEmailService {
 			"",
 			"Activate account: " + activationLink,
 			"",
-			"This one-time link expires in 24 hours. Do not forward it.",
+			"This one-time link expires in 3 days. Do not forward it.",
 			"",
 			"Regards,",
 			"PrimeCore Digital Banking Team"

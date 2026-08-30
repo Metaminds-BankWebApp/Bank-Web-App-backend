@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.bank_web_app.backend.auth.dto.request.ForgotPasswordRequest;
+import com.bank_web_app.backend.auth.dto.request.LoginRequest;
 import com.bank_web_app.backend.auth.dto.request.ResetPasswordRequest;
 import com.bank_web_app.backend.auth.dto.request.VerifyPasswordResetOtpRequest;
 import com.bank_web_app.backend.auth.dto.response.AuthActionResponse;
@@ -21,6 +22,7 @@ import com.bank_web_app.backend.common.email.EmailService;
 import com.bank_web_app.backend.publiccustomer.repository.PublicCustomerProfileRepository;
 import com.bank_web_app.backend.security.jwt.JwtService;
 import com.bank_web_app.backend.user.entity.User;
+import com.bank_web_app.backend.user.entity.Role;
 import com.bank_web_app.backend.user.repository.UserRepository;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -45,6 +47,7 @@ class AuthServiceImplPasswordResetTest {
 	@Mock private RefreshTokenRepository refreshTokenRepository;
 	@Mock private PasswordResetTokenRepository passwordResetTokenRepository;
 	@Mock private EmailService emailService;
+	@Mock private OfficerActivationService officerActivationService;
 
 	private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 	private AuthServiceImpl authService;
@@ -61,6 +64,7 @@ class AuthServiceImplPasswordResetTest {
 			passwordResetTokenRepository,
 			passwordEncoder,
 			emailService,
+			officerActivationService,
 			1_209_600_000L,
 			10,
 			15,
@@ -134,6 +138,44 @@ class AuthServiceImplPasswordResetTest {
 		assertThat(passwordEncoder.matches("StrongerPass123", user.getPasswordHash())).isTrue();
 		assertThat(token.getConsumedAt()).isNotNull();
 		verify(refreshTokenRepository).deleteByUser_UserId(12L);
+		verify(userRepository).save(user);
+	}
+
+	@Test
+	void officerPasswordSetupKeepsAccountPendingUntilFirstLogin() {
+		User user = activeUser();
+		user.setStatus("PENDING_ACTIVATION");
+		PasswordResetToken token = token(user, "123456", LocalDateTime.now().plusMinutes(10));
+		token.setVerifiedAt(LocalDateTime.now());
+		token.setResetTokenHash("stored-hash");
+		token.setResetTokenExpiresAt(LocalDateTime.now().plusMinutes(15));
+		when(passwordResetTokenRepository.findByResetTokenHashAndConsumedAtIsNull(anyString()))
+			.thenReturn(Optional.of(token));
+		when(officerActivationService.isOfficerActivationToken(token)).thenReturn(true);
+
+		authService.resetPassword(new ResetPasswordRequest("activation-token", "StrongerPass123", "StrongerPass123"));
+
+		assertThat(user.getStatus()).isEqualTo("PENDING_ACTIVATION");
+		verify(officerActivationService).recordPasswordSet(eq(user), any(LocalDateTime.class));
+	}
+
+	@Test
+	void firstSuccessfulOfficerLoginActivatesReadyPendingAccount() {
+		User user = activeUser();
+		Role role = new Role();
+		role.setRoleId(3L);
+		role.setRoleName("BANK_OFFICER");
+		user.setRole(role);
+		user.setUsername("officer.one");
+		user.setPasswordHash(passwordEncoder.encode("StrongerPass123"));
+		user.setStatus("PENDING_ACTIVATION");
+		when(userRepository.findByUsernameIgnoreCase("officer.one")).thenReturn(Optional.of(user));
+		when(officerActivationService.isReadyForFirstLogin(user)).thenReturn(true);
+		when(jwtService.generateAccessToken(user)).thenReturn("access-token");
+
+		authService.login(new LoginRequest("officer.one", "StrongerPass123"));
+
+		assertThat(user.getStatus()).isEqualTo("ACTIVE");
 		verify(userRepository).save(user);
 	}
 

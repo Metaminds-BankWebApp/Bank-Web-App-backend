@@ -18,6 +18,7 @@ import java.time.LocalDateTime;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.ColumnDefault;
 
 @Entity
 @Table(name = "bank_officers")
@@ -42,6 +43,13 @@ public class BankOfficer {
 	@Column(name = "employee_code", nullable = false, unique = true, length = 50)
 	private String employeeCode;
 
+	@Column(name = "activation_resend_count", nullable = false)
+	@ColumnDefault("0")
+	private int activationResendCount;
+
+	@Column(name = "activation_password_set_at")
+	private LocalDateTime activationPasswordSetAt;
+
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "created_by_admin_user_id")
 	private User createdByAdminUser;
@@ -55,6 +63,7 @@ public class BankOfficer {
 	@PrePersist
 	void onCreate() {
 		LocalDateTime now = LocalDateTime.now();
+		activationResendCount = Math.max(0, activationResendCount);
 		createdAt = now;
 		updatedAt = now;
 	}

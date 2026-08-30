@@ -2,12 +2,14 @@ package com.bank_web_app.backend.auth.controller;
 
 import com.bank_web_app.backend.auth.dto.request.ForgotPasswordRequest;
 import com.bank_web_app.backend.auth.dto.request.LoginRequest;
+import com.bank_web_app.backend.auth.dto.request.OfficerActivationTokenRequest;
 import com.bank_web_app.backend.auth.dto.request.RefreshTokenRequest;
 import com.bank_web_app.backend.auth.dto.request.ResetPasswordRequest;
 import com.bank_web_app.backend.auth.dto.request.VerifyPasswordResetOtpRequest;
 import com.bank_web_app.backend.auth.dto.response.AuthActionResponse;
 import com.bank_web_app.backend.auth.dto.response.AuthMeResponse;
 import com.bank_web_app.backend.auth.dto.response.LoginResponse;
+import com.bank_web_app.backend.auth.dto.response.OfficerActivationResponse;
 import com.bank_web_app.backend.auth.service.AuthService;
 import com.bank_web_app.backend.publiccustomer.service.PublicCustomerService;
 import com.bank_web_app.backend.user.dto.request.UserRegistrationStepOneRequest;
@@ -110,6 +112,22 @@ public class AuthController {
 	@Operation(summary = "Reset password", description = "Sets a new password with a verified, short-lived reset session and revokes existing refresh-token sessions.")
 	public ResponseEntity<AuthActionResponse> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
 		return ResponseEntity.ok(authService.resetPassword(request));
+	}
+
+	@PostMapping("/officer-activation/status")
+	@Operation(summary = "Inspect officer activation link", description = "Returns whether an officer activation link is valid, expired, completed, or eligible for self-service resend.")
+	public ResponseEntity<OfficerActivationResponse> inspectOfficerActivation(
+		@Valid @RequestBody OfficerActivationTokenRequest request
+	) {
+		return ResponseEntity.ok(authService.inspectOfficerActivation(request));
+	}
+
+	@PostMapping("/officer-activation/resend")
+	@Operation(summary = "Resend officer activation link", description = "Sends a replacement three-day activation link to a pending officer, up to three resend requests.")
+	public ResponseEntity<OfficerActivationResponse> resendOfficerActivation(
+		@Valid @RequestBody OfficerActivationTokenRequest request
+	) {
+		return ResponseEntity.ok(authService.resendOfficerActivation(request));
 	}
 
 	@GetMapping("/me")
