@@ -16,6 +16,7 @@ import com.bank_web_app.backend.auth.entity.PasswordResetToken;
 import com.bank_web_app.backend.auth.repository.PasswordResetTokenRepository;
 import com.bank_web_app.backend.auth.repository.RefreshTokenRepository;
 import com.bank_web_app.backend.bankcustomer.repository.BankCustomerRepository;
+import com.bank_web_app.backend.bankcustomer.entity.BankCustomer;
 import com.bank_web_app.backend.bankofficer.repository.BankOfficerRepository;
 import com.bank_web_app.backend.common.email.EmailService;
 import com.bank_web_app.backend.publiccustomer.repository.PublicCustomerProfileRepository;
@@ -64,14 +65,14 @@ class AuthServiceImplPasswordResetTest {
 			1_209_600_000L,
 			10,
 			15,
-			60
+			60,
+			"http://localhost:3000/reset-password"
 		);
 	}
 
 	@Test
 	void sendsOtpToRegisteredEmailWhenUsernameIsProvided() {
 		User user = activeUser();
-		when(userRepository.findByEmailIgnoreCase("alice.customer")).thenReturn(Optional.empty());
 		when(userRepository.findByUsernameIgnoreCase("alice.customer")).thenReturn(Optional.of(user));
 		when(passwordResetTokenRepository.findAllByUser_UserIdAndConsumedAtIsNullOrderByCreatedAtDesc(12L))
 			.thenReturn(List.of());
@@ -91,7 +92,7 @@ class AuthServiceImplPasswordResetTest {
 	void rejectsExpiredOtp() {
 		User user = activeUser();
 		PasswordResetToken token = token(user, "123456", LocalDateTime.now().minusMinutes(1));
-		when(userRepository.findByEmailIgnoreCase(user.getEmail())).thenReturn(Optional.of(user));
+		stubEmailLookup(user);
 		when(passwordResetTokenRepository.findAllByUser_UserIdAndConsumedAtIsNullOrderByCreatedAtDesc(12L))
 			.thenReturn(List.of(token));
 
@@ -108,7 +109,7 @@ class AuthServiceImplPasswordResetTest {
 		User user = activeUser();
 		PasswordResetToken token = token(user, "123456", LocalDateTime.now().plusMinutes(10));
 		token.setFailedAttempts(4);
-		when(userRepository.findByEmailIgnoreCase(user.getEmail())).thenReturn(Optional.of(user));
+		stubEmailLookup(user);
 		when(passwordResetTokenRepository.findAllByUser_UserIdAndConsumedAtIsNullOrderByCreatedAtDesc(12L))
 			.thenReturn(List.of(token));
 
@@ -155,5 +156,27 @@ class AuthServiceImplPasswordResetTest {
 		token.setOtpExpiresAt(expiresAt);
 		token.setFailedAttempts(0);
 		return token;
+	}
+
+	@Test
+	void sendsReplacementActivationLinkForPendingCustomer() {
+		User user = activeUser();
+		user.setStatus("PENDING_ACTIVATION");
+		BankCustomer customer = new BankCustomer();
+		customer.setUser(user);
+		when(userRepository.findByUsernameIgnoreCase(user.getUsername())).thenReturn(Optional.of(user));
+		when(bankCustomerRepository.findByUser_UserId(user.getUserId())).thenReturn(Optional.of(customer));
+		when(passwordResetTokenRepository.findAllByUser_UserIdAndConsumedAtIsNullOrderByCreatedAtDesc(user.getUserId())).thenReturn(List.of());
+
+		AuthActionResponse response = authService.forgotPassword(new ForgotPasswordRequest(user.getUsername()));
+
+		verify(emailService).sendPlainText(eq(user.getEmail()), anyString(), anyString());
+		assertThat(customer.getActivationResendCount()).isEqualTo(1);
+		assertThat(response.message()).contains("three replacement links");
+	}
+
+	private void stubEmailLookup(User user) {
+		when(userRepository.findByUsernameIgnoreCase(user.getEmail())).thenReturn(Optional.empty());
+		when(userRepository.findAllByEmailIgnoreCaseOrderByUserIdAsc(user.getEmail())).thenReturn(List.of(user));
 	}
 }

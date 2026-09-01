@@ -63,6 +63,7 @@ public class NotificationEventHandler {
 			case SPENDIQ_BUDGET_THRESHOLD -> notifyBudgetThreshold(event);
 			case CREDITLENS_EVALUATED -> notifyCreditLensEvaluation(event);
 			case LOANSENSE_EVALUATED -> notifyLoanSenseEvaluation(event);
+			case TRANSACTION_OTP_ATTEMPTS_EXCEEDED -> notifyAdminsAboutOtpAttemptLimit(event);
 		}
 	}
 
@@ -306,6 +307,26 @@ public class NotificationEventHandler {
 				true
 			);
 		}
+	}
+
+	private void notifyAdminsAboutOtpAttemptLimit(NotificationDomainEvent event) {
+		String customerName = value(event, "customerName", "A bank customer");
+		String referenceNo = value(event, "referenceNo", "the transaction");
+		String accountNumber = value(event, "accountNumber", "");
+		String attemptCount = value(event, "attemptCount", "the allowed");
+		String accountSuffix = accountNumber.isBlank() ? "" : " for account ending " + accountNumber;
+		forEachAdminExcept(event.actorUserId(), admin -> create(
+			admin.getUserId(),
+			NotificationType.TRANSACTION_OTP_ATTEMPTS_EXCEEDED,
+			NotificationSource.TRANSACT,
+			NotificationSeverity.ALERT,
+			"Transaction OTP attempt limit reached",
+			customerName + " entered an incorrect transaction OTP " + attemptCount + " times" + accountSuffix + ". A bank officer reviewed and escalated transaction " + referenceNo + ".",
+			"ADMIN_USER_MANAGEMENT",
+			metadata(event, "customerUserId", "customerId", "referenceNo", "accountNumber", "attemptCount"),
+			"admin:transaction-otp-limit:" + referenceNo,
+			false
+		));
 	}
 
 	private void forEachAdminExcept(Long excludedUserId, java.util.function.Consumer<User> consumer) {

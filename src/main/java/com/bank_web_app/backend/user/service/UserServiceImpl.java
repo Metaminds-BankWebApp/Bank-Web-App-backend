@@ -388,10 +388,10 @@ private BankCustomer createBankCustomerProfile(UserRegistrationStepOneRequest re
 		throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Step-1 branch id does not match the logged-in bank officer branch.");
 	}
 
-String accountNumber = resolveAccountNumber(request);
+	String accountNumber = resolveAccountNumber(request);
 	Account savedAccount = accountRepository
 		.findByAccountNumber(accountNumber)
-		.orElseThrow(() -> new IllegalArgumentException("Account not found."));
+		.orElseThrow(() -> new IllegalArgumentException("Account not found. The customer must first open an account through the core banking system."));
 	if (bankCustomerRepository.existsByAccount_AccountId(savedAccount.getAccountId())) {
 		throw new IllegalArgumentException("Bank account is already linked to another customer.");
 	}
@@ -407,7 +407,7 @@ customer.setUser(user);
 customer.setCustomerCode(customerCode);
 	customer.setOfficer(loggedOfficer);
 	customer.setBranch(loggedOfficer.getBranch());
-customer.setAccount(savedAccount);
+	customer.setAccount(savedAccount);
 customer.setAccessStatus(accessStatus);
 return bankCustomerRepository.save(customer);
 }

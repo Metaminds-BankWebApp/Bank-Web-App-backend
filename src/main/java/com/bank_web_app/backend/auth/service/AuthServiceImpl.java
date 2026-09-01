@@ -51,6 +51,7 @@ public class AuthServiceImpl implements AuthService {
 	private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 	private static final int PASSWORD_RESET_OTP_LENGTH = 6;
 	private static final int PASSWORD_RESET_MAX_ATTEMPTS = 5;
+	private static final int ACTIVATION_LINK_RESEND_MAX_ATTEMPTS = 3;
 	private static final Pattern PASSWORD_PATTERN = Pattern.compile("^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{10,255}$");
 	private static final String PASSWORD_RESET_REQUEST_MESSAGE =
 		"If an active account matches those details, a verification code has been sent to its registered email address.";
@@ -70,6 +71,7 @@ public class AuthServiceImpl implements AuthService {
 	private final int passwordResetOtpExpiryMinutes;
 	private final int passwordResetTokenExpiryMinutes;
 	private final int passwordResetResendCooldownSeconds;
+	private final String activationUrl;
 
 	public AuthServiceImpl(
 		UserRepository userRepository,
@@ -84,7 +86,8 @@ public class AuthServiceImpl implements AuthService {
 		@Value("${jwt.refresh-token-expiration-ms:1209600000}") long refreshTokenExpirationMs,
 		@Value("${app.password-reset.otp-expiry-minutes:10}") int passwordResetOtpExpiryMinutes,
 		@Value("${app.password-reset.token-expiry-minutes:15}") int passwordResetTokenExpiryMinutes,
-		@Value("${app.password-reset.resend-cooldown-seconds:60}") int passwordResetResendCooldownSeconds
+		@Value("${app.password-reset.resend-cooldown-seconds:60}") int passwordResetResendCooldownSeconds,
+		@Value("${app.frontend.activation-url:${APP_FRONTEND_ACTIVATION_URL:http://localhost:3000/reset-password}}") String activationUrl
 	) {
 		this.userRepository = userRepository;
 		this.bankCustomerRepository = bankCustomerRepository;
@@ -99,6 +102,7 @@ public class AuthServiceImpl implements AuthService {
 		this.passwordResetOtpExpiryMinutes = Math.max(1, passwordResetOtpExpiryMinutes);
 		this.passwordResetTokenExpiryMinutes = Math.max(1, passwordResetTokenExpiryMinutes);
 		this.passwordResetResendCooldownSeconds = Math.max(1, passwordResetResendCooldownSeconds);
+		this.activationUrl = safe(activationUrl);
 	}
 
 	@Override
@@ -173,8 +177,11 @@ public class AuthServiceImpl implements AuthService {
 	@Transactional
 	public AuthActionResponse forgotPassword(ForgotPasswordRequest request) {
 		User user = findUserByIdentifier(request.identifier()).orElse(null);
-		if (user == null || !isActive(user)) {
+		if (user == null || (!isActive(user) && !"PENDING_ACTIVATION".equalsIgnoreCase(safe(user.getStatus())))) {
 			return passwordResetRequestResponse();
+		}
+		if ("PENDING_ACTIVATION".equalsIgnoreCase(safe(user.getStatus()))) {
+			return resendCustomerActivationLink(user);
 		}
 
 		LocalDateTime now = LocalDateTime.now();
@@ -213,6 +220,39 @@ public class AuthServiceImpl implements AuthService {
 		}
 
 		return passwordResetRequestResponse();
+	}
+
+	private AuthActionResponse resendCustomerActivationLink(User user) {
+		BankCustomer customer = bankCustomerRepository.findByUser_UserId(user.getUserId()).orElse(null);
+		if (customer == null || customer.getActivationResendCount() >= ACTIVATION_LINK_RESEND_MAX_ATTEMPTS) {
+			return new AuthActionResponse("If the account is eligible, an activation link has been sent. Contact the bank after three resend attempts.", null);
+		}
+		LocalDateTime now = LocalDateTime.now();
+		passwordResetTokenRepository.findAllByUser_UserIdAndConsumedAtIsNullOrderByCreatedAtDesc(user.getUserId())
+			.forEach(token -> token.setConsumedAt(now));
+		String rawToken = generateResetToken();
+		PasswordResetToken token = new PasswordResetToken();
+		token.setUser(user);
+		token.setOtpHash(passwordEncoder.encode(generateResetToken()));
+		token.setOtpExpiresAt(now.plusHours(24));
+		token.setFailedAttempts(0);
+		token.setVerifiedAt(now);
+		token.setResetTokenHash(sha256Hex(rawToken));
+		token.setResetTokenExpiresAt(now.plusHours(24));
+		passwordResetTokenRepository.save(token);
+		try {
+			String baseUrl = activationUrl.isBlank() ? "http://localhost:3000/reset-password" : activationUrl;
+			String link = baseUrl + (baseUrl.contains("?") ? "&" : "?") + "activationToken=" + rawToken;
+			emailService.sendPlainText(user.getEmail(), "Activate your PrimeCore customer account",
+				"Hello " + safe(user.getFirstName()) + ",\n\nUse this one-time link to set your password:\n" + link + "\n\nThis link expires in 24 hours.");
+			customer.setActivationResendCount(customer.getActivationResendCount() + 1);
+			bankCustomerRepository.save(customer);
+		} catch (RuntimeException exception) {
+			token.setConsumedAt(now);
+			passwordResetTokenRepository.save(token);
+			LOGGER.error("Activation resend email could not be delivered for userId={}", user.getUserId(), exception);
+		}
+		return new AuthActionResponse("If the account is eligible, an activation link has been sent. Up to three replacement links are allowed.", null);
 	}
 
 	@Override
