@@ -95,6 +95,32 @@ class CreditEvaluationResponseServiceTest {
 			.doesNotContain("No recent missed payments");
 	}
 
+	@Test
+	void trendSummaryReturnsAllDriversTiedForTheLargestImprovement() {
+		CreditEvaluationResponseService responseService = new CreditEvaluationResponseService(recordService);
+		EvaluationView earliest = trendView(1L, LocalDateTime.of(2026, 1, 10, 9, 0), 18, 12, 10, 8, 5);
+		EvaluationView latest = trendView(2L, LocalDateTime.of(2026, 2, 10, 9, 0), 8, 12, 0, 8, 5);
+
+		var response = responseService.buildTrendResponse(List.of(latest, earliest), "6m");
+
+		assertThat(response.summary().direction()).isEqualTo("IMPROVING");
+		assertThat(response.summary().biggestDriver())
+			.isEqualTo("Fewer missed-payment points and lower utilization over time");
+	}
+
+	@Test
+	void trendSummaryReturnsAllDriversTiedForTheLargestDeterioration() {
+		CreditEvaluationResponseService responseService = new CreditEvaluationResponseService(recordService);
+		EvaluationView earliest = trendView(1L, LocalDateTime.of(2026, 1, 10, 9, 0), 8, 12, 0, 8, 5);
+		EvaluationView latest = trendView(2L, LocalDateTime.of(2026, 2, 10, 9, 0), 18, 12, 10, 8, 5);
+
+		var response = responseService.buildTrendResponse(List.of(latest, earliest), "6m");
+
+		assertThat(response.summary().direction()).isEqualTo("WORSENING");
+		assertThat(response.summary().biggestDriver())
+			.isEqualTo("Payment history deterioration and higher credit utilization");
+	}
+
 	private RecordBreakdown breakdown(String income) {
 		return new RecordBreakdown(
 			new BigDecimal(income),
@@ -161,6 +187,41 @@ class CreditEvaluationResponseServiceTest {
 			incomeStabilityPoints,
 			exposurePoints,
 			LocalDateTime.of(2026, 8, 21, 9, 0)
+		);
+	}
+
+	private EvaluationView trendView(
+		Long evaluationId,
+		LocalDateTime createdAt,
+		int paymentHistoryPoints,
+		int dtiPoints,
+		int utilizationPoints,
+		int incomeStabilityPoints,
+		int exposurePoints
+	) {
+		int totalRiskPoints = paymentHistoryPoints + dtiPoints + utilizationPoints + incomeStabilityPoints + exposurePoints;
+		String riskLevel = totalRiskPoints <= 33 ? "LOW" : (totalRiskPoints <= 66 ? "MEDIUM" : "HIGH");
+		return new EvaluationView(
+			evaluationId,
+			100L + evaluationId,
+			"PUBLIC",
+			"Self Assessment",
+			totalRiskPoints,
+			riskLevel,
+			new BigDecimal("125000.00"),
+			new BigDecimal("25000.00"),
+			new BigDecimal("100000.00"),
+			new BigDecimal("20000.00"),
+			new BigDecimal("0.20"),
+			new BigDecimal("0.20"),
+			2,
+			0,
+			paymentHistoryPoints,
+			dtiPoints,
+			utilizationPoints,
+			incomeStabilityPoints,
+			exposurePoints,
+			createdAt
 		);
 	}
 }
