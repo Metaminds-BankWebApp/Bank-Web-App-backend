@@ -639,49 +639,67 @@ public class CreditEvaluationResponseService {
 
 	// Finds the biggest factor that changed between the first and latest month.
 	private String resolveBiggestDriver(EvaluationView earliest, EvaluationView latest, String direction) {
-		Map<String, Integer> deltas = Map.of(
-			"PAYMENT", latest.paymentHistoryPoints() - earliest.paymentHistoryPoints(),
-			"DTI", latest.dtiPoints() - earliest.dtiPoints(),
-			"UTILIZATION", latest.utilizationPoints() - earliest.utilizationPoints(),
-			"INCOME", latest.incomeStabilityPoints() - earliest.incomeStabilityPoints(),
-			"EXPOSURE", latest.exposurePoints() - earliest.exposurePoints()
-		);
+		Map<String, Integer> deltas = new LinkedHashMap<>();
+		deltas.put("PAYMENT", latest.paymentHistoryPoints() - earliest.paymentHistoryPoints());
+		deltas.put("DTI", latest.dtiPoints() - earliest.dtiPoints());
+		deltas.put("UTILIZATION", latest.utilizationPoints() - earliest.utilizationPoints());
+		deltas.put("INCOME", latest.incomeStabilityPoints() - earliest.incomeStabilityPoints());
+		deltas.put("EXPOSURE", latest.exposurePoints() - earliest.exposurePoints());
 
 		if ("IMPROVING".equals(direction)) {
-			Map.Entry<String, Integer> best = deltas.entrySet()
+			int bestDelta = deltas.values()
 				.stream()
-				.min(Map.Entry.comparingByValue())
-				.orElse(null);
-			if (best != null && best.getValue() < 0) {
-				return switch (best.getKey()) {
-					case "PAYMENT" -> "Fewer missed-payment points";
-					case "DTI" -> "Reduced DTI pressure";
-					case "UTILIZATION" -> "Lower utilization over time";
-					case "INCOME" -> "More stable income profile";
-					case "EXPOSURE" -> "Lower active credit exposure";
-					default -> "Improved factor mix";
-				};
+				.min(Integer::compareTo)
+				.orElse(0);
+			if (bestDelta < 0) {
+				return joinDriverLabels(deltas, bestDelta, true);
 			}
 		}
 
 		if ("WORSENING".equals(direction)) {
-			Map.Entry<String, Integer> worst = deltas.entrySet()
+			int worstDelta = deltas.values()
 				.stream()
-				.max(Map.Entry.comparingByValue())
-				.orElse(null);
-			if (worst != null && worst.getValue() > 0) {
-				return switch (worst.getKey()) {
-					case "PAYMENT" -> "Payment history deterioration";
-					case "DTI" -> "Higher DTI pressure";
-					case "UTILIZATION" -> "Higher credit utilization";
-					case "INCOME" -> "Less stable income profile";
-					case "EXPOSURE" -> "Higher active credit exposure";
-					default -> "Worsening factor mix";
-				};
+				.max(Integer::compareTo)
+				.orElse(0);
+			if (worstDelta > 0) {
+				return joinDriverLabels(deltas, worstDelta, false);
 			}
 		}
 
 		return buildCurrentPrimaryDriver(latest);
+	}
+
+	// Joins every factor tied for the largest improvement or deterioration.
+	private String joinDriverLabels(Map<String, Integer> deltas, int targetDelta, boolean improving) {
+		List<String> labels = deltas.entrySet()
+			.stream()
+			.filter(entry -> entry.getValue() == targetDelta)
+			.map(entry -> resolveDriverLabel(entry.getKey(), improving))
+			.toList();
+		String combined = String.join(" and ", labels);
+		return combined.substring(0, 1).toUpperCase(Locale.ROOT) + combined.substring(1);
+	}
+
+	// Converts a factor key into the matching improving or worsening explanation.
+	private String resolveDriverLabel(String factor, boolean improving) {
+		if (improving) {
+			return switch (factor) {
+				case "PAYMENT" -> "fewer missed-payment points";
+				case "DTI" -> "reduced DTI pressure";
+				case "UTILIZATION" -> "lower utilization over time";
+				case "INCOME" -> "more stable income profile";
+				case "EXPOSURE" -> "lower active credit exposure";
+				default -> "improved factor mix";
+			};
+		}
+		return switch (factor) {
+			case "PAYMENT" -> "payment history deterioration";
+			case "DTI" -> "higher DTI pressure";
+			case "UTILIZATION" -> "higher credit utilization";
+			case "INCOME" -> "less stable income profile";
+			case "EXPOSURE" -> "higher active credit exposure";
+			default -> "worsening factor mix";
+		};
 	}
 
 	// Finds the current factor with the highest risk-point pressure.
