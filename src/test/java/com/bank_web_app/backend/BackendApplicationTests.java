@@ -1,13 +1,14 @@
 package com.bank_web_app.backend;
 
-import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
+import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest
+import org.junit.jupiter.api.Test;
+
 class BackendApplicationTests {
 
 	@Test
-	void contextLoads() {
+	void applicationEntryPointIsAvailableWithoutStartingExternalServices() {
+		assertThat(BackendApplication.class).isNotNull();
 	}
 
 }

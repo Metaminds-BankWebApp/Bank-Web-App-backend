@@ -46,7 +46,9 @@ public class SecurityConfig {
 					"/api/auth/register",
 					"/api/auth/forgot-password",
 					"/api/auth/verify-otp",
-					"/api/auth/reset-password"
+					"/api/auth/reset-password",
+					"/api/auth/officer-activation/status",
+					"/api/auth/officer-activation/resend"
 				).permitAll()
 				.requestMatchers(
 					HttpMethod.POST,

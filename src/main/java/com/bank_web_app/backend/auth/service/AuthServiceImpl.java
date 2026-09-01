@@ -2,13 +2,16 @@ package com.bank_web_app.backend.auth.service;
 
 import com.bank_web_app.backend.auth.dto.request.ForgotPasswordRequest;
 import com.bank_web_app.backend.auth.dto.request.LoginRequest;
+import com.bank_web_app.backend.auth.dto.request.OfficerActivationTokenRequest;
 import com.bank_web_app.backend.auth.dto.request.RefreshTokenRequest;
 import com.bank_web_app.backend.auth.dto.request.ResetPasswordRequest;
 import com.bank_web_app.backend.auth.dto.request.VerifyPasswordResetOtpRequest;
 import com.bank_web_app.backend.auth.dto.response.AuthActionResponse;
 import com.bank_web_app.backend.auth.dto.response.AuthMeResponse;
 import com.bank_web_app.backend.auth.dto.response.LoginResponse;
+import com.bank_web_app.backend.auth.dto.response.OfficerActivationResponse;
 import com.bank_web_app.backend.auth.entity.PasswordResetToken;
+import com.bank_web_app.backend.auth.entity.PasswordResetTokenPurpose;
 import com.bank_web_app.backend.auth.entity.RefreshToken;
 import com.bank_web_app.backend.auth.repository.PasswordResetTokenRepository;
 import com.bank_web_app.backend.auth.repository.RefreshTokenRepository;
@@ -67,6 +70,7 @@ public class AuthServiceImpl implements AuthService {
 	private final PasswordResetTokenRepository passwordResetTokenRepository;
 	private final PasswordEncoder passwordEncoder;
 	private final EmailService emailService;
+	private final OfficerActivationService officerActivationService;
 	private final long refreshTokenExpirationMs;
 	private final int passwordResetOtpExpiryMinutes;
 	private final int passwordResetTokenExpiryMinutes;
@@ -83,6 +87,7 @@ public class AuthServiceImpl implements AuthService {
 		PasswordResetTokenRepository passwordResetTokenRepository,
 		PasswordEncoder passwordEncoder,
 		EmailService emailService,
+		OfficerActivationService officerActivationService,
 		@Value("${jwt.refresh-token-expiration-ms:1209600000}") long refreshTokenExpirationMs,
 		@Value("${app.password-reset.otp-expiry-minutes:10}") int passwordResetOtpExpiryMinutes,
 		@Value("${app.password-reset.token-expiry-minutes:15}") int passwordResetTokenExpiryMinutes,
@@ -98,6 +103,7 @@ public class AuthServiceImpl implements AuthService {
 		this.passwordResetTokenRepository = passwordResetTokenRepository;
 		this.passwordEncoder = passwordEncoder;
 		this.emailService = emailService;
+		this.officerActivationService = officerActivationService;
 		this.refreshTokenExpirationMs = refreshTokenExpirationMs;
 		this.passwordResetOtpExpiryMinutes = Math.max(1, passwordResetOtpExpiryMinutes);
 		this.passwordResetTokenExpiryMinutes = Math.max(1, passwordResetTokenExpiryMinutes);
@@ -118,7 +124,15 @@ public class AuthServiceImpl implements AuthService {
 		}
 
 		if (!isActive(user)) {
-			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Your account has been suspended. Please contact support.");
+			if ("PENDING_ACTIVATION".equalsIgnoreCase(safe(user.getStatus()))) {
+				if (!officerActivationService.isReadyForFirstLogin(user)) {
+					throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Complete password setup from your activation email before signing in.");
+				}
+				user.setStatus("ACTIVE");
+				userRepository.save(user);
+			} else {
+				throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Your account has been suspended. Please contact support.");
+			}
 		}
 
 		return issueTokenPair(user);
@@ -202,6 +216,7 @@ public class AuthServiceImpl implements AuthService {
 		String otp = generatePasswordResetOtp();
 		PasswordResetToken token = new PasswordResetToken();
 		token.setUser(user);
+		token.setPurpose(PasswordResetTokenPurpose.PASSWORD_RESET);
 		token.setOtpHash(passwordEncoder.encode(otp));
 		token.setOtpExpiresAt(now.plusMinutes(passwordResetOtpExpiryMinutes));
 		token.setFailedAttempts(0);
@@ -320,11 +335,17 @@ public class AuthServiceImpl implements AuthService {
 		}
 
 		User user = token.getUser();
+		boolean officerActivation = officerActivationService.isOfficerActivationToken(token);
 		if (!isActive(user) && !"PENDING_ACTIVATION".equalsIgnoreCase(safe(user.getStatus()))) {
 			throw invalidPasswordResetSession();
 		}
+		if (officerActivation && !"PENDING_ACTIVATION".equalsIgnoreCase(safe(user.getStatus()))) {
+			throw invalidPasswordResetSession();
+		}
 		user.setPasswordHash(passwordEncoder.encode(request.password()));
-		if ("PENDING_ACTIVATION".equalsIgnoreCase(safe(user.getStatus()))) {
+		if (officerActivation) {
+			officerActivationService.recordPasswordSet(user, now);
+		} else if ("PENDING_ACTIVATION".equalsIgnoreCase(safe(user.getStatus()))) {
 			user.setStatus("ACTIVE");
 		}
 		userRepository.save(user);
@@ -343,6 +364,18 @@ public class AuthServiceImpl implements AuthService {
 		}
 
 		return new AuthActionResponse("Password updated successfully. Please sign in with your new password.", null);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public OfficerActivationResponse inspectOfficerActivation(OfficerActivationTokenRequest request) {
+		return officerActivationService.inspect(request.activationToken());
+	}
+
+	@Override
+	@Transactional
+	public OfficerActivationResponse resendOfficerActivation(OfficerActivationTokenRequest request) {
+		return officerActivationService.resend(request.activationToken());
 	}
 
 	@Override

@@ -1,10 +1,6 @@
 package com.bank_web_app.backend.admin.service;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.Base64;
 import java.util.List;
@@ -15,6 +11,8 @@ import java.util.regex.Pattern;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.bank_web_app.backend.admin.dto.request.AdminBankOfficerUpdateRequest;
 import com.bank_web_app.backend.admin.dto.request.AdminBankOfficerCreateRequest;
@@ -23,8 +21,7 @@ import com.bank_web_app.backend.common.exception.DuplicateFieldsException;
 import com.bank_web_app.backend.admin.entity.Branch;
 import com.bank_web_app.backend.admin.repository.BranchRepository;
 import com.bank_web_app.backend.auth.repository.RefreshTokenRepository;
-import com.bank_web_app.backend.auth.entity.PasswordResetToken;
-import com.bank_web_app.backend.auth.repository.PasswordResetTokenRepository;
+import com.bank_web_app.backend.auth.service.OfficerActivationService;
 import com.bank_web_app.backend.bankcustomer.repository.BankCustomerFinancialRecordRepository;
 import com.bank_web_app.backend.bankcustomer.repository.BankCustomerRepository;
 import com.bank_web_app.backend.bankofficer.entity.BankOfficer;
@@ -38,7 +35,6 @@ import com.bank_web_app.backend.user.entity.User;
 import com.bank_web_app.backend.user.repository.UserRepository;
 import com.bank_web_app.backend.user.entity.Role;
 import com.bank_web_app.backend.user.repository.RoleRepository;
-import com.bank_web_app.backend.common.email.BankOfficerCredentialsEmailService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 /**
@@ -51,7 +47,6 @@ public class AdminBankOfficerService {
 	private static final Set<String> ALLOWED_STATUSES = Set.of("ACTIVE", "SUSPEND");
 	private static final String ROLE_BANK_OFFICER = "BANK_OFFICER";
 	private static final String STATUS_PENDING_ACTIVATION = "PENDING_ACTIVATION";
-	private static final int ACTIVATION_EXPIRY_HOURS = 24;
 	private static final int USERNAME_MAX_LENGTH = 50;
 	private static final int USERNAME_SUFFIX_LENGTH = 3;
 	private static final int USERNAME_ATTEMPT_LIMIT = 300;
@@ -69,9 +64,8 @@ public class AdminBankOfficerService {
 	private final AuditLogService auditLogService;
 	private final NotificationEventPublisher notificationEventPublisher;
 	private final RoleRepository roleRepository;
-	private final PasswordResetTokenRepository passwordResetTokenRepository;
 	private final PasswordEncoder passwordEncoder;
-	private final BankOfficerCredentialsEmailService officerActivationEmailService;
+	private final OfficerActivationService officerActivationService;
 
 	public AdminBankOfficerService(
 		BankOfficerRepository bankOfficerRepository,
@@ -85,9 +79,8 @@ public class AdminBankOfficerService {
 		AuditLogService auditLogService,
 		NotificationEventPublisher notificationEventPublisher,
 		RoleRepository roleRepository,
-		PasswordResetTokenRepository passwordResetTokenRepository,
 		PasswordEncoder passwordEncoder,
-		BankOfficerCredentialsEmailService officerActivationEmailService
+		OfficerActivationService officerActivationService
 	) {
 		this.bankOfficerRepository = bankOfficerRepository;
 		this.branchRepository = branchRepository;
@@ -100,9 +93,8 @@ public class AdminBankOfficerService {
 		this.auditLogService = auditLogService;
 		this.notificationEventPublisher = notificationEventPublisher;
 		this.roleRepository = roleRepository;
-		this.passwordResetTokenRepository = passwordResetTokenRepository;
 		this.passwordEncoder = passwordEncoder;
-		this.officerActivationEmailService = officerActivationEmailService;
+		this.officerActivationService = officerActivationService;
 	}
 
 	// Creates a new entity from validated request data.
@@ -140,8 +132,7 @@ public class AdminBankOfficerService {
 		if (request.createdByAdminUserId() != null) userRepository.findById(request.createdByAdminUserId()).ifPresent(officer::setCreatedByAdminUser);
 		bankOfficerRepository.save(officer);
 
-		String activationToken = createActivationToken(user);
-		officerActivationEmailService.sendActivationEmail(user.getEmail(), user.getFirstName(), user.getUsername(), activationToken);
+		officerActivationService.sendInitialInvitation(officer);
 		UserRegistrationStepResponse response = new UserRegistrationStepResponse(user.getUserId(), ROLE_BANK_OFFICER, STATUS_PENDING_ACTIVATION, "Bank officer created and activation invitation sent.");
 		auditLogService.logAction(
 			"BANK_OFFICER_CREATED",
@@ -195,11 +186,7 @@ public class AdminBankOfficerService {
 	public void resendActivation(Long userId) {
 		BankOfficer officer = findByUserId(userId);
 		User user = officer.getUser();
-		if (!STATUS_PENDING_ACTIVATION.equalsIgnoreCase(safe(user.getStatus()))) {
-			throw new IllegalArgumentException("Only pending officer accounts can receive an activation invitation.");
-		}
-		String activationToken = createActivationToken(user);
-		officerActivationEmailService.sendActivationEmail(user.getEmail(), user.getFirstName(), user.getUsername(), activationToken);
+		officerActivationService.resendByUserId(userId);
 		auditLogService.logAction("BANK_OFFICER_ACTIVATION_RESENT", "Resent Officer Activation: \"" + safe(user.getUsername()) + "\"", "BANK_OFFICER", safe(officer.getEmployeeCode()), "Sent a replacement one-time activation invitation.", "INFO");
 	}
 
@@ -214,6 +201,12 @@ public class AdminBankOfficerService {
 	public AdminBankOfficerSummaryResponse updateStatus(Long userId, String status) {
 		BankOfficer officer = findByUserId(userId);
 		User user = officer.getUser();
+		if (STATUS_PENDING_ACTIVATION.equalsIgnoreCase(safe(user.getStatus()))) {
+			throw new ResponseStatusException(
+				HttpStatus.CONFLICT,
+				"A pending officer's status cannot be changed until their first successful sign-in."
+			);
+		}
 		String normalizedStatus = normalizeStatus(status);
 		user.setStatus(normalizedStatus);
 		userRepository.save(user);
@@ -375,6 +368,9 @@ public class AdminBankOfficerService {
 	}
 
 	private String normalizeDisplayStatus(String status) {
+		if (STATUS_PENDING_ACTIVATION.equalsIgnoreCase(safe(status))) {
+			return STATUS_PENDING_ACTIVATION;
+		}
 		return "ACTIVE".equalsIgnoreCase(safe(status)) ? "ACTIVE" : "SUSPEND";
 	}
 
@@ -404,39 +400,10 @@ public class AdminBankOfficerService {
 		if (userRepository.existsByPhoneAndRole_RoleNameIn(phone, List.of(ROLE_BANK_OFFICER))) throw new DuplicateFieldsException(Map.of("mobile", "Contact number is already in use."));
 	}
 
-	private String createActivationToken(User user) {
-		LocalDateTime now = LocalDateTime.now();
-		List<PasswordResetToken> existing = passwordResetTokenRepository.findAllByUser_UserIdAndConsumedAtIsNullOrderByCreatedAtDesc(user.getUserId());
-		existing.forEach(token -> token.setConsumedAt(now));
-		if (!existing.isEmpty()) passwordResetTokenRepository.saveAll(existing);
-		String rawToken = generateSecret();
-		PasswordResetToken token = new PasswordResetToken();
-		token.setUser(user);
-		token.setOtpHash(passwordEncoder.encode(generateSecret()));
-		token.setOtpExpiresAt(now.plusHours(ACTIVATION_EXPIRY_HOURS));
-		token.setFailedAttempts(0);
-		token.setVerifiedAt(now);
-		token.setResetTokenHash(sha256Hex(rawToken));
-		token.setResetTokenExpiresAt(now.plusHours(ACTIVATION_EXPIRY_HOURS));
-		passwordResetTokenRepository.save(token);
-		return rawToken;
-	}
-
 	private String generateSecret() {
 		byte[] bytes = new byte[32];
 		SECURE_RANDOM.nextBytes(bytes);
 		return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-	}
-
-	private String sha256Hex(String value) {
-		try {
-			byte[] digest = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
-			StringBuilder output = new StringBuilder(digest.length * 2);
-			for (byte b : digest) output.append(String.format("%02x", b));
-			return output.toString();
-		} catch (NoSuchAlgorithmException exception) {
-			throw new IllegalStateException("SHA-256 is not available.", exception);
-		}
 	}
 
 	private String generateEmployeeCode() {

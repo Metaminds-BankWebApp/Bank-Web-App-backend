@@ -42,7 +42,8 @@ public class AuditLogController {
 		@RequestParam(required = false) String actorRole,
 		@RequestParam(required = false) String targetType,
 		@RequestParam(required = false) String actorName,
-		@RequestParam(required = false) String query
+		@RequestParam(required = false) String query,
+		@RequestParam(defaultValue = "created-desc") String sortBy
 	) {
 		return ResponseEntity.ok(
 			auditLogService.getAuditLogs(
@@ -55,7 +56,8 @@ public class AuditLogController {
 				actorRole,
 				targetType,
 				actorName,
-				query
+				query,
+				sortBy
 			)
 		);
 	}
