@@ -179,9 +179,12 @@ public class TransactionService {
 			otpRecord.getExpiresAt(),
 			false
 		);
+		if (!otpEmailSent) {
+			markTransactionAsFailed(transaction, otpRecord, OTP_STATUS_FAILED, "OTP could not be delivered. Transaction failed.");
+		}
 		String responseMessage = otpEmailSent
 			? "Transaction created. OTP has been issued for verification."
-			: "Transaction created. OTP email failed; use development OTP from backend logs.";
+			: "OTP could not be delivered. Transaction failed.";
 
 		return new TransactionInitiateResponse(
 			transaction.getTransactionId(),
@@ -189,7 +192,7 @@ public class TransactionService {
 			transaction.getStatus(),
 			otpRecord.getSentToEmail(),
 			otpRecord.getExpiresAt(),
-			MAX_OTP_ATTEMPTS,
+			otpEmailSent ? MAX_OTP_ATTEMPTS : 0,
 			responseMessage
 		);
 	}
@@ -217,9 +220,8 @@ public class TransactionService {
 
 		LocalDateTime now = LocalDateTime.now();
 		if (otpRecord.getExpiresAt().isBefore(now)) {
-			otpRecord.setOtpStatus(OTP_STATUS_EXPIRED);
-			otpRecordRepository.save(otpRecord);
-			throw new IllegalArgumentException("OTP has expired. Please request a resend.");
+			markTransactionAsFailed(transaction, otpRecord, OTP_STATUS_EXPIRED, "OTP expired before verification. Transaction failed.");
+			throw new IllegalArgumentException("OTP has expired. This transaction has failed.");
 		}
 
 		if (!passwordEncoder.matches(request.otpCode().trim(), otpRecord.getOtpCodeHash())) {
@@ -359,9 +361,12 @@ public class TransactionService {
 			otpRecord.getExpiresAt(),
 			true
 		);
+		if (!otpEmailSent) {
+			markTransactionAsFailed(transaction, otpRecord, OTP_STATUS_FAILED, "OTP could not be delivered. Transaction failed.");
+		}
 		String responseMessage = otpEmailSent
 			? "OTP has been reissued for this transaction."
-			: "OTP reissued, but email failed; use development OTP from backend logs.";
+			: "OTP could not be delivered. Transaction failed.";
 
 		return new TransactionInitiateResponse(
 			transaction.getTransactionId(),
@@ -369,14 +374,17 @@ public class TransactionService {
 			transaction.getStatus(),
 			otpRecord.getSentToEmail(),
 			otpRecord.getExpiresAt(),
-			Math.max(0, MAX_OTP_ATTEMPTS - (transaction.getOtpAttemptCount() == null ? 0 : transaction.getOtpAttemptCount())),
+			otpEmailSent
+				? Math.max(0, MAX_OTP_ATTEMPTS - (transaction.getOtpAttemptCount() == null ? 0 : transaction.getOtpAttemptCount()))
+				: 0,
 			responseMessage
 		);
 	}
 
 	// Builds aggregate summary data used by transact dashboard cards and charts.
-	@Transactional(readOnly = true)
+	@Transactional
 	public TransactDashboardSummaryResponse getDashboardSummary() {
+		expirePendingOtpTransactions();
 		BankCustomer bankCustomer = resolveLoggedInBankCustomer();
 		Account account = resolveOwnedAccountForBankCustomer(bankCustomer);
 		Long bankCustomerId = bankCustomer.getBankCustomerId();
@@ -386,11 +394,13 @@ public class TransactionService {
 		}
 
 		BigDecimal currentBalance = account.getBalance() == null ? BigDecimal.ZERO : account.getBalance();
-		long totalTransactions = transactionRepository.countAllByAccountNo(accountNumber);
 		BigDecimal totalSent = safeAmount(transactionRepository.sumSentAmountByAccountNoAndStatus(accountNumber, STATUS_SUCCESS));
 		BigDecimal totalReceived = safeAmount(transactionRepository.sumReceivedAmountByAccountNoAndStatus(accountNumber, STATUS_SUCCESS));
 		TransactDashboardSummaryResponse.TransactionTimeline timeline = buildTransactionTimeline(accountNumber);
 		TransactDashboardSummaryResponse.TransactionStatusSummary transactionStatus = buildTransactionStatusSummary(accountNumber);
+		long totalTransactions = transactionStatus.successCount()
+			+ transactionStatus.failedCount()
+			+ transactionStatus.cancelledCount();
 		TransactDashboardSummaryResponse.OtpStatusSummary otpStatus = buildOtpStatusSummary(bankCustomerId);
 		long savedBeneficiaries = beneficiaryRepository.countByBankCustomer_BankCustomerId(bankCustomerId);
 		List<TransactDashboardSummaryResponse.RecentTransactionItem> recentTransactions = buildRecentTransactions(accountNumber);
@@ -426,14 +436,33 @@ public class TransactionService {
 	}
 
 	// Returns transaction history for the logged-in customer (latest first).
-	@Transactional(readOnly = true)
+	@Transactional
 	public List<TransactionResponse> getHistory() {
+		expirePendingOtpTransactions();
 		BankCustomer bankCustomer = resolveLoggedInBankCustomer();
 		return transactionRepository
 			.findAllByBankCustomer_BankCustomerIdOrderByTransactionDateDesc(bankCustomer.getBankCustomerId())
 			.stream()
+			.filter(transaction -> !STATUS_PENDING_OTP.equals(transaction.getStatus()))
 			.map(this::toTransactionResponse)
 			.toList();
+	}
+
+	// Converts OTPs that have not been used before expiry into failed transactions.
+	@Transactional
+	public int expirePendingOtpTransactions() {
+		List<OtpRecord> expiredOtps = otpRecordRepository.findExpiredPendingOtps(
+			STATUS_PENDING_OTP,
+			OTP_STATUS_SENT,
+			LocalDateTime.now()
+		);
+		for (OtpRecord otpRecord : expiredOtps) {
+			Transaction transaction = otpRecord.getTransaction();
+			if (transaction != null && STATUS_PENDING_OTP.equals(transaction.getStatus())) {
+				markTransactionAsFailed(transaction, otpRecord, OTP_STATUS_EXPIRED, "OTP expired before verification. Transaction failed.");
+			}
+		}
+		return expiredOtps.size();
 	}
 
 	// Returns all transactions across customers for officer/read-only views.
@@ -575,11 +604,8 @@ public class TransactionService {
 			);
 			return true;
 		} catch (EmailDeliveryException ex) {
-			if (!otpEmailFailOpenEnabled) {
-				throw ex;
-			}
 			LOGGER.warn("OTP email delivery failed for transaction reference {}: {}", transaction.getReferenceNo(), ex.getMessage());
-			if (otpPlainLogEnabled) {
+			if (otpEmailFailOpenEnabled && otpPlainLogEnabled) {
 				LOGGER.info(
 					"DEV OTP fallback - transactionRef={} transactionId={} otpCode={} expiresAt={}",
 					transaction.getReferenceNo(),
@@ -590,6 +616,21 @@ public class TransactionService {
 			}
 			return false;
 		}
+	}
+
+	// Marks both the active OTP and its transaction as failed so no OTP-pending row remains.
+	private void markTransactionAsFailed(
+		Transaction transaction,
+		OtpRecord otpRecord,
+		String otpStatus,
+		String failureReason
+	) {
+		otpRecord.setOtpStatus(otpStatus);
+		otpRecordRepository.save(otpRecord);
+		transaction.setStatus(STATUS_FAILED);
+		transaction.setOtpVerified(Boolean.FALSE);
+		transaction.setFailureReason(toFailureReason(failureReason));
+		transactionRepository.save(transaction);
 	}
 
 	// Resolves OTP recipient email, honoring override configuration when provided.
@@ -780,13 +821,11 @@ public class TransactionService {
 	private TransactDashboardSummaryResponse.TransactionStatusSummary buildTransactionStatusSummary(String accountNumber) {
 		long successCount = transactionRepository.countAllByAccountNoAndStatus(accountNumber, STATUS_SUCCESS);
 		long failedCount = transactionRepository.countAllByAccountNoAndStatus(accountNumber, STATUS_FAILED);
-		long pendingOtpCount = transactionRepository.countAllByAccountNoAndStatus(accountNumber, STATUS_PENDING_OTP);
 		long cancelledCount = transactionRepository.countAllByAccountNoAndStatus(accountNumber, STATUS_CANCELLED);
 
 		return new TransactDashboardSummaryResponse.TransactionStatusSummary(
 			successCount,
 			failedCount,
-			pendingOtpCount,
 			cancelledCount
 		);
 	}

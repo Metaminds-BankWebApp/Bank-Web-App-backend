@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -12,6 +13,7 @@ import com.bank_web_app.backend.bankcustomer.entity.Account;
 import com.bank_web_app.backend.bankcustomer.entity.BankCustomer;
 import com.bank_web_app.backend.bankcustomer.repository.AccountRepository;
 import com.bank_web_app.backend.bankcustomer.repository.BankCustomerRepository;
+import com.bank_web_app.backend.common.email.EmailDeliveryException;
 import com.bank_web_app.backend.common.email.EmailService;
 import com.bank_web_app.backend.notification.event.NotificationEventPublisher;
 import com.bank_web_app.backend.spendiq.service.ExpenseService;
@@ -143,6 +145,44 @@ class TransactionServiceTest {
 		assertThatThrownBy(() -> transactionService.initiateTransaction(request(new BigDecimal("4500.00"))))
 			.isInstanceOf(IllegalArgumentException.class)
 			.hasMessageContaining("Minimum balance");
+	}
+
+	@Test
+	void marksTransactionFailedWhenOtpEmailCannotBeDelivered() {
+		stubAccountsForInitiation();
+		when(transactionRepository.existsByReferenceNo(anyString())).thenReturn(false);
+		when(transactionRepository.save(any(Transaction.class))).thenAnswer(invocation -> {
+			Transaction transaction = invocation.getArgument(0);
+			transaction.setTransactionId(90L);
+			return transaction;
+		});
+		when(passwordEncoder.encode(anyString())).thenReturn("hashed-otp");
+		when(otpRecordRepository.save(any(OtpRecord.class))).thenAnswer(invocation -> invocation.getArgument(0));
+		doThrow(new EmailDeliveryException("Delivery failed", new IllegalStateException("SMTP unavailable")))
+			.when(emailService)
+			.sendPlainText(anyString(), anyString(), anyString());
+
+		TransactionInitiateResponse response = transactionService.initiateTransaction(request(new BigDecimal("1500.00")));
+
+		assertThat(response.status()).isEqualTo("FAILED");
+		assertThat(response.message()).contains("could not be delivered");
+	}
+
+	@Test
+	void marksExpiredPendingOtpTransactionAsFailed() {
+		Transaction transaction = pendingTransaction(0);
+		OtpRecord otpRecord = otp(transaction, LocalDateTime.now().minusMinutes(1));
+		when(otpRecordRepository.findExpiredPendingOtps(eq("PENDING_OTP"), eq("SENT"), any(LocalDateTime.class)))
+			.thenReturn(List.of(otpRecord));
+		when(transactionRepository.save(any(Transaction.class))).thenAnswer(invocation -> invocation.getArgument(0));
+		when(otpRecordRepository.save(any(OtpRecord.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+		int expiredCount = transactionService.expirePendingOtpTransactions();
+
+		assertThat(expiredCount).isEqualTo(1);
+		assertThat(transaction.getStatus()).isEqualTo("FAILED");
+		assertThat(transaction.getFailureReason()).contains("OTP expired");
+		assertThat(otpRecord.getOtpStatus()).isEqualTo("EXPIRED");
 	}
 
 	@Test

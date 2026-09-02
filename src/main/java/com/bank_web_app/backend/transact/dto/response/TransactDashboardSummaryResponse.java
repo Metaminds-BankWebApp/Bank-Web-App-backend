@@ -61,9 +61,6 @@ public record TransactDashboardSummaryResponse(
 		// Number of transactions ended as failed.
 		@Schema(example = "2")
 		long failedCount,
-		// Number of transactions waiting for OTP verification.
-		@Schema(example = "1")
-		long pendingOtpCount,
 		// Number of transactions cancelled before completion.
 		@Schema(example = "0")
 		long cancelledCount
