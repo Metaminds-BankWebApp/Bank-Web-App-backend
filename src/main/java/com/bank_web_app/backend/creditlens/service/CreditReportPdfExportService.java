@@ -28,18 +28,21 @@ import org.springframework.stereotype.Service;
 public class CreditReportPdfExportService {
 
 	private static final PDRectangle PAGE_SIZE = PDRectangle.A4;
-	private static final float PAGE_MARGIN = 36f;
+	private static final float PAGE_MARGIN = 32f;
 	private static final float CONTENT_WIDTH = PAGE_SIZE.getWidth() - (PAGE_MARGIN * 2);
-	private static final float CARD_GAP = 12f;
-	private static final Color PRIMARY = new Color(8, 57, 100);
-	private static final Color PRIMARY_ACCENT = new Color(43, 122, 183);
-	private static final Color PANEL_BORDER = new Color(212, 224, 236);
-	private static final Color PANEL_BG = new Color(247, 250, 252);
-	private static final Color TEXT_PRIMARY = new Color(15, 23, 42);
-	private static final Color TEXT_MUTED = new Color(71, 85, 105);
-	private static final Color LOW_RISK = new Color(34, 197, 94);
-	private static final Color MEDIUM_RISK = new Color(245, 158, 11);
-	private static final Color HIGH_RISK = new Color(239, 68, 68);
+	private static final float CARD_GAP = 10f;
+	private static final Color PRIMARY = new Color(10, 34, 61);
+	private static final Color PRIMARY_LIGHT = new Color(20, 55, 91);
+	private static final Color ACCENT = new Color(35, 139, 191);
+	private static final Color ACCENT_SOFT = new Color(232, 247, 253);
+	private static final Color PANEL_BORDER = new Color(218, 227, 236);
+	private static final Color PANEL_BG = new Color(248, 250, 252);
+	private static final Color TEXT_PRIMARY = new Color(19, 35, 54);
+	private static final Color TEXT_MUTED = new Color(91, 107, 123);
+	private static final Color LOW_RISK = new Color(22, 145, 91);
+	private static final Color MEDIUM_RISK = new Color(214, 132, 17);
+	private static final Color HIGH_RISK = new Color(210, 58, 58);
+	private static final Color PURPLE = new Color(112, 78, 176);
 	private static final DateTimeFormatter FOOTER_TIME_FORMATTER = DateTimeFormatter.ofPattern("dd MMM uuuu, hh:mm a", Locale.ENGLISH);
 
 	/**
@@ -53,9 +56,10 @@ public class CreditReportPdfExportService {
 			try (PDPageContentStream stream = new PDPageContentStream(document, page)) {
 				drawHeader(stream, model);
 				drawScorePanel(stream, model);
-				drawBehaviorPanel(stream, model);
+				drawProfilePanel(stream, model);
 				drawFinancialCards(stream, model);
 				drawRiskFactorTable(stream, model);
+				drawReportNote(stream, model);
 				drawFooter(stream, model);
 			}
 
@@ -66,193 +70,248 @@ public class CreditReportPdfExportService {
 		}
 	}
 
-	// Draws the top PDF title area with customer month and risk badge.
+	// Draws the branded report masthead and high-level report metadata.
 	private void drawHeader(PDPageContentStream stream, CreditReportPdfModel model) throws IOException {
 		float x = PAGE_MARGIN;
-		float y = 712f;
-		float height = 94f;
-		float leftPadding = 18f;
-		float rightSectionWidth = 150f;
-		float rightSectionX = x + CONTENT_WIDTH - rightSectionWidth - leftPadding;
-		float leftTextWidth = rightSectionX - (x + leftPadding) - 16f;
+		float y = 706f;
+		float height = 104f;
 
-		fillRect(stream, x, y, CONTENT_WIDTH, height, PRIMARY);
-		writeText(stream, "PrimeCore CreditLens", PDType1Font.HELVETICA_BOLD, 12f, x + leftPadding, y + 66f, Color.WHITE);
-		writeText(stream, "Credit Risk Report", PDType1Font.HELVETICA_BOLD, 24f, x + leftPadding, y + 36f, Color.WHITE);
-		writeWrappedText(
-			stream,
-			"Monthly public customer snapshot generated from your CreditLens evaluation.",
-			PDType1Font.HELVETICA,
-			11f,
-			x + leftPadding,
-			y + 18f,
-			leftTextWidth,
-			12f,
-			new Color(219, 234, 254)
-		);
+		fillRoundedRect(stream, x, y, CONTENT_WIDTH, height, 10f, PRIMARY);
+		fillRoundedRect(stream, x, y + height - 6f, CONTENT_WIDTH, 6f, 3f, ACCENT);
 
-		drawBadge(stream, x + CONTENT_WIDTH - 110f - leftPadding, y + 58f, 110f, 24f, model.riskLabel() + " Risk", resolveRiskColor(model.riskLabel()), Color.WHITE);
-		writeRightAlignedText(
-			stream,
-			"Month: " + safe(model.monthLabel()),
-			PDType1Font.HELVETICA_BOLD,
-			12f,
-			rightSectionX + rightSectionWidth,
-			y + 24f,
-			new Color(219, 234, 254)
-		);
+		fillRoundedRect(stream, x + 16f, y + 58f, 30f, 30f, 7f, ACCENT);
+		writeCenteredText(stream, "PC", PDType1Font.HELVETICA_BOLD, 10f, x + 16f, y + 58f, 30f, 30f, Color.WHITE);
+		writeText(stream, "PRIMECORE", PDType1Font.HELVETICA_BOLD, 10f, x + 56f, y + 78f, Color.WHITE);
+		writeText(stream, "CREDITLENS", PDType1Font.HELVETICA_BOLD, 8f, x + 56f, y + 64f, new Color(164, 207, 231));
+
+		writeText(stream, "Credit health snapshot", PDType1Font.HELVETICA_BOLD, 22f, x + 16f, y + 30f, Color.WHITE);
+		writeText(stream, "A focused view of risk, affordability, and credit behavior.", PDType1Font.HELVETICA, 9.5f, x + 16f, y + 14f, new Color(207, 225, 238));
+
+		String riskText = safe(model.riskLabel()).toUpperCase(Locale.ROOT) + " RISK";
+		drawBadge(stream, x + CONTENT_WIDTH - 118f, y + 62f, 100f, 22f, riskText, resolveRiskColor(model.riskLabel()), Color.WHITE);
+		writeRightAlignedText(stream, "REPORTING MONTH", PDType1Font.HELVETICA_BOLD, 7.5f, x + CONTENT_WIDTH - 18f, y + 42f, new Color(135, 177, 204));
+		writeRightAlignedText(stream, safe(model.monthLabel()), PDType1Font.HELVETICA_BOLD, 11f, x + CONTENT_WIDTH - 18f, y + 28f, Color.WHITE);
 	}
 
-	// Draws the main credit score card in the PDF.
+	// Draws the prominent risk score summary and its relative scale.
 	private void drawScorePanel(PDPageContentStream stream, CreditReportPdfModel model) throws IOException {
 		float x = PAGE_MARGIN;
-		float y = 598f;
-		float width = 178f;
-		float height = 108f;
+		float y = 551f;
+		float width = 188f;
+		float height = 139f;
+		Color riskColor = resolveRiskColor(model.riskLabel());
 
-		drawPanel(stream, x, y, width, height, new Color(238, 246, 255));
-		writeText(stream, "Credit Risk Score", PDType1Font.HELVETICA_BOLD, 13f, x + 16f, y + 84f, PRIMARY);
-		writeText(stream, safe(model.score()) + "/100", PDType1Font.HELVETICA_BOLD, 28f, x + 16f, y + 48f, TEXT_PRIMARY);
-		writeText(stream, safe(model.riskLabel()) + " Risk", PDType1Font.HELVETICA_BOLD, 13f, x + 16f, y + 28f, resolveRiskColor(model.riskLabel()));
-		writeText(stream, "Evaluation: " + safe(model.evaluationType()), PDType1Font.HELVETICA, 10f, x + 16f, y + 12f, TEXT_MUTED);
+		drawRoundedPanel(stream, x, y, width, height, 9f, ACCENT_SOFT);
+		fillRoundedRect(stream, x, y, 5f, height, 2.5f, ACCENT);
+		writeText(stream, "CREDIT RISK SCORE", PDType1Font.HELVETICA_BOLD, 8.5f, x + 17f, y + 115f, PRIMARY_LIGHT);
+
+		String score = safe(model.score());
+		writeText(stream, score, PDType1Font.HELVETICA_BOLD, 34f, x + 17f, y + 72f, TEXT_PRIMARY);
+		float scoreWidth = textWidth(PDType1Font.HELVETICA_BOLD, 34f, score);
+		writeText(stream, "/ 100", PDType1Font.HELVETICA_BOLD, 11f, x + 20f + scoreWidth, y + 77f, TEXT_MUTED);
+		drawBadge(stream, x + width - 76f, y + 78f, 60f, 20f, safe(model.riskLabel()).toUpperCase(Locale.ROOT), resolveRiskBackgroundColor(model.riskLabel()), riskColor);
+
+		writeText(stream, safe(model.evaluationType()), PDType1Font.HELVETICA, 9f, x + 17f, y + 52f, TEXT_MUTED);
+		drawProgressBar(stream, x + 17f, y + 31f, width - 34f, 7f, normalizedRatio(model.score(), 100), riskColor);
+		writeText(stream, "0  lower risk", PDType1Font.HELVETICA, 7.5f, x + 17f, y + 16f, TEXT_MUTED);
+		writeRightAlignedText(stream, "higher risk  100", PDType1Font.HELVETICA, 7.5f, x + width - 17f, y + 16f, TEXT_MUTED);
 	}
 
-	// Draws the customer overview panel with DTI, utilization, and behavior values.
-	private void drawBehaviorPanel(PDPageContentStream stream, CreditReportPdfModel model) throws IOException {
-		float x = PAGE_MARGIN + 190f;
-		float y = 598f;
-		float width = CONTENT_WIDTH - 190f;
-		float height = 108f;
+	// Draws customer identity and the main behavior indicators.
+	private void drawProfilePanel(PDPageContentStream stream, CreditReportPdfModel model) throws IOException {
+		float x = PAGE_MARGIN + 200f;
+		float y = 551f;
+		float width = CONTENT_WIDTH - 200f;
+		float height = 139f;
 
-		drawPanel(stream, x, y, width, height, Color.WHITE);
-		writeText(stream, "Profile Overview", PDType1Font.HELVETICA_BOLD, 13f, x + 16f, y + 84f, PRIMARY);
-		writeText(stream, safe(model.customerName()), PDType1Font.HELVETICA_BOLD, 16f, x + 16f, y + 60f, TEXT_PRIMARY);
-		writeText(stream, "Customer Code: " + safe(model.customerCode()), PDType1Font.HELVETICA, 10f, x + 16f, y + 45f, TEXT_MUTED);
+		drawRoundedPanel(stream, x, y, width, height, 9f, Color.WHITE);
+		writeText(stream, "CUSTOMER PROFILE", PDType1Font.HELVETICA_BOLD, 8.5f, x + 16f, y + 115f, PRIMARY_LIGHT);
+		writeFittedText(stream, safe(model.customerName()), PDType1Font.HELVETICA_BOLD, 16f, 12f, x + 16f, y + 91f, width - 32f, TEXT_PRIMARY);
+		writeText(stream, "Customer code  " + safe(model.customerCode()), PDType1Font.HELVETICA, 8.5f, x + 16f, y + 74f, TEXT_MUTED);
+		writeRightAlignedText(stream, safe(model.evaluationType()), PDType1Font.HELVETICA_BOLD, 8.5f, x + width - 16f, y + 74f, ACCENT);
+		drawLine(stream, x + 16f, y + 64f, x + width - 16f, y + 64f, PANEL_BORDER, 0.7f);
 
-		writeText(stream, "DTI: " + formatPercentage(model.dtiPercentage()) + " (" + safe(model.dtiLabel()) + ")", PDType1Font.HELVETICA, 11f, x + 16f, y + 26f, TEXT_PRIMARY);
-		writeText(stream, "Utilization: " + formatPercentage(model.utilizationPercentage()), PDType1Font.HELVETICA, 11f, x + 210f, y + 26f, TEXT_PRIMARY);
-		writeText(stream, "Missed Payments: " + safe(model.missedPayments()), PDType1Font.HELVETICA, 11f, x + 16f, y + 12f, TEXT_PRIMARY);
-		writeText(stream, "Active Facilities: " + safe(model.activeFacilities()), PDType1Font.HELVETICA, 11f, x + 210f, y + 12f, TEXT_PRIMARY);
+		float metricWidth = (width - 42f) / 2f;
+		drawRatioMetric(stream, x + 16f, y + 37f, metricWidth, "Debt-to-income", model.dtiPercentage(), safe(model.dtiLabel()));
+		drawRatioMetric(stream, x + 26f + metricWidth, y + 37f, metricWidth, "Credit utilization", model.utilizationPercentage(), null);
+
+		writeText(stream, "Missed payments", PDType1Font.HELVETICA, 8f, x + 16f, y + 12f, TEXT_MUTED);
+		writeRightAlignedText(stream, safe(model.missedPayments()), PDType1Font.HELVETICA_BOLD, 9f, x + 16f + metricWidth, y + 12f, TEXT_PRIMARY);
+		writeText(stream, "Active facilities", PDType1Font.HELVETICA, 8f, x + width - 120f, y + 12f, TEXT_MUTED);
+		writeRightAlignedText(stream, safe(model.activeFacilities()), PDType1Font.HELVETICA_BOLD, 9f, x + width - 16f, y + 12f, TEXT_PRIMARY);
 	}
 
-	// Draws the four financial metric cards in the PDF.
+	// Draws one ratio label, value, and visual scale inside the profile panel.
+	private void drawRatioMetric(PDPageContentStream stream, float x, float y, float width, String label, BigDecimal percentage, String qualifier) throws IOException {
+		writeText(stream, label, PDType1Font.HELVETICA_BOLD, 8f, x, y + 13f, TEXT_MUTED);
+		writeRightAlignedText(stream, formatPercentage(percentage), PDType1Font.HELVETICA_BOLD, 9f, x + width, y + 13f, TEXT_PRIMARY);
+		Color color = ratioColor(percentage);
+		drawProgressBar(stream, x, y, width, 6f, normalizedRatio(percentage, BigDecimal.valueOf(100)), color);
+		if (!safe(qualifier).isBlank()) {
+			writeText(stream, qualifier, PDType1Font.HELVETICA, 7f, x, y - 11f, color);
+		}
+	}
+
+	// Draws the four main financial values as a compact snapshot row.
 	private void drawFinancialCards(PDPageContentStream stream, CreditReportPdfModel model) throws IOException {
-		float cardWidth = (CONTENT_WIDTH - CARD_GAP) / 2f;
-		float topRowY = 488f;
-		float bottomRowY = 404f;
-		float cardHeight = 72f;
+		writeText(stream, "FINANCIAL SNAPSHOT", PDType1Font.HELVETICA_BOLD, 8.5f, PAGE_MARGIN, 529f, PRIMARY_LIGHT);
+		drawLine(stream, PAGE_MARGIN + 118f, 532f, PAGE_MARGIN + CONTENT_WIDTH, 532f, PANEL_BORDER, 0.8f);
 
-		drawMetricCard(stream, PAGE_MARGIN, topRowY, cardWidth, cardHeight, "Monthly Income", formatCurrency(model.monthlyIncome()), null, new Color(236, 253, 245));
-		drawMetricCard(stream, PAGE_MARGIN + cardWidth + CARD_GAP, topRowY, cardWidth, cardHeight, "Loan", "EMI: " + formatCurrency(model.loanEmi()), "Remaining Balance: " + formatCurrency(model.loanRemainingBalance()), new Color(255, 247, 237));
-		drawMetricCard(stream, PAGE_MARGIN, bottomRowY, cardWidth, cardHeight, "Credit Card", formatCurrency(model.creditCardBalance()), "Limit: " + formatCurrency(model.creditCardLimit()), new Color(239, 246, 255));
-		drawMetricCard(stream, PAGE_MARGIN + cardWidth + CARD_GAP, bottomRowY, cardWidth, cardHeight, "Other Liabilities", formatCurrency(model.otherLiabilities()), null, new Color(245, 243, 255));
+		float cardWidth = (CONTENT_WIDTH - (CARD_GAP * 3f)) / 4f;
+		float y = 448f;
+		float height = 68f;
+
+		drawMetricCard(stream, PAGE_MARGIN, y, cardWidth, height, "Monthly income", formatCurrency(model.monthlyIncome()), null, LOW_RISK, new Color(241, 251, 246));
+		drawMetricCard(stream, PAGE_MARGIN + cardWidth + CARD_GAP, y, cardWidth, height, "Loan EMI", formatCurrency(model.loanEmi()), "Balance  " + formatCurrency(model.loanRemainingBalance()), MEDIUM_RISK, new Color(255, 249, 237));
+		drawMetricCard(stream, PAGE_MARGIN + ((cardWidth + CARD_GAP) * 2f), y, cardWidth, height, "Credit card balance", formatCurrency(model.creditCardBalance()), "Limit  " + formatCurrency(model.creditCardLimit()), ACCENT, new Color(241, 248, 253));
+		drawMetricCard(stream, PAGE_MARGIN + ((cardWidth + CARD_GAP) * 3f), y, cardWidth, height, "Other liabilities", formatCurrency(model.otherLiabilities()), null, PURPLE, new Color(247, 244, 252));
 	}
 
 	// Draws one financial metric card with optional secondary text.
-	private void drawMetricCard(
-		PDPageContentStream stream,
-		float x,
-		float y,
-		float width,
-		float height,
-		String title,
-		String primaryValue,
-		String secondaryValue,
-		Color background
-	) throws IOException {
-		drawPanel(stream, x, y, width, height, background);
-		writeText(stream, title, PDType1Font.HELVETICA_BOLD, 12f, x + 14f, y + 52f, PRIMARY);
-		writeText(stream, primaryValue, PDType1Font.HELVETICA_BOLD, 15f, x + 14f, y + 30f, TEXT_PRIMARY);
+	private void drawMetricCard(PDPageContentStream stream, float x, float y, float width, float height, String title, String primaryValue, String secondaryValue, Color accentColor, Color background) throws IOException {
+		drawRoundedPanel(stream, x, y, width, height, 7f, background);
+		fillRoundedRect(stream, x, y + height - 4f, width, 4f, 2f, accentColor);
+		writeText(stream, title.toUpperCase(Locale.ROOT), PDType1Font.HELVETICA_BOLD, 7.4f, x + 11f, y + 46f, TEXT_MUTED);
+		writeFittedText(stream, primaryValue, PDType1Font.HELVETICA_BOLD, 12.5f, 9f, x + 11f, y + 25f, width - 22f, TEXT_PRIMARY);
 		if (!safe(secondaryValue).isBlank()) {
-			writeText(stream, secondaryValue, PDType1Font.HELVETICA, 10f, x + 14f, y + 14f, TEXT_MUTED);
+			writeFittedText(stream, secondaryValue, PDType1Font.HELVETICA, 7.5f, 6.5f, x + 11f, y + 10f, width - 22f, TEXT_MUTED);
 		}
 	}
 
-	// Draws the risk factor breakdown table in the PDF.
+	// Draws the risk factor breakdown with proportional contribution bars.
 	private void drawRiskFactorTable(PDPageContentStream stream, CreditReportPdfModel model) throws IOException {
 		float x = PAGE_MARGIN;
-		float y = 156f;
+		float y = 181f;
 		float width = CONTENT_WIDTH;
-		float height = 210f;
+		float height = 246f;
 
-		drawPanel(stream, x, y, width, height, Color.WHITE);
-		writeText(stream, "Risk Points Breakdown", PDType1Font.HELVETICA_BOLD, 14f, x + 16f, y + height - 24f, PRIMARY);
-		writeText(stream, "Each factor contributes to the total CreditLens risk score.", PDType1Font.HELVETICA, 10f, x + 16f, y + height - 40f, TEXT_MUTED);
+		drawRoundedPanel(stream, x, y, width, height, 9f, Color.WHITE);
+		writeText(stream, "Risk factor breakdown", PDType1Font.HELVETICA_BOLD, 14f, x + 16f, y + height - 27f, PRIMARY);
+		writeText(stream, "Contribution of each factor to the overall risk score.", PDType1Font.HELVETICA, 8.5f, x + 16f, y + height - 43f, TEXT_MUTED);
 
-		float tableTop = y + height - 62f;
-		drawTableHeader(stream, x + 16f, tableTop, width - 32f);
+		float tableX = x + 16f;
+		float tableWidth = width - 32f;
+		float tableTop = y + height - 73f;
+		drawTableHeader(stream, tableX, tableTop, tableWidth);
 
-		float rowY = tableTop - 28f;
-		for (CreditRiskFactorResponse factor : model.factors()) {
-			drawTableRow(stream, x + 16f, rowY, width - 32f, factor);
-			rowY -= 28f;
+		List<CreditRiskFactorResponse> factors = model.factors() == null ? List.of() : model.factors();
+		if (factors.isEmpty()) {
+			writeText(stream, "No risk factor details are available for this evaluation.", PDType1Font.HELVETICA, 9f, tableX + 10f, tableTop - 22f, TEXT_MUTED);
+			return;
+		}
+
+		float rowY = tableTop - 31f;
+		for (int index = 0; index < Math.min(5, factors.size()); index++) {
+			drawTableRow(stream, tableX, rowY, tableWidth, factors.get(index), index % 2 == 0);
+			rowY -= 31f;
 		}
 	}
 
-	// Draws the header row for the risk factor table.
+	// Draws the table's compact column header.
 	private void drawTableHeader(PDPageContentStream stream, float x, float y, float width) throws IOException {
-		fillRect(stream, x, y, width, 20f, new Color(241, 245, 249));
-		writeText(stream, "Factor", PDType1Font.HELVETICA_BOLD, 10f, x + 10f, y + 6f, TEXT_MUTED);
-		writeText(stream, "Points", PDType1Font.HELVETICA_BOLD, 10f, x + width - 170f, y + 6f, TEXT_MUTED);
-		writeText(stream, "Band", PDType1Font.HELVETICA_BOLD, 10f, x + width - 78f, y + 6f, TEXT_MUTED);
+		fillRoundedRect(stream, x, y, width, 22f, 5f, PANEL_BG);
+		writeText(stream, "FACTOR", PDType1Font.HELVETICA_BOLD, 7.5f, x + 10f, y + 8f, TEXT_MUTED);
+		writeText(stream, "CONTRIBUTION", PDType1Font.HELVETICA_BOLD, 7.5f, x + 245f, y + 8f, TEXT_MUTED);
+		writeText(stream, "RISK BAND", PDType1Font.HELVETICA_BOLD, 7.5f, x + width - 67f, y + 8f, TEXT_MUTED);
 	}
 
-	// Draws one factor row with points and risk band badge.
-	private void drawTableRow(PDPageContentStream stream, float x, float y, float width, CreditRiskFactorResponse factor) throws IOException {
-		strokeRect(stream, x, y, width, 24f, PANEL_BORDER);
-		writeText(stream, safe(factor.name()), PDType1Font.HELVETICA, 11f, x + 10f, y + 7f, TEXT_PRIMARY);
-		writeText(stream, safe(factor.value()) + " / " + safe(factor.max()), PDType1Font.HELVETICA_BOLD, 11f, x + width - 162f, y + 7f, TEXT_PRIMARY);
+	// Draws one factor row with a contribution scale and a soft risk badge.
+	private void drawTableRow(PDPageContentStream stream, float x, float y, float width, CreditRiskFactorResponse factor, boolean shaded) throws IOException {
+		if (shaded) {
+			fillRoundedRect(stream, x, y, width, 29f, 4f, new Color(251, 252, 253));
+		}
+		drawLine(stream, x, y, x + width, y, PANEL_BORDER, 0.45f);
+
+		writeFittedText(stream, safe(factor.name()), PDType1Font.HELVETICA_BOLD, 9.5f, 8f, x + 10f, y + 10f, 212f, TEXT_PRIMARY);
+		String points = safe(factor.value()) + " / " + safe(factor.max());
+		writeRightAlignedText(stream, points, PDType1Font.HELVETICA_BOLD, 8.5f, x + 296f, y + 10f, TEXT_PRIMARY);
+
 		String band = resolveFactorBand(factor.value(), factor.max());
-		drawBadge(stream, x + width - 84f, y + 4f, 66f, 16f, band, resolveBandColor(band), Color.WHITE);
+		Color bandColor = resolveBandColor(band);
+		drawProgressBar(stream, x + 312f, y + 11f, 92f, 6f, normalizedRatio(factor.value(), factor.max()), bandColor);
+		drawBadge(stream, x + width - 70f, y + 5f, 60f, 18f, band, resolveBandBackgroundColor(band), bandColor);
 	}
 
-	// Draws generated time and report note at the bottom of the PDF.
-	private void drawFooter(PDPageContentStream stream, CreditReportPdfModel model) throws IOException {
+	// Draws a short interpretation note and report timing details.
+	private void drawReportNote(PDPageContentStream stream, CreditReportPdfModel model) throws IOException {
 		float x = PAGE_MARGIN;
-		float y = 56f;
-		float height = 76f;
+		float y = 75f;
+		float height = 80f;
 
-		drawPanel(stream, x, y, CONTENT_WIDTH, height, PANEL_BG);
-		writeText(stream, "Generated on " + safe(model.generatedAtLabel()), PDType1Font.HELVETICA_BOLD, 10f, x + 14f, y + 52f, TEXT_PRIMARY);
-		writeText(stream, "Last evaluation update: " + safe(model.lastUpdatedLabel()), PDType1Font.HELVETICA, 10f, x + 14f, y + 38f, TEXT_MUTED);
-		writeWrappedText(
-			stream,
-			"This CreditLens PDF is generated from the customer's stored financial record and evaluation factors. Use it as an informational report alongside the in-app dashboard and insights.",
-			PDType1Font.HELVETICA,
-			9f,
-			x + 14f,
-			y + 22f,
-			CONTENT_WIDTH - 28f,
-			12f,
-			TEXT_MUTED
-		);
+		fillRoundedRect(stream, x, y, CONTENT_WIDTH, height, 8f, ACCENT_SOFT);
+		fillRoundedRect(stream, x, y, 4f, height, 2f, ACCENT);
+		fillRoundedRect(stream, x + 16f, y + 50f, 18f, 18f, 9f, ACCENT);
+		writeCenteredText(stream, "i", PDType1Font.HELVETICA_BOLD, 9f, x + 16f, y + 50f, 18f, 18f, Color.WHITE);
+		writeText(stream, "Understanding this report", PDType1Font.HELVETICA_BOLD, 10f, x + 42f, y + 55f, PRIMARY);
+		writeWrappedText(stream, "CreditLens summarizes the financial information available for this evaluation. Use it as a decision-support view alongside the full customer profile.", PDType1Font.HELVETICA, 8.5f, x + 42f, y + 40f, CONTENT_WIDTH - 58f, 10.5f, TEXT_MUTED);
+		writeText(stream, "Evaluation updated  " + safe(model.lastUpdatedLabel()), PDType1Font.HELVETICA_BOLD, 7.5f, x + 42f, y + 11f, PRIMARY_LIGHT);
 	}
 
-	// Draws a filled panel with a thin border.
-	private void drawPanel(PDPageContentStream stream, float x, float y, float width, float height, Color background) throws IOException {
-		fillRect(stream, x, y, width, height, background);
-		strokeRect(stream, x, y, width, height, PANEL_BORDER);
+	// Draws the quiet document footer with generation time and confidentiality marker.
+	private void drawFooter(PDPageContentStream stream, CreditReportPdfModel model) throws IOException {
+		drawLine(stream, PAGE_MARGIN, 55f, PAGE_MARGIN + CONTENT_WIDTH, 55f, PANEL_BORDER, 0.7f);
+		writeText(stream, "Generated  " + safe(model.generatedAtLabel()), PDType1Font.HELVETICA, 7.5f, PAGE_MARGIN, 39f, TEXT_MUTED);
+		writeRightAlignedText(stream, "CONFIDENTIAL  |  PAGE 1 OF 1", PDType1Font.HELVETICA_BOLD, 7.5f, PAGE_MARGIN + CONTENT_WIDTH, 39f, TEXT_MUTED);
 	}
 
-	// Draws a centered label badge with background color.
+	// Draws a rounded panel with a subtle border.
+	private void drawRoundedPanel(PDPageContentStream stream, float x, float y, float width, float height, float radius, Color background) throws IOException {
+		fillRoundedRect(stream, x, y, width, height, radius, background);
+		strokeRoundedRect(stream, x, y, width, height, radius, PANEL_BORDER);
+	}
+
+	// Draws a centered label badge with a rounded background.
 	private void drawBadge(PDPageContentStream stream, float x, float y, float width, float height, String text, Color background, Color textColor) throws IOException {
-		fillRect(stream, x, y, width, height, background);
-		float textWidth = textWidth(PDType1Font.HELVETICA_BOLD, 9f, text);
-		writeText(stream, text, PDType1Font.HELVETICA_BOLD, 9f, x + Math.max(8f, (width - textWidth) / 2f), y + 6f, textColor);
+		fillRoundedRect(stream, x, y, width, height, height / 2f, background);
+		writeCenteredText(stream, text, PDType1Font.HELVETICA_BOLD, 7.5f, x, y, width, height, textColor);
 	}
 
-	// Fills a rectangle on the PDF page.
-	private void fillRect(PDPageContentStream stream, float x, float y, float width, float height, Color color) throws IOException {
+	// Draws a horizontal visual scale for scores and ratios.
+	private void drawProgressBar(PDPageContentStream stream, float x, float y, float width, float height, float ratio, Color fillColor) throws IOException {
+		fillRoundedRect(stream, x, y, width, height, height / 2f, new Color(221, 229, 236));
+		float fillWidth = width * Math.max(0f, Math.min(1f, ratio));
+		if (fillWidth > 0f) {
+			fillRoundedRect(stream, x, y, fillWidth, height, Math.min(height / 2f, fillWidth / 2f), fillColor);
+		}
+	}
+
+	// Fills a rounded rectangle path.
+	private void fillRoundedRect(PDPageContentStream stream, float x, float y, float width, float height, float radius, Color color) throws IOException {
 		stream.setNonStrokingColor(color);
-		stream.addRect(x, y, width, height);
+		addRoundedRectPath(stream, x, y, width, height, radius);
 		stream.fill();
 	}
 
-	// Draws a rectangle border on the PDF page.
-	private void strokeRect(PDPageContentStream stream, float x, float y, float width, float height, Color color) throws IOException {
+	// Strokes a rounded rectangle path.
+	private void strokeRoundedRect(PDPageContentStream stream, float x, float y, float width, float height, float radius, Color color) throws IOException {
 		stream.setStrokingColor(color);
-		stream.setLineWidth(0.8f);
-		stream.addRect(x, y, width, height);
+		stream.setLineWidth(0.7f);
+		addRoundedRectPath(stream, x, y, width, height, radius);
+		stream.stroke();
+	}
+
+	// Adds a reusable rounded rectangle path using cubic Bezier corners.
+	private void addRoundedRectPath(PDPageContentStream stream, float x, float y, float width, float height, float radius) throws IOException {
+		float r = Math.max(0f, Math.min(radius, Math.min(width, height) / 2f));
+		float control = r * 0.55228475f;
+		stream.moveTo(x + r, y);
+		stream.lineTo(x + width - r, y);
+		stream.curveTo(x + width - r + control, y, x + width, y + r - control, x + width, y + r);
+		stream.lineTo(x + width, y + height - r);
+		stream.curveTo(x + width, y + height - r + control, x + width - r + control, y + height, x + width - r, y + height);
+		stream.lineTo(x + r, y + height);
+		stream.curveTo(x + r - control, y + height, x, y + height - r + control, x, y + height - r);
+		stream.lineTo(x, y + r);
+		stream.curveTo(x, y + r - control, x + r - control, y, x + r, y);
+		stream.closePath();
+	}
+
+	// Draws a simple divider line.
+	private void drawLine(PDPageContentStream stream, float startX, float startY, float endX, float endY, Color color, float width) throws IOException {
+		stream.setStrokingColor(color);
+		stream.setLineWidth(width);
+		stream.moveTo(startX, startY);
+		stream.lineTo(endX, endY);
 		stream.stroke();
 	}
 
@@ -266,32 +325,30 @@ public class CreditReportPdfExportService {
 		stream.endText();
 	}
 
+	// Writes text centered horizontally and visually within a fixed box.
+	private void writeCenteredText(PDPageContentStream stream, String text, PDFont font, float fontSize, float x, float y, float width, float height, Color color) throws IOException {
+		float textX = x + Math.max(0f, (width - textWidth(font, fontSize, text)) / 2f);
+		float textY = y + ((height - fontSize) / 2f) + 2f;
+		writeText(stream, text, font, fontSize, textX, textY, color);
+	}
+
+	// Writes one line and reduces its font size when needed to prevent clipping.
+	private void writeFittedText(PDPageContentStream stream, String text, PDFont font, float preferredSize, float minimumSize, float x, float y, float maxWidth, Color color) throws IOException {
+		float size = preferredSize;
+		while (size > minimumSize && textWidth(font, size, text) > maxWidth) {
+			size -= 0.5f;
+		}
+		writeText(stream, text, font, size, x, y, color);
+	}
+
 	// Writes text so its right edge ends at the requested X position.
-	private void writeRightAlignedText(
-		PDPageContentStream stream,
-		String text,
-		PDFont font,
-		float fontSize,
-		float rightX,
-		float y,
-		Color color
-	) throws IOException {
+	private void writeRightAlignedText(PDPageContentStream stream, String text, PDFont font, float fontSize, float rightX, float y, Color color) throws IOException {
 		float x = rightX - textWidth(font, fontSize, text);
 		writeText(stream, text, font, fontSize, x, y, color);
 	}
 
 	// Wraps and writes multi-line text inside a fixed width.
-	private void writeWrappedText(
-		PDPageContentStream stream,
-		String text,
-		PDFont font,
-		float fontSize,
-		float x,
-		float y,
-		float maxWidth,
-		float lineHeight,
-		Color color
-	) throws IOException {
+	private void writeWrappedText(PDPageContentStream stream, String text, PDFont font, float fontSize, float x, float y, float maxWidth, float lineHeight, Color color) throws IOException {
 		float currentY = y;
 		for (String line : wrapText(text, font, fontSize, maxWidth)) {
 			writeText(stream, line, font, fontSize, x, currentY, color);
@@ -327,8 +384,7 @@ public class CreditReportPdfExportService {
 	private String resolveFactorBand(Integer value, Integer max) {
 		int safeValue = value == null ? 0 : value;
 		int safeMax = Math.max(1, max == null ? 0 : max);
-		BigDecimal ratio = BigDecimal.valueOf(safeValue)
-			.divide(BigDecimal.valueOf(safeMax), 4, RoundingMode.HALF_UP);
+		BigDecimal ratio = BigDecimal.valueOf(safeValue).divide(BigDecimal.valueOf(safeMax), 4, RoundingMode.HALF_UP);
 		if (ratio.compareTo(BigDecimal.ZERO) <= 0) {
 			return "LOW";
 		}
@@ -356,13 +412,53 @@ public class CreditReportPdfExportService {
 		return LOW_RISK;
 	}
 
-	// Converts a factor band into the matching PDF color.
+	// Returns a light surface color for a risk badge.
+	private Color resolveRiskBackgroundColor(String riskLabel) {
+		return resolveBandBackgroundColor(safe(riskLabel).toUpperCase(Locale.ROOT));
+	}
+
+	// Converts a factor band into the matching PDF foreground color.
 	private Color resolveBandColor(String band) {
 		return switch (safe(band).toUpperCase(Locale.ROOT)) {
 			case "MAX", "HIGH" -> HIGH_RISK;
 			case "MEDIUM" -> MEDIUM_RISK;
 			default -> LOW_RISK;
 		};
+	}
+
+	// Converts a factor band into a legible light badge surface.
+	private Color resolveBandBackgroundColor(String band) {
+		return switch (safe(band).toUpperCase(Locale.ROOT)) {
+			case "MAX", "HIGH" -> new Color(254, 232, 232);
+			case "MEDIUM" -> new Color(255, 246, 220);
+			default -> new Color(225, 247, 236);
+		};
+	}
+
+	// Uses clear color cues for percentage indicators without changing their values.
+	private Color ratioColor(BigDecimal percentage) {
+		BigDecimal value = percentage == null ? BigDecimal.ZERO : percentage;
+		if (value.compareTo(BigDecimal.valueOf(60)) >= 0) {
+			return HIGH_RISK;
+		}
+		if (value.compareTo(BigDecimal.valueOf(35)) >= 0) {
+			return MEDIUM_RISK;
+		}
+		return LOW_RISK;
+	}
+
+	// Safely maps an integer value to the 0-1 range used by visual scales.
+	private float normalizedRatio(Integer value, Integer max) {
+		int safeValue = value == null ? 0 : value;
+		int safeMax = Math.max(1, max == null ? 0 : max);
+		return Math.max(0f, Math.min(1f, (float) safeValue / safeMax));
+	}
+
+	// Safely maps a decimal value to the 0-1 range used by visual scales.
+	private float normalizedRatio(BigDecimal value, BigDecimal max) {
+		BigDecimal safeValue = value == null ? BigDecimal.ZERO : value;
+		BigDecimal safeMax = max == null || max.compareTo(BigDecimal.ZERO) <= 0 ? BigDecimal.ONE : max;
+		return safeValue.divide(safeMax, 4, RoundingMode.HALF_UP).max(BigDecimal.ZERO).min(BigDecimal.ONE).floatValue();
 	}
 
 	// Formats money values as LKR currency for the PDF.
@@ -379,7 +475,7 @@ public class CreditReportPdfExportService {
 
 	// Trims nullable text into a safe string.
 	private String safe(String value) {
-		return value == null ? "" : value.trim();
+		return value == null ? "" : value.replaceAll("[^\\x20-\\x7E]", "").trim();
 	}
 
 	// Converts nullable integer values into safe text.
@@ -421,5 +517,3 @@ public class CreditReportPdfExportService {
 		}
 	}
 }
-
-
