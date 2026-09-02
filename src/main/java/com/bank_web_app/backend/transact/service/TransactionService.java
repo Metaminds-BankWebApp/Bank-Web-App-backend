@@ -143,6 +143,7 @@ public class TransactionService {
 		Account receiverAccount = accountRepository
 			.findByAccountNumber(receiverAccountNo)
 			.orElseThrow(() -> new IllegalArgumentException("Account number is invalid"));
+		validateBeneficiaryMatchesAccountHolder(receiverAccountNo, receiverName);
 
 		validateActiveAccount(senderAccount, "Sender account is not active.");
 		validateActiveAccount(receiverAccount, "Receiver account is not active.");
@@ -739,6 +740,22 @@ public class TransactionService {
 		if (!"ACTIVE".equals(status)) {
 			throw new IllegalArgumentException(message);
 		}
+	}
+
+	// Confirms the entered beneficiary name belongs to the user linked to the recipient account.
+	private void validateBeneficiaryMatchesAccountHolder(String receiverAccountNo, String receiverName) {
+		BankCustomer receiverCustomer = bankCustomerRepository
+			.findByAccount_AccountNumber(receiverAccountNo)
+			.orElseThrow(() -> new IllegalArgumentException("Account number is invalid"));
+		String registeredName = resolveDisplayName(receiverCustomer.getUser());
+		if (registeredName.isBlank() || !normalizePersonName(registeredName).equals(normalizePersonName(receiverName))) {
+			throw new IllegalArgumentException("Beneficiary name does not match the registered account holder.");
+		}
+	}
+
+	// Compares names case-insensitively and ignores repeated spaces without weakening name matching.
+	private String normalizePersonName(String name) {
+		return safeText(name).replaceAll("\\s+", " ").toUpperCase(Locale.ROOT);
 	}
 
 	// Validates transfer amount boundaries and basic positivity.

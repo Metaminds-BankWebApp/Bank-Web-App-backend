@@ -60,6 +60,7 @@ class TransactionServiceTest {
 
 	private TransactionService transactionService;
 	private BankCustomer customer;
+	private BankCustomer receiverCustomer;
 	private Account senderAccount;
 	private Account receiverAccount;
 
@@ -97,12 +98,25 @@ class TransactionServiceTest {
 		customer.setUser(user);
 		customer.setAccount(senderAccount);
 
+		User receiverUser = new User();
+		receiverUser.setUserId(13L);
+		receiverUser.setUsername("bob");
+		receiverUser.setEmail("bob@example.com");
+		receiverUser.setFirstName("Bob");
+		receiverUser.setLastName("Customer");
+		receiverUser.setRole(role);
+		receiverCustomer = new BankCustomer();
+		receiverCustomer.setBankCustomerId(31L);
+		receiverCustomer.setUser(receiverUser);
+		receiverCustomer.setAccount(receiverAccount);
+
 		SecurityContextHolder.getContext().setAuthentication(
 			new UsernamePasswordAuthenticationToken("alice", null, List.of())
 		);
 		when(userRepository.findByEmail("alice")).thenReturn(Optional.empty());
 		when(userRepository.findByUsername("alice")).thenReturn(Optional.of(user));
 		when(bankCustomerRepository.findByUser_UserId(12L)).thenReturn(Optional.of(customer));
+		when(bankCustomerRepository.findByAccount_AccountNumber("2000000002")).thenReturn(Optional.of(receiverCustomer));
 	}
 
 	@AfterEach
@@ -145,6 +159,17 @@ class TransactionServiceTest {
 		assertThatThrownBy(() -> transactionService.initiateTransaction(request(new BigDecimal("4500.00"))))
 			.isInstanceOf(IllegalArgumentException.class)
 			.hasMessageContaining("Minimum balance");
+	}
+
+	@Test
+	void rejectsTransferWhenBeneficiaryNameDoesNotMatchAccountHolder() {
+		stubAccountsForInitiation();
+
+		assertThatThrownBy(() -> transactionService.initiateTransaction(
+			new CreateTransactionRequest("2000000002", "Wrong Name", new BigDecimal("1500.00"), "Test transfer", false, null)
+		))
+			.isInstanceOf(IllegalArgumentException.class)
+			.hasMessageContaining("does not match the registered account holder");
 	}
 
 	@Test
