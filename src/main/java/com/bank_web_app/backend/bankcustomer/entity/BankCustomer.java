@@ -54,6 +54,10 @@ public class BankCustomer {
 	@Column(name = "access_status", nullable = false, length = 20)
 	private String accessStatus;
 
+	/** Replacement activation links issued after the original onboarding invitation. */
+	@Column(name = "activation_resend_count", nullable = false)
+	private int activationResendCount;
+
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private LocalDateTime createdAt;
 

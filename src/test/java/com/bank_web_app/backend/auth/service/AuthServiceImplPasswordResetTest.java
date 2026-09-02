@@ -1,12 +1,24 @@
 package com.bank_web_app.backend.auth.service;
 
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import org.mockito.Mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.bank_web_app.backend.auth.dto.request.ForgotPasswordRequest;
 import com.bank_web_app.backend.auth.dto.request.LoginRequest;
@@ -16,25 +28,15 @@ import com.bank_web_app.backend.auth.dto.response.AuthActionResponse;
 import com.bank_web_app.backend.auth.entity.PasswordResetToken;
 import com.bank_web_app.backend.auth.repository.PasswordResetTokenRepository;
 import com.bank_web_app.backend.auth.repository.RefreshTokenRepository;
+import com.bank_web_app.backend.bankcustomer.entity.BankCustomer;
 import com.bank_web_app.backend.bankcustomer.repository.BankCustomerRepository;
 import com.bank_web_app.backend.bankofficer.repository.BankOfficerRepository;
 import com.bank_web_app.backend.common.email.EmailService;
 import com.bank_web_app.backend.publiccustomer.repository.PublicCustomerProfileRepository;
 import com.bank_web_app.backend.security.jwt.JwtService;
-import com.bank_web_app.backend.user.entity.User;
 import com.bank_web_app.backend.user.entity.Role;
+import com.bank_web_app.backend.user.entity.User;
 import com.bank_web_app.backend.user.repository.UserRepository;
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Optional;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.web.server.ResponseStatusException;
 
 @ExtendWith(MockitoExtension.class)
 class AuthServiceImplPasswordResetTest {
@@ -68,7 +70,8 @@ class AuthServiceImplPasswordResetTest {
 			1_209_600_000L,
 			10,
 			15,
-			60
+			60,
+			"http://localhost:3000/reset-password"
 		);
 	}
 
@@ -196,5 +199,27 @@ class AuthServiceImplPasswordResetTest {
 		token.setOtpExpiresAt(expiresAt);
 		token.setFailedAttempts(0);
 		return token;
+	}
+
+	@Test
+	void sendsReplacementActivationLinkForPendingCustomer() {
+		User user = activeUser();
+		user.setStatus("PENDING_ACTIVATION");
+		BankCustomer customer = new BankCustomer();
+		customer.setUser(user);
+		when(userRepository.findByUsernameIgnoreCase(user.getUsername())).thenReturn(Optional.of(user));
+		when(bankCustomerRepository.findByUser_UserId(user.getUserId())).thenReturn(Optional.of(customer));
+		when(passwordResetTokenRepository.findAllByUser_UserIdAndConsumedAtIsNullOrderByCreatedAtDesc(user.getUserId())).thenReturn(List.of());
+
+		AuthActionResponse response = authService.forgotPassword(new ForgotPasswordRequest(user.getUsername()));
+
+		verify(emailService).sendPlainText(eq(user.getEmail()), anyString(), anyString());
+		assertThat(customer.getActivationResendCount()).isEqualTo(1);
+		assertThat(response.message()).contains("three replacement links");
+	}
+
+	private void stubEmailLookup(User user) {
+		when(userRepository.findByUsernameIgnoreCase(user.getEmail())).thenReturn(Optional.empty());
+		when(userRepository.findAllByEmailIgnoreCaseOrderByUserIdAsc(user.getEmail())).thenReturn(List.of(user));
 	}
 }

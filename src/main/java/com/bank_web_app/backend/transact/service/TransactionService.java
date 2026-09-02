@@ -6,6 +6,9 @@ import com.bank_web_app.backend.bankcustomer.repository.AccountRepository;
 import com.bank_web_app.backend.bankcustomer.repository.BankCustomerRepository;
 import com.bank_web_app.backend.common.email.EmailDeliveryException;
 import com.bank_web_app.backend.common.email.EmailService;
+
+import com.bank_web_app.backend.notification.event.NotificationEventPublisher;
+import com.bank_web_app.backend.notification.event.NotificationEventType;
 import com.bank_web_app.backend.spendiq.service.ExpenseService;
 import com.bank_web_app.backend.transact.dto.request.CreateBeneficiaryRequest;
 import com.bank_web_app.backend.transact.dto.request.CreateTransactionRequest;
@@ -80,6 +83,7 @@ public class TransactionService {
 	private final PasswordEncoder passwordEncoder;
 	private final EmailService emailService;
 	private final ExpenseService expenseService;
+	private final NotificationEventPublisher notificationEventPublisher;
 	private final SecureRandom secureRandom;
 	private final boolean otpEmailFailOpenEnabled;
 	private final boolean otpPlainLogEnabled;
@@ -96,6 +100,7 @@ public class TransactionService {
 		PasswordEncoder passwordEncoder,
 		EmailService emailService,
 		ExpenseService expenseService,
+		NotificationEventPublisher notificationEventPublisher,
 		@Value("${app.transact.otp.fail-open-enabled:true}") boolean otpEmailFailOpenEnabled,
 		@Value("${app.transact.otp.log-plain-enabled:true}") boolean otpPlainLogEnabled,
 		@Value("${app.transact.otp.override-recipient-email:}") String otpOverrideRecipientEmail
@@ -109,6 +114,7 @@ public class TransactionService {
 		this.passwordEncoder = passwordEncoder;
 		this.emailService = emailService;
 		this.expenseService = expenseService;
+		this.notificationEventPublisher = notificationEventPublisher;
 		this.secureRandom = new SecureRandom();
 		this.otpEmailFailOpenEnabled = otpEmailFailOpenEnabled;
 		this.otpPlainLogEnabled = otpPlainLogEnabled;
@@ -844,6 +850,40 @@ public class TransactionService {
 	// Returns trimmed string or empty fallback.
 	private String safeText(String value) {
 		return value == null ? "" : value.trim();
+	}
+
+	// An officer escalates a reviewed OTP-limit failure; admins are never alerted automatically.
+	@Transactional
+	public void escalateOtpLimitFailureToAdmin(String referenceNo, Long officerUserId) {
+		Transaction transaction = transactionRepository.findByReferenceNo(referenceNo.trim())
+			.orElseThrow(() -> new IllegalArgumentException("Transaction not found."));
+		if (!STATUS_FAILED.equals(transaction.getStatus()) || !safeText(transaction.getFailureReason()).contains("OTP verification failed after 3 incorrect attempts.")) {
+			throw new IllegalArgumentException("Only a transaction locked after three incorrect OTP attempts can be escalated.");
+		}
+		BankCustomer customer = transaction.getBankCustomer();
+		notificationEventPublisher.publish(
+			NotificationEventType.TRANSACTION_OTP_ATTEMPTS_EXCEEDED,
+			null,
+			officerUserId,
+			transaction.getTransactionId(),
+			Map.of(
+				"customerUserId", String.valueOf(customer.getUser().getUserId()),
+				"customerId", safeText(customer.getCustomerCode()),
+				"customerName", customerDisplayName(customer),
+				"referenceNo", safeText(transaction.getReferenceNo()),
+				"accountNumber", maskedAccountSuffix(transaction.getSenderAccountNo()),
+				"attemptCount", "3"
+			)
+		);
+	}
+
+	private String customerDisplayName(BankCustomer customer) {
+		return customer == null ? "Bank customer" : resolveDisplayName(customer.getUser());
+	}
+
+	private String maskedAccountSuffix(String accountNumber) {
+		String normalized = normalizeAccountNumber(accountNumber);
+		return normalized.length() <= 4 ? normalized : "••••" + normalized.substring(normalized.length() - 4);
 	}
 
 	// Normalizes account number by removing internal spaces.
