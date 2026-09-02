@@ -241,6 +241,9 @@ String username = ROLE_BANK_CUSTOMER.equals(roleName) && requestedUsername.isBla
 String email = request.email().trim().toLowerCase(Locale.ROOT);
 String nic = request.nic().trim();
 String phone = request.mobile().trim();
+LocalDate dateOfBirth = ROLE_PUBLIC_CUSTOMER.equals(roleName)
+	? SriLankanNicDateOfBirthResolver.resolve(nic)
+	: parseOptionalDob(request.dob());
 validateUniqueness(username, email, nic, phone, roleName);
 
 User user = new User();
@@ -253,7 +256,7 @@ user.setFirstName(request.firstName().trim());
 user.setLastName(request.lastName().trim());
 user.setPhone(phone);
 user.setNic(nic);
-user.setDob(parseOptionalDob(request.dob()));
+user.setDob(dateOfBirth);
 user.setProvince(request.province().trim());
 user.setAddress(safeTrim(request.address()));
 user.setStatus(ROLE_BANK_CUSTOMER.equals(roleName) ? "PENDING_ACTIVATION" : STATUS_ACTIVE);
