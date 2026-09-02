@@ -1,7 +1,7 @@
 package com.bank_web_app.backend.admin.service;
 import java.security.SecureRandom;
 import java.time.LocalDate;
-import java.time.format.DateTimeParseException;
+import java.time.ZoneId;
 import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
@@ -18,6 +18,7 @@ import com.bank_web_app.backend.admin.dto.request.AdminBankOfficerUpdateRequest;
 import com.bank_web_app.backend.admin.dto.request.AdminBankOfficerCreateRequest;
 import com.bank_web_app.backend.admin.dto.response.AdminBankOfficerSummaryResponse;
 import com.bank_web_app.backend.common.exception.DuplicateFieldsException;
+import com.bank_web_app.backend.common.identity.SriLankanNicDateOfBirth;
 import com.bank_web_app.backend.admin.entity.Branch;
 import com.bank_web_app.backend.admin.repository.BranchRepository;
 import com.bank_web_app.backend.auth.repository.PasswordResetTokenRepository;
@@ -52,6 +53,7 @@ public class AdminBankOfficerService {
 	private static final int USERNAME_SUFFIX_LENGTH = 3;
 	private static final int USERNAME_ATTEMPT_LIMIT = 300;
 	private static final Pattern BANK_OFFICER_EMAIL_REGEX = Pattern.compile("^[A-Za-z0-9._%+-]+@gmail\\.com$", Pattern.CASE_INSENSITIVE);
+	private static final ZoneId SRI_LANKA_TIME_ZONE = ZoneId.of("Asia/Colombo");
 	private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
 	private final BankOfficerRepository bankOfficerRepository;
@@ -104,7 +106,7 @@ public class AdminBankOfficerService {
 	// Creates a new entity from validated request data.
 	@Transactional
 	public UserRegistrationStepResponse create(AdminBankOfficerCreateRequest request) {
-		validateCreateRequest(request);
+		LocalDate dateOfBirth = validateCreateRequest(request);
 		Role role = roleRepository.findByRoleName(ROLE_BANK_OFFICER)
 			.orElseThrow(() -> new IllegalStateException("Role BANK_OFFICER not found."));
 		Branch branch = branchRepository.findById(request.branchId())
@@ -118,7 +120,7 @@ public class AdminBankOfficerService {
 		user.setFirstName(safe(request.firstName()));
 		user.setLastName(safe(request.lastName()));
 		user.setNic(safe(request.nic()));
-		user.setDob(parseDob(request.dob()));
+		user.setDob(dateOfBirth);
 		user.setEmail(safe(request.email()).toLowerCase(Locale.ROOT));
 		user.setPhone(safe(request.mobile()));
 		user.setProvince(safe(request.province()));
@@ -391,18 +393,26 @@ public class AdminBankOfficerService {
 		return value == null ? "" : value.trim();
 	}
 
-	private void validateCreateRequest(AdminBankOfficerCreateRequest request) {
+	private LocalDate validateCreateRequest(AdminBankOfficerCreateRequest request) {
 		if (request == null) throw new IllegalArgumentException("Request body is required.");
 		String username = safe(request.username());
 		String email = safe(request.email()).toLowerCase(Locale.ROOT);
 		String nic = safe(request.nic());
 		String phone = safe(request.mobile());
 		if (!BANK_OFFICER_EMAIL_REGEX.matcher(email).matches()) throw new IllegalArgumentException("Email must be in the format name@gmail.com.");
-		try { LocalDate.parse(safe(request.dob())); } catch (DateTimeParseException ex) { throw new IllegalArgumentException("Date of birth must use yyyy-MM-dd format."); }
+		LocalDate dateOfBirth = SriLankanNicDateOfBirth.parse(nic)
+			.orElseThrow(() -> new IllegalArgumentException("NIC contains an invalid date of birth."));
+		if (!dateOfBirth.toString().equals(safe(request.dob()))) {
+			throw new IllegalArgumentException("Date of birth must match the value derived from NIC.");
+		}
+		if (dateOfBirth.plusYears(18).isAfter(LocalDate.now(SRI_LANKA_TIME_ZONE))) {
+			throw new IllegalArgumentException("Bank officer must be at least 18 years old.");
+		}
 		if (userRepository.existsByUsername(username)) throw new DuplicateFieldsException(Map.of("username", "Username is already in use."));
 		if (userRepository.existsByNic(nic)) throw new DuplicateFieldsException(Map.of("nic", "NIC is already in use."));
 		if (userRepository.existsByEmailIgnoreCaseAndRole_RoleName(email, ROLE_BANK_OFFICER)) throw new DuplicateFieldsException(Map.of("email", "Email is already in use."));
 		if (userRepository.existsByPhoneAndRole_RoleNameIn(phone, List.of(ROLE_BANK_OFFICER))) throw new DuplicateFieldsException(Map.of("mobile", "Contact number is already in use."));
+		return dateOfBirth;
 	}
 
 	private String generateSecret() {
@@ -418,11 +428,4 @@ public class AdminBankOfficerService {
 		return code;
 	}
 
-	private LocalDate parseDob(String value) {
-		try {
-			return LocalDate.parse(safe(value));
-		} catch (DateTimeParseException exception) {
-			throw new IllegalArgumentException("Date of birth must use yyyy-MM-dd format.");
-		}
-	}
 }
