@@ -20,6 +20,7 @@ import com.bank_web_app.backend.admin.dto.response.AdminBankOfficerSummaryRespon
 import com.bank_web_app.backend.common.exception.DuplicateFieldsException;
 import com.bank_web_app.backend.admin.entity.Branch;
 import com.bank_web_app.backend.admin.repository.BranchRepository;
+import com.bank_web_app.backend.auth.repository.PasswordResetTokenRepository;
 import com.bank_web_app.backend.auth.repository.RefreshTokenRepository;
 import com.bank_web_app.backend.auth.service.OfficerActivationService;
 import com.bank_web_app.backend.bankcustomer.repository.BankCustomerFinancialRecordRepository;
@@ -56,6 +57,7 @@ public class AdminBankOfficerService {
 	private final BankOfficerRepository bankOfficerRepository;
 	private final BranchRepository branchRepository;
 	private final UserRepository userRepository;
+	private final PasswordResetTokenRepository passwordResetTokenRepository;
 	private final RefreshTokenRepository refreshTokenRepository;
 	private final NotificationRepository notificationRepository;
 	private final BankCustomerRepository bankCustomerRepository;
@@ -71,6 +73,7 @@ public class AdminBankOfficerService {
 		BankOfficerRepository bankOfficerRepository,
 		BranchRepository branchRepository,
 		UserRepository userRepository,
+		PasswordResetTokenRepository passwordResetTokenRepository,
 		RefreshTokenRepository refreshTokenRepository,
 		NotificationRepository notificationRepository,
 		BankCustomerRepository bankCustomerRepository,
@@ -85,6 +88,7 @@ public class AdminBankOfficerService {
 		this.bankOfficerRepository = bankOfficerRepository;
 		this.branchRepository = branchRepository;
 		this.userRepository = userRepository;
+		this.passwordResetTokenRepository = passwordResetTokenRepository;
 		this.refreshTokenRepository = refreshTokenRepository;
 		this.notificationRepository = notificationRepository;
 		this.bankCustomerRepository = bankCustomerRepository;
@@ -303,6 +307,7 @@ public class AdminBankOfficerService {
 
 		AdminBankOfficerSummaryResponse response = toResponse(officer);
 		User user = officer.getUser();
+		passwordResetTokenRepository.deleteByUser_UserId(userId);
 		bankOfficerRepository.delete(officer);
 		auditLogService.detachActorForDeletedUser(userId);
 		notificationRepository.deleteByRecipient_UserId(userId);
