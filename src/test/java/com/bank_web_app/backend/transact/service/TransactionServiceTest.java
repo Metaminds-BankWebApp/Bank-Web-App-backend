@@ -13,6 +13,7 @@ import com.bank_web_app.backend.bankcustomer.entity.BankCustomer;
 import com.bank_web_app.backend.bankcustomer.repository.AccountRepository;
 import com.bank_web_app.backend.bankcustomer.repository.BankCustomerRepository;
 import com.bank_web_app.backend.common.email.EmailService;
+import com.bank_web_app.backend.notification.event.NotificationEventPublisher;
 import com.bank_web_app.backend.spendiq.service.ExpenseService;
 import com.bank_web_app.backend.transact.dto.request.CreateTransactionRequest;
 import com.bank_web_app.backend.transact.dto.request.VerifyTransactionOtpRequest;
@@ -53,6 +54,7 @@ class TransactionServiceTest {
 	@Mock private PasswordEncoder passwordEncoder;
 	@Mock private EmailService emailService;
 	@Mock private ExpenseService expenseService;
+	@Mock private NotificationEventPublisher notificationEventPublisher;
 
 	private TransactionService transactionService;
 	private BankCustomer customer;
@@ -71,6 +73,7 @@ class TransactionServiceTest {
 			passwordEncoder,
 			emailService,
 			expenseService,
+			notificationEventPublisher,
 			true,
 			false,
 			""
