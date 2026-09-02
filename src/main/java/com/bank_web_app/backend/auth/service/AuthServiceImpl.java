@@ -59,6 +59,9 @@ public class AuthServiceImpl implements AuthService {
 	private static final String PASSWORD_RESET_REQUEST_MESSAGE =
 		"If an active account matches those details, a verification code has been sent to its registered email address.";
 	private static final String INVALID_RESET_OTP_MESSAGE = "Invalid, expired, or locked verification code.";
+	private static final String WRONG_RESET_OTP_MESSAGE = "Incorrect verification code. Please try again.";
+	private static final String LOCKED_RESET_OTP_MESSAGE =
+		"Too many incorrect attempts. This code has been locked - please request a new one sent to your email.";
 	private static final String INVALID_RESET_SESSION_MESSAGE = "This password-reset session is invalid or has expired. Request a new code.";
 
 	private final UserRepository userRepository;
@@ -292,11 +295,12 @@ public class AuthServiceImpl implements AuthService {
 
 		if (!passwordEncoder.matches(request.otp().trim(), token.getOtpHash())) {
 			token.setFailedAttempts(token.getFailedAttempts() + 1);
-			if (token.getFailedAttempts() >= PASSWORD_RESET_MAX_ATTEMPTS) {
+			boolean justLocked = token.getFailedAttempts() >= PASSWORD_RESET_MAX_ATTEMPTS;
+			if (justLocked) {
 				token.setConsumedAt(now);
 			}
 			passwordResetTokenRepository.save(token);
-			throw invalidPasswordResetOtp();
+			throw justLocked ? lockedPasswordResetOtp() : wrongPasswordResetOtp();
 		}
 
 		String rawResetToken = generateResetToken();
@@ -534,6 +538,14 @@ public class AuthServiceImpl implements AuthService {
 
 	private ResponseStatusException invalidPasswordResetOtp() {
 		return new ResponseStatusException(HttpStatus.BAD_REQUEST, INVALID_RESET_OTP_MESSAGE);
+	}
+
+	private ResponseStatusException wrongPasswordResetOtp() {
+		return new ResponseStatusException(HttpStatus.BAD_REQUEST, WRONG_RESET_OTP_MESSAGE);
+	}
+
+	private ResponseStatusException lockedPasswordResetOtp() {
+		return new ResponseStatusException(HttpStatus.BAD_REQUEST, LOCKED_RESET_OTP_MESSAGE);
 	}
 
 	private ResponseStatusException invalidPasswordResetSession() {
