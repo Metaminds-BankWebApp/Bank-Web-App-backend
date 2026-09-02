@@ -1,8 +1,16 @@
 package com.bank_web_app.backend.creditlens.service;
 
-import static com.bank_web_app.backend.creditlens.service.CreditEvaluationText.normalizeText;
-import static com.bank_web_app.backend.creditlens.service.CreditEvaluationText.safe;
-import static com.bank_web_app.backend.creditlens.service.CreditEvaluationText.toTitleCase;
+import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.bank_web_app.backend.bankcustomer.entity.BankCustomer;
 import com.bank_web_app.backend.bankcustomer.entity.BankCustomerFinancialRecord;
@@ -14,11 +22,11 @@ import com.bank_web_app.backend.creditlens.dto.response.BankCreditAnalysisCustom
 import com.bank_web_app.backend.creditlens.dto.response.BankCreditAnalysisDashboardResponse;
 import com.bank_web_app.backend.creditlens.dto.response.BankCreditEvaluationResponse;
 import com.bank_web_app.backend.creditlens.dto.response.BankCreditEvaluationSummaryResponse;
-import com.bank_web_app.backend.creditlens.dto.response.OfficerCreditHistoryItemResponse;
 import com.bank_web_app.backend.creditlens.dto.response.CreditDashboardResponse;
 import com.bank_web_app.backend.creditlens.dto.response.CreditInsightsResponse;
 import com.bank_web_app.backend.creditlens.dto.response.CreditReportResponse;
 import com.bank_web_app.backend.creditlens.dto.response.CreditTrendResponse;
+import com.bank_web_app.backend.creditlens.dto.response.OfficerCreditHistoryItemResponse;
 import com.bank_web_app.backend.creditlens.dto.response.SelfCreditEvaluationResponse;
 import com.bank_web_app.backend.creditlens.dto.response.SelfCreditEvaluationSummaryResponse;
 import com.bank_web_app.backend.creditlens.entity.BankCreditEvaluation;
@@ -26,22 +34,14 @@ import com.bank_web_app.backend.creditlens.entity.SelfCreditEvaluation;
 import com.bank_web_app.backend.creditlens.mapper.CreditEvaluationMapper;
 import com.bank_web_app.backend.creditlens.repository.BankCreditEvaluationRepository;
 import com.bank_web_app.backend.creditlens.repository.SelfCreditEvaluationRepository;
+import static com.bank_web_app.backend.creditlens.service.CreditEvaluationText.normalizeText;
+import static com.bank_web_app.backend.creditlens.service.CreditEvaluationText.safe;
+import static com.bank_web_app.backend.creditlens.service.CreditEvaluationText.toTitleCase;
 import com.bank_web_app.backend.notification.event.NotificationEventPublisher;
 import com.bank_web_app.backend.notification.event.NotificationEventType;
 import com.bank_web_app.backend.publiccustomer.entity.PublicCustomerFinancialRecord;
 import com.bank_web_app.backend.publiccustomer.entity.PublicCustomerProfile;
 import com.bank_web_app.backend.user.entity.User;
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import org.springframework.http.HttpStatus;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 
 /**
  * Controller-facing CreditLens orchestration service.
