@@ -2,7 +2,7 @@ package com.bank_web_app.backend.bankcustomer.dto.request;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
@@ -22,11 +22,11 @@ public record BankCustomerLoanStepRequest(
 		String loanType,
 		@Schema(description = "Monthly EMI value", example = "42500.00", requiredMode = Schema.RequiredMode.REQUIRED)
 		@NotNull(message = "Monthly EMI is required.")
-		@Min(value = 0, message = "Monthly EMI cannot be negative.")
+		@DecimalMin(value = "1.00", message = "Monthly EMI must be at least 1.")
 		BigDecimal monthlyEmi,
 		@Schema(description = "Remaining outstanding loan balance", example = "3200000.00", requiredMode = Schema.RequiredMode.REQUIRED)
 		@NotNull(message = "Remaining balance is required.")
-		@Min(value = 0, message = "Remaining balance cannot be negative.")
+		@DecimalMin(value = "1.00", message = "Remaining balance must be at least 1.")
 		BigDecimal remainingBalance
 	) {
 	}

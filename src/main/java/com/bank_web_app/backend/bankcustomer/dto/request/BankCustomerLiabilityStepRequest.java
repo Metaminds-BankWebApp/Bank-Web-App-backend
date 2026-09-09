@@ -2,6 +2,7 @@ package com.bank_web_app.backend.bankcustomer.dto.request;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -25,7 +26,7 @@ public record BankCustomerLiabilityStepRequest(
 		String description,
 		@Schema(description = "Monthly liability amount", example = "15000.00", requiredMode = Schema.RequiredMode.REQUIRED)
 		@NotNull(message = "Monthly amount is required.")
-		@Min(value = 0, message = "Monthly amount cannot be negative.")
+		@DecimalMin(value = "1.00", message = "Monthly amount must be at least 1.")
 		BigDecimal monthlyAmount
 	) {
 	}
