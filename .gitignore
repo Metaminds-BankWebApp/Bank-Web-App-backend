@@ -39,7 +39,12 @@ build/
 
 ### Local App Config ###
 .DS_Store
-src/.DS_Store
+Thumbs.db
+
+### Local Build Cache and Generated Files ###
+/.m2/
+/tmp-sb-*.log
+/output/pdf/creditlens-report-preview.pdf
 
 ### Local Uploads ###
 uploads/profile-images/
