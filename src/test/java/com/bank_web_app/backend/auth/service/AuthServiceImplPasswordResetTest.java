@@ -68,7 +68,8 @@ class AuthServiceImplPasswordResetTest {
 			1_209_600_000L,
 			10,
 			15,
-			60
+			60,
+			"http://localhost:3000/reset-password"
 		);
 	}
 
